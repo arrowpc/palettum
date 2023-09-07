@@ -17,7 +17,7 @@ private:
     Mat image_;
     vector<Scalar> palette_;
     vector<Vec3b> lab_palette_;
-    std::atomic<bool>& foundMismatch_;
+    //    std::atomic<bool>& foundMismatch_;
 
     inline double fastPow(double a, double b)
     {
@@ -38,8 +38,8 @@ private:
         return M_PI_4 * x - x * (fabs(x) - 1) * (0.2447 + 0.0663 * fabs(x));
     }
     double deltaE(const Vec3f &lab1, const Vec3f &lab2);
-    void mapToPalette(const int startRow, const int endRow,
-                              const Mat &img_lab, Mat &result);
+    void mapToPalette(const int startRow, const int endRow, const Mat &img_lab,
+                      Mat &result);
     bool isColorInPalette(const Vec3b &color);
 
 public:

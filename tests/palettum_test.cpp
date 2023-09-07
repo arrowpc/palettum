@@ -26,4 +26,7 @@ TEST(Image, jpeg)
     Mat result = test.convertToPalette();
     int normValue = cv::norm(result, original, cv::NORM_L2);
     EXPECT_EQ(normValue, 0);
+
+    bool valid = test.validateImageColors();
+    EXPECT_EQ(valid, 0);
 }

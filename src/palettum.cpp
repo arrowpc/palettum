@@ -1,6 +1,8 @@
 #include "palettum.h"
 Palettum::Palettum(Mat &image, const vector<Scalar> &palette)
 {
+    image_ = image;
+    palette_ = palette;
 }
 double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
 {

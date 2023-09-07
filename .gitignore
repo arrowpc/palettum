@@ -1,0 +1,8 @@
+.git
+.idea
+.vscode
+cmake-build-release
+run_clang-format.sh
+.DS_Store
+**/.DS_Store
+build

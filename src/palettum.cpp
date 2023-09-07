@@ -66,3 +66,108 @@ double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
     return std::sqrt(lightness * lightness + chroma * chroma + hue * hue +
                      rT * chroma * hue);
 }
+void Palettum::mapToPalette(const int startRow, const int endRow,
+                            const Mat &img_lab,
+                            const std::vector<cv::Vec3b> &lab_palette,
+                            Mat &result)
+{
+    for (int y = startRow; y < endRow; y++)
+    {
+        const auto *imgPtr = img_lab.ptr<cv::Vec3b>(y);
+        auto *resultPtr = result.ptr<cv::Vec3b>(y);
+
+        for (int x = 0; x < img_lab.cols; x++)
+        {
+            const cv::Vec3b &pixel = imgPtr[x];
+
+            double min_diff = std::numeric_limits<double>::max();
+            int best_match_idx1 = 0;
+
+            for (int i = 0; i < lab_palette.size(); i++)
+            {
+                double diff = deltaE(pixel, lab_palette[i]);
+
+                if (diff < min_diff)
+                {
+                    min_diff = diff;
+                    best_match_idx1 = i;
+                }
+            }
+
+            resultPtr[x] = cv::Vec3b(palette_[best_match_idx1][0],
+                                     palette_[best_match_idx1][1],
+                                     palette_[best_match_idx1][2]);
+        }
+    }
+}
+Mat Palettum::convertToPalette()
+{
+    Mat img_lab;
+    cvtColor(image_, img_lab, COLOR_BGR2Lab);
+
+    std::vector<cv::Vec3b> constants_lab(palette_.size());
+    for (size_t i = 0; i < palette_.size(); i++)
+    {
+        Mat rgb(1, 1, CV_8UC3,
+                cv::Scalar(palette_[i][0], palette_[i][1], palette_[i][2]));
+        Mat lab;
+        cvtColor(rgb, lab, COLOR_BGR2Lab);
+        constants_lab[i] = lab.at<cv::Vec3b>(0, 0);
+    }
+
+    Mat result(image_.size(), image_.type());
+    cv::parallel_for_(Range(0, image_.rows), [&](const Range &range) {
+        mapToPalette(range.start, range.end, img_lab, constants_lab, result);
+    });
+
+    return result;
+}
+
+bool isColorInPalette(const cv::Vec3b &color,
+                      const std::vector<cv::Scalar> &palette)
+{
+    for (const auto &paletteColor : palette)
+    {
+        if (color[0] == paletteColor[0] && color[1] == paletteColor[1] &&
+            color[2] == paletteColor[2])
+        {
+            return true;
+        }
+    }
+    return false;
+}
+bool Palettum::isColorInPalette(const Vec3b &color)
+{
+    for (const auto &paletteColor : palette_)
+    {
+        if (color[0] == paletteColor[0] && color[1] == paletteColor[1] &&
+            color[2] == paletteColor[2])
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Palettum::validateImageColors()
+{
+    std::atomic<bool> foundMismatch(false);
+
+    auto parallelValidator = [this, &foundMismatch](const cv::Range &range) {
+        for (int y = range.start; y < range.end; y++)
+        {
+            for (int x = 0; x < image_.cols; x++)
+            {
+                if (!isColorInPalette(image_.at<cv::Vec3b>(y, x)))
+                {
+                    foundMismatch.store(true);
+                    return;
+                }
+            }
+        }
+    };
+
+    cv::parallel_for_(cv::Range(0, image_.rows), parallelValidator);
+
+    return !foundMismatch.load();
+}

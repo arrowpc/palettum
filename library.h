@@ -1,6 +1,0 @@
-#ifndef PALETTUM_CORE_LIBRARY_H
-#define PALETTUM_CORE_LIBRARY_H
-
-void hello();
-
-#endif//PALETTUM_CORE_LIBRARY_H

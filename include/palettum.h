@@ -6,9 +6,13 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+#include <pybind11/numpy.h>
 
 using namespace cv;
 using namespace std;
+namespace py = pybind11;
 
 class Palettum
 {
@@ -79,9 +83,9 @@ private:
     bool isColorInPalette(const Vec3b &color);
 
 public:
-    Palettum(Mat &image, const vector<Scalar> &palette);
+    Palettum(py::array_t<uint8_t> &image, const py::list &palette);
     static double deltaE(const Vec3f &lab1, const Vec3f &lab2);
-    Mat convertToPalette();
+    py::array_t<uint8_t> convertToPalette();
     bool validateImageColors();
 };
 

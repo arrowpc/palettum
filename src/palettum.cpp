@@ -1,8 +1,22 @@
 #include "palettum.h"
-Palettum::Palettum(Mat &image, const vector<Scalar> &palette)
+
+namespace py = pybind11;
+
+Palettum::Palettum(py::array_t<uint8_t> &image,
+                   const py::list &palette)
 {
-    image_ = image;
-    palette_ = palette;
+    py::buffer_info buf = image.request();
+    cv::Mat mat(buf.shape[0], buf.shape[1], CV_8UC3, (unsigned char *)buf.ptr);
+
+    image_ = mat;
+    palette_.reserve(py::len(palette));
+
+    for (const auto &color : palette)
+    {
+        py::list l = color.cast<py::list>();
+        cv::Scalar c(l[0].cast<int>(), l[1].cast<int>(), l[2].cast<int>());
+        palette_.push_back(c);
+    }
 }
 double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
 {
@@ -102,7 +116,7 @@ void Palettum::mapToPalette(const int startRow, const int endRow,
         }
     }
 }
-Mat Palettum::convertToPalette()
+py::array_t<uint8_t> Palettum::convertToPalette()
 {
     Mat img_lab;
     cvtColor(image_, img_lab, COLOR_BGR2Lab);
@@ -122,7 +136,19 @@ Mat Palettum::convertToPalette()
         mapToPalette(range.start, range.end, img_lab, constants_lab, result);
     });
 
-    return result;
+
+    auto rows = image_.rows;
+    auto cols = image_.cols;
+    py::array_t<uint8_t> convertedResult(py::buffer_info(
+        result.data,
+        sizeof(uint8_t),  //itemsize
+        py::format_descriptor<uint8_t>::format(),
+        3,                                   // ndim
+        std::vector<size_t>{static_cast<unsigned long>(rows), static_cast<unsigned long>(cols), 3},  // shape
+        std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
+                            sizeof(uint8_t)}  // strides
+        ));
+    return convertedResult;
 }
 
 bool isColorInPalette(const cv::Vec3b &color,

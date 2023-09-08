@@ -15,8 +15,6 @@ class Palettum
 private:
     Mat image_;
     vector<Scalar> palette_;
-    //    vector<Vec3b> lab_palette_;
-    //    std::atomic<bool>& foundMismatch_;
 
     static double fastPow(double a, double b)
     {
@@ -43,24 +41,17 @@ private:
             if (y >= 0)
             {
                 if (y < x)
-                {
                     return FastAtan(y / x);
-                }
                 else
-                {
                     return M_PI_2 - FastAtan(x / y);
-                }
             }
             else
             {
                 if (-y < x)
-                {
                     return FastAtan(y / x);
-                }
+
                 else
-                {
                     return -M_PI_2 - FastAtan(x / y);
-                }
             }
         }
         else
@@ -68,24 +59,18 @@ private:
             if (y >= 0)
             {
                 if (y < -x)
-                {
                     return FastAtan(y / x) + M_PI;
-                }
+
                 else
-                {
                     return M_PI_2 - FastAtan(x / y);
-                }
             }
             else
             {
                 if (-y < -x)
-                {
                     return FastAtan(y / x) - M_PI;
-                }
+
                 else
-                {
                     return -M_PI_2 - FastAtan(x / y);
-                }
             }
         }
     }

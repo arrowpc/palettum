@@ -1,6 +1,7 @@
 .git
 .idea
 .vscode
+.eggs
 cmake-build-release
 cmake-build-debug
 run_clang-format.sh

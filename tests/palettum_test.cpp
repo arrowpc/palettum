@@ -33,7 +33,6 @@ TEST(Image, jpeg)
         {73, 58, 193},  {106, 92, 255},  {129, 30, 159},  {180, 74, 192},
         {255, 56, 129}, {255, 153, 170}, {109, 72, 47},   {156, 105, 38},
         {0, 0, 0},      {137, 141, 144}, {212, 215, 217}, {255, 255, 255}};
-
     py::list palette_py = py::cast(palette);
 
     auto test = Palettum(convertedImg, palette_py);
@@ -43,10 +42,14 @@ TEST(Image, jpeg)
     cv::Mat result(result_buf_info.shape[0], result_buf_info.shape[1], CV_8UC3,
                    result_buf_info.ptr);
 
-    cv::Mat original = cv::imread("../test_images/test.png", cv::IMREAD_COLOR);
+    cv::Mat original =
+        cv::imread("../test_images/test_estimate.png", cv::IMREAD_COLOR);
+    int originalDiff = cv::norm(result, original, cv::NORM_L1);
+    EXPECT_EQ(originalDiff, 0);
 
-    int normValue = cv::norm(result, original, cv::NORM_L2);
-    EXPECT_EQ(normValue, 0);
+    cv::Mat different = cv::imread("../test_images/test.png", cv::IMREAD_COLOR);
+    int differentDiff = cv::norm(result, different, cv::NORM_L1);
+    EXPECT_NE(differentDiff, 0);
 
     bool valid = test.validateImageColors();
     EXPECT_EQ(valid, 0);

@@ -1,5 +1,5 @@
 add_library(palettum_core palettum.cpp)
-target_link_libraries(palettum_core pybind11::module ${OpenCV_LIBS})
+target_link_libraries(palettum_core pybind11::embed ${OpenCV_LIBS})
 target_include_directories(palettum_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 
 pybind11_add_module(py_palettum_core bindings.cpp)

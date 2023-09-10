@@ -19,7 +19,6 @@ TEST(Image, jpeg)
     auto rows = img.rows;
     auto cols = img.cols;
     Py_Initialize();
-    py::array_t<uint8_t> yo;
     py::array_t<uint8_t> convertedImg(py::buffer_info(
         img.data, sizeof(uint8_t), py::format_descriptor<uint8_t>::format(), 3,
         std::vector<size_t>{static_cast<unsigned long>(rows),

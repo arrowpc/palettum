@@ -39,7 +39,7 @@ TEST(Image, jpeg)
         result);
 
     cv::Mat original =
-        cv::imread("../test_images/test_estimate.png", cv::IMREAD_COLOR);
+        cv::imread("../test_images/test_accurate.png", cv::IMREAD_COLOR);
     if (original.empty())
     {
         FAIL() << "Failed to open test_estimate.png!";
@@ -54,6 +54,10 @@ TEST(Image, jpeg)
     }
     int differentDiff = cv::norm(result, different, cv::NORM_L1);
     EXPECT_NE(differentDiff, 0);
+
+    cv::imwrite(
+        "/home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png",
+        result);
 
     bool valid = test.validateImageColors();
     EXPECT_EQ(valid, 0);

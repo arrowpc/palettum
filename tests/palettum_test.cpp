@@ -39,7 +39,7 @@ TEST(Image, jpeg)
         result);
 
     cv::Mat original =
-        cv::imread("../test_images/test_accurate.png", cv::IMREAD_COLOR);
+        cv::imread("../test_images/test_estimate.png", cv::IMREAD_COLOR);
     if (original.empty())
     {
         FAIL() << "Failed to open test_estimate.png!";

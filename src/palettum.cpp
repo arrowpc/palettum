@@ -59,8 +59,8 @@ double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
         (FastAtan2(lab1[2], a1Prime) + 2 * M_PI) * 180.0 / M_PI;
     const double h2Prime =
         (FastAtan2(lab2[2], a2Prime) + 2 * M_PI) * 180.0 / M_PI;
-//        const double h1Prime = (atan2(lab1[2], a1Prime) + 2 * M_PI) * 180.0 / M_PI;
-//        const double h2Prime = (atan2(lab2[2], a2Prime) + 2 * M_PI) * 180.0 / M_PI;
+    //        const double h1Prime = (atan2(lab1[2], a1Prime) + 2 * M_PI) * 180.0 / M_PI;
+    //        const double h2Prime = (atan2(lab2[2], a2Prime) + 2 * M_PI) * 180.0 / M_PI;
 
     double deltaLPrime = lab2[0] - lab1[0];
     double deltaCPrime = c2Prime - c1Prime;

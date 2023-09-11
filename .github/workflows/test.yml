@@ -37,7 +37,7 @@ jobs:
 
       - name: Build project
         working-directory: build-test
-        run: make
+        run: make -j$(nproc)
 
       - name: Run tests
         working-directory: build-test

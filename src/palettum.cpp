@@ -2,8 +2,7 @@
 
 namespace py = pybind11;
 
-Palettum::Palettum(py::array_t<uint8_t> &image,
-                   const py::list &palette)
+Palettum::Palettum(py::array_t<uint8_t> &image, const py::list &palette)
 {
     py::buffer_info buf = image.request();
     cv::Mat mat(buf.shape[0], buf.shape[1], CV_8UC3, (unsigned char *)buf.ptr);
@@ -17,6 +16,30 @@ Palettum::Palettum(py::array_t<uint8_t> &image,
         cv::Scalar c(l[0].cast<int>(), l[1].cast<int>(), l[2].cast<int>());
         palette_.push_back(c);
     }
+}
+cv::Mat Palettum::pyToMat(py::array_t<uint8_t> &image)
+{
+    py::buffer_info buffer = image.request();
+    cv::Mat converted(buffer.shape[0], buffer.shape[1], CV_8UC3, buffer.ptr);
+
+    return converted;
+}
+py::array_t<uint8_t> Palettum::matToPy(Mat &image)
+{
+    auto rows = image.rows;
+    auto cols = image.cols;
+
+    Py_Initialize();
+
+    py::array_t<uint8_t> converted(py::buffer_info(
+        image.data, sizeof(uint8_t), py::format_descriptor<uint8_t>::format(),
+        3,
+        std::vector<size_t>{static_cast<unsigned long>(rows),
+                            static_cast<unsigned long>(cols), 3},  // shape
+        std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
+                            sizeof(uint8_t)}));
+
+    return converted;
 }
 double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
 {
@@ -136,15 +159,15 @@ py::array_t<uint8_t> Palettum::convertToPalette()
         mapToPalette(range.start, range.end, img_lab, constants_lab, result);
     });
 
-
     auto rows = image_.rows;
     auto cols = image_.cols;
     py::array_t<uint8_t> convertedResult(py::buffer_info(
         result.data,
         sizeof(uint8_t),  //itemsize
         py::format_descriptor<uint8_t>::format(),
-        3,                                   // ndim
-        std::vector<size_t>{static_cast<unsigned long>(rows), static_cast<unsigned long>(cols), 3},  // shape
+        3,  // ndim
+        std::vector<size_t>{static_cast<unsigned long>(rows),
+                            static_cast<unsigned long>(cols), 3},  // shape
         std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
                             sizeof(uint8_t)}  // strides
         ));

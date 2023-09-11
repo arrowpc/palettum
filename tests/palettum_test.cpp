@@ -15,16 +15,7 @@ TEST(DeltaE, 1)
 TEST(Image, jpeg)
 {
     cv::Mat img = cv::imread("../test_images/test.jpeg", cv::IMREAD_COLOR);
-
-    auto rows = img.rows;
-    auto cols = img.cols;
-    Py_Initialize();
-    py::array_t<uint8_t> convertedImg(py::buffer_info(
-        img.data, sizeof(uint8_t), py::format_descriptor<uint8_t>::format(), 3,
-        std::vector<size_t>{static_cast<unsigned long>(rows),
-                            static_cast<unsigned long>(cols), 3},  // shape
-        std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
-                            sizeof(uint8_t)}));
+    auto convertedImg = Palettum::matToPy(img);
 
     std::vector<std::array<int, 3>> palette = {
         {190, 0, 57},   {255, 69, 0},    {255, 168, 0},   {255, 214, 53},
@@ -38,9 +29,7 @@ TEST(Image, jpeg)
     auto test = Palettum(convertedImg, palette_py);
     py::array_t<uint8_t> resultArray = test.convertToPalette();
 
-    py::buffer_info result_buf_info = resultArray.request();
-    cv::Mat result(result_buf_info.shape[0], result_buf_info.shape[1], CV_8UC3,
-                   result_buf_info.ptr);
+    auto result = Palettum::pyToMat(resultArray);
 
     cv::Mat original =
         cv::imread("../test_images/test_estimate.png", cv::IMREAD_COLOR);

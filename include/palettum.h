@@ -2,13 +2,13 @@
 #ifndef PALETTUM_CORE_PALETTUM_H
 #define PALETTUM_CORE_PALETTUM_H
 
+#include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <cmath>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <vector>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-#include <pybind11/numpy.h>
 
 using namespace cv;
 using namespace std;
@@ -87,6 +87,8 @@ public:
     static double deltaE(const Vec3f &lab1, const Vec3f &lab2);
     py::array_t<uint8_t> convertToPalette();
     bool validateImageColors();
+    static cv::Mat pyToMat(py::array_t<uint8_t> &image);
+    static py::array_t<uint8_t> matToPy(cv::Mat &image);
 };
 
 #endif  //PALETTUM_CORE_PALETTUM_H

@@ -40,12 +40,11 @@ jobs:
         run: make
 
       - name: Run tests
-        continue-on-error: true
         working-directory: build-test
         run: ctest --output-on-failure
 
-      - name: Upload intermediate result
-        uses: actions/upload-artifact@v3
-        with:
-          name: intermediate-artifact
-          path: /home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png
+#      - name: Upload intermediate result
+#        uses: actions/upload-artifact@v3
+#        with:
+#          name: intermediate-artifact
+#          path: /home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png

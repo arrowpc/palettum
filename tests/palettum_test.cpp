@@ -34,9 +34,9 @@ TEST(Image, jpeg)
     py::array_t<uint8_t> resultArray = test.convertToPalette();
 
     auto result = Palettum::pyToMat(resultArray);
-    cv::imwrite(
-        "/home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png",
-        result);
+    //    cv::imwrite(
+    //        "/home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png",
+    //        result);
 
     cv::Mat original =
         cv::imread("../test_images/test_estimate.png", cv::IMREAD_COLOR);

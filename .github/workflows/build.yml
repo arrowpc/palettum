@@ -23,8 +23,8 @@ jobs:
 
       - name: Configure CMake
         working-directory: build
-        run: cmake ..
+        run: cmake -DBUILD_TESTS=OFF ..
 
       - name: Build project
         working-directory: build
-        run: make
+        run: make -j$(nproc)

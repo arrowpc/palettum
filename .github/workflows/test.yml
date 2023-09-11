@@ -23,7 +23,7 @@ jobs:
           cd opencv
           git checkout tags/4.8.0
           mkdir build && cd build
-          cmake ..
+          cmake -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF ..
           make -j$(nproc)
           sudo make install
           cd $GITHUB_WORKSPACE

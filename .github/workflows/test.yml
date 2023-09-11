@@ -18,7 +18,7 @@ jobs:
           cmake \
           libopencv-dev
 
-      - name: Set up python
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
@@ -42,3 +42,9 @@ jobs:
       - name: Run tests
         working-directory: build-test
         run: ctest --output-on-failure
+
+      - name: Upload intermediate result
+        uses: actions/upload-artifact@v3
+        with:
+          name: intermediate-artifact
+          path: /home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png

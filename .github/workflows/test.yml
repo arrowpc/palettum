@@ -15,8 +15,18 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get -y install \
-          cmake \
-          libopencv-dev
+          cmake
+
+      - name: Build and install OpenCV 4.8.0 from source
+        run: |
+          git clone https://github.com/opencv/opencv.git
+          cd opencv
+          git checkout tags/4.8.0
+          mkdir build && cd build
+          cmake ..
+          make -j$(nproc)
+          sudo make install
+          cd $GITHUB_WORKSPACE
 
       - name: Set up Python
         uses: actions/setup-python@v4

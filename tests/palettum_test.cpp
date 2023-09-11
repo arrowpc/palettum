@@ -15,6 +15,10 @@ TEST(DeltaE, 1)
 TEST(Image, jpeg)
 {
     cv::Mat img = cv::imread("../test_images/test.jpeg", cv::IMREAD_COLOR);
+    if (img.empty())
+    {
+        FAIL() << "Failed to open test.jpeg!";
+    }
     auto convertedImg = Palettum::matToPy(img);
 
     std::vector<std::array<int, 3>> palette = {
@@ -30,15 +34,30 @@ TEST(Image, jpeg)
     py::array_t<uint8_t> resultArray = test.convertToPalette();
 
     auto result = Palettum::pyToMat(resultArray);
+    //    cv::imwrite(
+    //        "/home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png",
+    //        result);
 
     cv::Mat original =
         cv::imread("../test_images/test_estimate.png", cv::IMREAD_COLOR);
+    if (original.empty())
+    {
+        FAIL() << "Failed to open test_estimate.png!";
+    }
     int originalDiff = cv::norm(result, original, cv::NORM_L1);
     EXPECT_EQ(originalDiff, 0);
 
     cv::Mat different = cv::imread("../test_images/test.png", cv::IMREAD_COLOR);
+    if (different.empty())
+    {
+        FAIL() << "Failed to open test.png!";
+    }
     int differentDiff = cv::norm(result, different, cv::NORM_L1);
     EXPECT_NE(differentDiff, 0);
+
+    cv::imwrite(
+        "/home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png",
+        result);
 
     bool valid = test.validateImageColors();
     EXPECT_EQ(valid, 0);

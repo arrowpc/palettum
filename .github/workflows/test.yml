@@ -15,26 +15,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get -y install \
-          cmake
-
-      - name: Load OpenCV from cache
-        id: opencv
-        uses: actions/cache@v3
-        with:
-          path: opencv-4.8.0
-          key: opencv-4.8.0
-
-      - name: Build and install OpenCV 4.8.0 from source
-        if: steps.opencv.outputs.cache-hit != 'true'
-        run: |
-          git clone https://github.com/opencv/opencv.git
-          cd opencv
-          git checkout tags/4.8.0
-          mkdir build && cd build
-          cmake -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF ..
-          make -j$(nproc)
-          sudo make install
-          cd $GITHUB_WORKSPACE
+          cmake \
+          libopencv-dev
 
       - name: Set up Python
         uses: actions/setup-python@v4

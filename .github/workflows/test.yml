@@ -31,4 +31,8 @@ jobs:
 
       - name: Run tests
         working-directory: build-test
-        run: ctest
+        run: ctest --output-on-failure
+
+      - name: Display test logs
+        if: failure()
+        run: cat /home/runner/work/Palettum-Core/Palettum-Core/build-test/Testing/Temporary/LastTest.log

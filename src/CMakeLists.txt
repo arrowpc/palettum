@@ -1,4 +1,5 @@
 add_library(palettum_core palettum.cpp)
+set_property(TARGET palettum_core PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(palettum_core pybind11::embed ${OpenCV_LIBS})
 target_include_directories(palettum_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../include)
 

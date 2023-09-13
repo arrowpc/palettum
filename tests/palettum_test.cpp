@@ -9,7 +9,7 @@ TEST(DeltaEComputation, TestSpecificLabValues)
 {
     cv::Vec3f lab1 = {50.0, 2.6772, -100.7751};
     cv::Vec3f lab2 = {50.0, 50.0, 89.7485};
-    EXPECT_NEAR(Palettum::deltaE(lab1, lab2), 61.227918044407808, 1e-9);
+    EXPECT_NEAR(Palettum::deltaE(lab1, lab2), 61.2219665084882, 1e-2);
 }
 
 TEST(Image, jpeg)

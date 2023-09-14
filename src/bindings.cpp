@@ -4,7 +4,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(py_palettum_core, m)
+PYBIND11_MODULE(palettum, m)
 {
     m.doc() = "Core functionality for the Palettum project.";
 

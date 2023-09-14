@@ -33,8 +33,11 @@ jobs:
         env:
           CIBW_ARCHS_MACOS: auto universal2
           CIBW_BEFORE_BUILD: |
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && brew install opencv
-#              yum install -y cmake gcc gcc-c++ wget unzip && wget https://github.com/opencv/opencv/archive/4.8.0.zip && unzip 4.8.0.zip && cd opencv-4.8.0 && mkdir build && cd build && cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D INSTALL_C_EXAMPLES=OFF -D INSTALL_PYTHON_EXAMPLES=OFF -D OPENCV_ENABLE_NONFREE=ON -D BUILD_EXAMPLES=OFF -D BUILD_TESTS=OFF -DBUILD_opencv_flann=OFF -DBUILD_opencv_video=OFF -DBUILD_opencv_calib3d=OFF -DBUILD_opencv_dnn=OFF -DBUILD_opencv_ml=OFF -DBUILD_opencv_gapi=OFF -DBUILD_opencv_objdetect=OFF -DBUILD_opencv_videoio=OFF -DBUILD_opencv_features2d=OFF -DBUILD_opencv_stiching=OFF -DBUILD_opencv_photo=OFF .. && make -j$(nproc) && make install
+            if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+              /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" && brew install opencv
+            elif [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+              yum install -y cmake gcc gcc-c++ wget unzip && wget https://github.com/opencv/opencv/archive/4.8.0.zip && unzip 4.8.0.zip && cd opencv-4.8.0 && mkdir build && cd build && cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D INSTALL_C_EXAMPLES=OFF -D INSTALL_PYTHON_EXAMPLES=OFF -D OPENCV_ENABLE_NONFREE=ON -D BUILD_EXAMPLES=OFF -D BUILD_TESTS=OFF -DBUILD_opencv_flann=OFF -DBUILD_opencv_video=OFF -DBUILD_opencv_calib3d=OFF -DBUILD_opencv_dnn=OFF -DBUILD_opencv_ml=OFF -DBUILD_opencv_gapi=OFF -DBUILD_opencv_objdetect=OFF -DBUILD_opencv_videoio=OFF -DBUILD_opencv_features2d=OFF -DBUILD_opencv_stiching=OFF -DBUILD_opencv_photo=OFF .. && make -j$(nproc) && make install
+            fi
 
       - uses: actions/upload-artifact@v3
         with:

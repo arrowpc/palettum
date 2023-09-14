@@ -28,3 +28,12 @@ jobs:
       - name: Build project
         working-directory: build
         run: make -j$(nproc)
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build and Install Python bindings
+        run: |
+          pip3 install .

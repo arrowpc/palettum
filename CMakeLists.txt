@@ -7,6 +7,8 @@ set(CMAKE_CXX_STANDARD 17)
 FIND_PACKAGE(OpenCV REQUIRED)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 
+find_package (Python COMPONENTS Interpreter Development)
+
 add_subdirectory(external/pybind11)
 add_subdirectory(src)
 

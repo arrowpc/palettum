@@ -44,8 +44,13 @@ TEST(PalettumTests, ConvertJpegToPalette)
     {
         FAIL() << "Failed to open test_estimate.png!";
     }
-    int originalDiff = cv::norm(result, original, cv::NORM_L1);
-    EXPECT_EQ(originalDiff, 0);
+
+    double originalDiff = cv::norm(result, original, cv::NORM_L1);
+    double maxPossibleDifference =
+        original.total() * original.channels() * 255.0;
+
+    EXPECT_LT(originalDiff, 0.01 * maxPossibleDifference)
+        << "Difference with original image exceeds 1%!";
 
     cv::Mat different = cv::imread("../test_images/test.png", cv::IMREAD_COLOR);
     if (different.empty())

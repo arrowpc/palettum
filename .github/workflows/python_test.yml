@@ -3,11 +3,13 @@ name: Python Test
 on:
   push:
     paths:
+      - '.github/workflows/**'
       - 'src/**'
       - 'tests/python/**'
       - 'tests/test_images/**'
   pull_request:
     paths:
+      - '.github/workflows/**'
       - 'src/**'
       - 'tests/python/**'
       - 'tests/test_images/**'

@@ -130,6 +130,8 @@ setup(
     version="1.0.0",
     author="ArrowPC",
     description="Core functionality for the Palettum project.",
+    long_description="Core functionality for the Palettum project.",
+    long_description_content_type="text/x-rst",
     url="https://github.com/ArrowPC/Palettum-Core",
     license="GNU Affero General Public License v3.0",
     ext_modules=[CMakeExtension("palettum")],

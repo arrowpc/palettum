@@ -9,6 +9,8 @@ INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 
 find_package (Python COMPONENTS Interpreter Development)
 
+find_package(PythonLibs 3.10 REQUIRED)
+
 add_subdirectory(external/pybind11)
 add_subdirectory(src)
 

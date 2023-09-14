@@ -1,7 +1,6 @@
 import cv2
-import numpy as np
 import palettum
-import pytest
+import os
 
 
 def test_deltaE_computation():
@@ -14,7 +13,8 @@ def test_deltaE_computation():
 
 
 def test_convert_jpeg_to_palette():
-    img = cv2.imread("../test_images/test.jpeg")
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    img = cv2.imread(os.path.join(current_dir, "..", "test_images", "test.jpeg"))
     assert img is not None, "Failed to open test.jpeg!"
 
     palette = [
@@ -29,16 +29,14 @@ def test_convert_jpeg_to_palette():
     p = palettum.Palettum(img, palette)
     result = p.convertToPalette()
 
-    cv2.imwrite("../test_images/python.png", result)
-
-    original = cv2.imread("../test_images/test_estimate.png")
+    original = cv2.imread(os.path.join(current_dir, "..", "test_images", "test_estimate.png"))
     assert original is not None, "Failed to open test_estimate.png!"
     difference_with_original = cv2.norm(result, original, cv2.NORM_L1)
 
     max_possible_difference = img.size * 255
     assert difference_with_original < 0.01 * max_possible_difference, "Resulting image difference with expected is more than 1%!"
 
-    different = cv2.imread("../test_images/test.png")
+    different = cv2.imread(os.path.join(current_dir, "..", "test_images", "test.png"))
     assert different is not None, "Failed to open test.png!"
     difference_with_different = cv2.norm(result, different, cv2.NORM_L1)
     assert difference_with_different != 0, "Resulting image should not be identical to the 'different' image!"

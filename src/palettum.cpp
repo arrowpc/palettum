@@ -105,6 +105,22 @@ double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
     return std::sqrt(lightness * lightness + chroma * chroma + hue * hue +
                      rT * chroma * hue);
 }
+
+double Palettum::py_deltaE(const py::list &lab1, const py::list &lab2)
+{
+    if (lab1.size() != 3 || lab2.size() != 3)
+    {
+        throw std::runtime_error("Both lists should have exactly 3 elements.");
+    }
+
+    Vec3f lab1_ = {lab1[0].cast<float>(), lab1[1].cast<float>(),
+                   lab1[2].cast<float>()};
+    Vec3f lab2_ = {lab2[0].cast<float>(), lab2[1].cast<float>(),
+                   lab2[2].cast<float>()};
+
+    return deltaE(lab1_, lab2_);
+}
+
 void Palettum::mapToPalette(const int startRow, const int endRow,
                             const Mat &img_lab,
                             const std::vector<cv::Vec3b> &lab_palette,

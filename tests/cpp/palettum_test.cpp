@@ -52,7 +52,8 @@ TEST(PalettumTests, ConvertJpegToPalette)
     EXPECT_LT(originalDiff, 0.01 * maxPossibleDifference)
         << "Difference with original image exceeds 1%!";
 
-    cv::Mat different = cv::imread("../../test_images/test.png", cv::IMREAD_COLOR);
+    cv::Mat different =
+        cv::imread("../../test_images/test.png", cv::IMREAD_COLOR);
     if (different.empty())
     {
         FAIL() << "Failed to open test.png!";

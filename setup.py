@@ -127,8 +127,11 @@ class CMakeBuild(build_ext):
 # logic and declaration, and simpler if you include description/version in a file.
 setup(
     name="palettum",
-    version="0.0.2",
+    version="1.0.0",
+    author="ArrowPC",
     description="Core functionality for the Palettum project.",
+    url="https://github.com/ArrowPC/Palettum-Core",
+    license="GNU Affero General Public License v3.0",
     ext_modules=[CMakeExtension("palettum")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,

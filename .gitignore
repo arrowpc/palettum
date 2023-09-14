@@ -4,7 +4,12 @@
 .eggs
 cmake-build-release
 cmake-build-debug
-run_clang-format.sh
 .DS_Store
 **/.DS_Store
 build
+_build
+_generate
+*.so
+*.py[cod]
+*.egg-info
+*env*

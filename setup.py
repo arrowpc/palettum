@@ -127,7 +127,7 @@ class CMakeBuild(build_ext):
 # logic and declaration, and simpler if you include description/version in a file.
 setup(
     name="palettum",
-    version="0.0.1",
+    version="0.0.2",
     description="Core functionality for the Palettum project.",
     ext_modules=[CMakeExtension("palettum")],
     cmdclass={"build_ext": CMakeBuild},

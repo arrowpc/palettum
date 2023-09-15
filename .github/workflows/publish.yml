@@ -69,11 +69,7 @@ jobs:
       - name: Download wheels
         uses: actions/download-artifact@v3
         with:
-          path: dist/
-
-      - name: Remove artifact file
-        run: |
-          rm -rf dist/artifact
+          path: dist/*
 
       - name: Publish to TestPyPI
         if: github.event_name != 'push' || (github.event_name == 'push' && github.ref != 'refs/heads/master')

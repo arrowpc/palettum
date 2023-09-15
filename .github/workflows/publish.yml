@@ -71,6 +71,10 @@ jobs:
         with:
           path: dist/
 
+      - name: Remove artifact file
+        run: |
+          rm -f dist/artifact
+
       - name: Publish to TestPyPI
         if: github.event_name != 'push' || (github.event_name == 'push' && github.ref != 'refs/heads/master')
         uses: pypa/gh-action-pypi-publish@release/v1
@@ -94,3 +98,4 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
+

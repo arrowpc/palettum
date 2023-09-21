@@ -1,3 +1,10 @@
+# Palettum
+uploads/*
+processed/*
+!uploads/.gitkeep
+!processed/.gitkeep
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

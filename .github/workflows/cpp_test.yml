@@ -3,13 +3,13 @@ name: C++ Test
 on:
   push:
     paths:
-      - '.github/workflows/**'
+      - '.github/workflows/cpp_test.yml'
       - 'src/**'
       - 'tests/cpp/**'
       - 'tests/test_images/**'
   pull_request:
     paths:
-      - '.github/workflows/**'
+      - '.github/workflows/cpp_test.yml'
       - 'src/**'
       - 'tests/cpp/**'
       - 'tests/test_images/**'

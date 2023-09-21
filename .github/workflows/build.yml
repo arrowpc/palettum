@@ -3,11 +3,11 @@ name: Build
 on:
   push:
     paths:
-      - '.github/workflows/**'
+      - '.github/workflows/build.yml'
       - 'src/**'
   pull_request:
     paths:
-      - '.github/workflows/**'
+      - '.github/workflows/build.yml'
       - 'src/**'
 
 jobs:

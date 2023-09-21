@@ -36,6 +36,12 @@ def upload_image():
     image.save(image_path)
     img = cv2.imread(image_path)
 
+    width = request.form.get("width", type=int)
+    height = request.form.get("height", type=int)
+
+    if width and height:
+        img = cv2.resize(img, (width, height))
+
     p = palettum.Palettum(img, palette)
     result = p.convertToPalette()
 

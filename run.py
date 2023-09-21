@@ -10,7 +10,6 @@ PROCESSED_FOLDER = "processed/"
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["PROCESSED_FOLDER"] = PROCESSED_FOLDER
 
-# Ensure the upload and processed directories exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
@@ -26,13 +25,10 @@ def upload_image():
         return "No image provided", 400
     image = request.files["image"]
 
-    # Save the uploaded image temporarily
     image_path = os.path.join(app.config["UPLOAD_FOLDER"], image.filename)
     image.save(image_path)
 
-    # Process the image using palettum
     img = cv2.imread(image_path)
-    # Define your palette here (example palette provided)
     palette = [
         (190, 0, 57),
         (255, 69, 0),
@@ -63,10 +59,7 @@ def upload_image():
     p = palettum.Palettum(img, palette)
     result = p.convertToPalette()
 
-    # Save the processed image
-    processed_image_name = (
-        os.path.splitext(image.filename)[0] + ".png"
-    )  # Change extension to .png
+    processed_image_name = os.path.splitext(image.filename)[0] + ".png"
     processed_image_path = os.path.join(
         app.config["PROCESSED_FOLDER"], processed_image_name
     )

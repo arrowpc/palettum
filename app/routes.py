@@ -53,6 +53,11 @@ def upload_image():
     width = request.form.get("width", type=int)
     height = request.form.get("height", type=int)
 
+    if width and width <= 0:
+        raise ValueError("Width must be a positive value.")
+    if height and height <= 0:
+        raise ValueError("Height must be a positive value.")
+
     original_height, original_width = img.shape[:2]
 
     if width and not height:
@@ -65,6 +70,9 @@ def upload_image():
 
     if width and height:
         img = cv2.resize(img, (width, height))
+
+    if width and height and (width <= 0 or height <= 0):
+        raise ValueError("Invalid dimensions after aspect ratio calculation.")
 
     p = palettum.Palettum(img, palette)
     result = p.convertToPalette()

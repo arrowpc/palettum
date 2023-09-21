@@ -85,3 +85,14 @@ def test_upload_image_with_resizing_height_only(client):
     image = Image.open(io.BytesIO(response.data))
     assert image.format == "PNG"
     assert image.height == 200
+
+
+def test_negative_dimensions(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
+    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
+        response = client.post(
+            "/upload", data={"image": img, "palette": palette, "width": -300}
+        )
+    assert response.status_code == 400
+    assert b"Width must be a positive value." in response.data

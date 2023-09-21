@@ -1,8 +1,9 @@
 from app import app
-from flask import request, send_from_directory
-import os
+from flask import request, send_file
 import cv2
 import palettum
+import io
+import numpy as np
 
 
 @app.route("/")
@@ -23,9 +24,8 @@ def upload_image():
     palette_lines = palette_file.read().decode("utf-8").splitlines()
     palette = [eval(color) for color in palette_lines]
 
-    image_path = os.path.join(app.config["UPLOAD_FOLDER"], image.filename)
-    image.save(image_path)
-    img = cv2.imread(image_path)
+    img_stream = io.BytesIO(image.read())
+    img = cv2.imdecode(np.frombuffer(img_stream.read(), np.uint8), 1)
 
     width = request.form.get("width", type=int)
     height = request.form.get("height", type=int)
@@ -46,16 +46,7 @@ def upload_image():
     p = palettum.Palettum(img, palette)
     result = p.convertToPalette()
 
-    processed_image_name = os.path.splitext(image.filename)[0] + ".png"
-    processed_image_path = os.path.join(
-        app.config["PROCESSED_FOLDER"], processed_image_name
-    )
-    cv2.imwrite(processed_image_path, result)
+    is_success, buffer = cv2.imencode(".png", result)
+    io_buf = io.BytesIO(buffer)
 
-    return "Image processed successfully!"
-
-
-@app.route("/processed/<filename>")
-def processed_image(filename):
-    """Endpoint to serve the processed images"""
-    return send_from_directory(app.config["PROCESSED_FOLDER"], filename)
+    return send_file(io_buf, mimetype="image/png")

@@ -16,8 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-latest ]
-#        os: [ macos-latest, ubuntu-latest ]
+        os: [macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -35,25 +34,13 @@ jobs:
           CIBW_BUILD: cp310-*
           CIBW_BEFORE_BUILD: |
             if [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-              # For macOS
-              # Download and install a pre-built OpenCV binary for macOS or use a lighter version
-              # Modify this part according to your needs
               /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
               export HOMEBREW_NO_AUTO_UPDATE=1
               brew install opencv
-            else
-              yum install -y cmake gcc gcc-c++ wget unzip
-              wget https://github.com/opencv/opencv/archive/4.8.0.zip
-              unzip 4.8.0.zip
-              cd opencv-4.8.0
-              mkdir build
-              cd build
-              cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local -D INSTALL_C_EXAMPLES=OFF -D INSTALL_PYTHON_EXAMPLES=OFF -D OPENCV_ENABLE_NONFREE=ON -D BUILD_EXAMPLES=OFF -D BUILD_TESTS=OFF -DBUILD_opencv_flann=OFF -DBUILD_opencv_video=OFF -DBUILD_opencv_calib3d=OFF -DBUILD_opencv_dnn=OFF -DBUILD_opencv_ml=OFF -DBUILD_opencv_gapi=OFF -DBUILD_opencv_objdetect=OFF -DBUILD_opencv_videoio=OFF -DBUILD_opencv_features2d=OFF -DBUILD_opencv_stiching=OFF -DBUILD_opencv_photo=OFF ..
-              make -j$(nproc)
-              make install
             fi
 
-      - uses: actions/upload-artifact@v3
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
 
@@ -69,7 +56,11 @@ jobs:
       - name: Download wheels
         uses: actions/download-artifact@v3
         with:
-          path: dist/
+          name: artifact
+          path: dist
+
+      - name: List wheel files
+        run: ls dist/
 
       - name: Publish to TestPyPI
         if: github.event_name != 'push' || (github.event_name == 'push' && github.ref != 'refs/heads/master')
@@ -94,4 +85,3 @@ jobs:
           release_name: Release ${{ github.ref }}
           draft: false
           prerelease: false
-

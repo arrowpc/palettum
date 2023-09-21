@@ -42,6 +42,12 @@ def upload_image():
     except (SyntaxError, ValueError):
         raise ValueError("Invalid palette format. Please provide a valid RGB palette.")
 
+    for color in palette:
+        if not all(0 <= value <= 255 for value in color):
+            raise ValueError(
+                "Invalid RGB values in palette. Each value must be in the range [0, 255]."
+            )
+
     img_stream = io.BytesIO(image.read())
     img = cv2.imdecode(np.frombuffer(img_stream.read(), np.uint8), 1)
 

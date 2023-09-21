@@ -3,6 +3,7 @@ uploads/*
 processed/*
 !uploads/.gitkeep
 !processed/.gitkeep
+.vscode/
 
 
 # Byte-compiled / optimized / DLL files

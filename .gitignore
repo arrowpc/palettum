@@ -1,8 +1,4 @@
 # Palettum
-uploads/*
-processed/*
-!uploads/.gitkeep
-!processed/.gitkeep
 .vscode/
 
 

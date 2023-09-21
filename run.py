@@ -39,6 +39,16 @@ def upload_image():
     width = request.form.get("width", type=int)
     height = request.form.get("height", type=int)
 
+    original_height, original_width = img.shape[:2]
+
+    if width and not height:
+        aspect_ratio = original_height / original_width
+        height = int(aspect_ratio * width)
+
+    elif height and not width:
+        aspect_ratio = original_width / original_height
+        width = int(aspect_ratio * height)
+
     if width and height:
         img = cv2.resize(img, (width, height))
 

@@ -36,3 +36,79 @@ def test_upload_image_with_resizing(client):
     image = Image.open(io.BytesIO(response.data))
     assert image.format == "PNG"
     assert image.width == 300
+
+
+def test_missing_image(client):
+    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
+    with open(palette_path, "rb") as palette:
+        response = client.post("/upload", data={"palette": palette})
+    assert response.status_code == 400
+    assert b"No image provided" in response.data
+
+
+def test_missing_palette(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    with open(image_path, "rb") as img:
+        response = client.post("/upload", data={"image": img})
+    assert response.status_code == 400
+    assert b"No palette provided" in response.data
+
+
+def test_invalid_image_format(client):
+    image_path = os.path.join(current_dir, "test_images", "invalid.txt")
+    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
+    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
+        response = client.post("/upload", data={"image": img, "palette": palette})
+    assert response.status_code == 400
+    assert b"Uploaded file is not an image" in response.data
+
+
+def test_invalid_palette_format(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    invalid_palette_path = os.path.join(current_dir, "test_palettes", "invalid.txt")
+    with open(image_path, "rb") as img, open(invalid_palette_path, "rb") as palette:
+        response = client.post("/upload", data={"image": img, "palette": palette})
+    assert response.status_code == 400
+    assert (
+        b"Invalid palette format. Please provide a valid RGB palette." in response.data
+    )
+
+
+def test_upload_image_with_resizing_height_only(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
+    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
+        response = client.post(
+            "/upload", data={"image": img, "palette": palette, "height": 200}
+        )
+    assert response.status_code == 200
+    image = Image.open(io.BytesIO(response.data))
+    assert image.format == "PNG"
+    assert image.height == 200
+
+
+def test_negative_dimensions(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
+    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
+        response = client.post(
+            "/upload", data={"image": img, "palette": palette, "width": -300}
+        )
+    assert response.status_code == 400
+    assert b"Width must be a positive value." in response.data
+
+
+def test_palette_not_in_range(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    invalid_palette_path = os.path.join(current_dir, "test_palettes", "range.txt")
+    with open(image_path, "rb") as img, open(
+        invalid_palette_path, "rb"
+    ) as invalid_palette:
+        response = client.post(
+            "/upload", data={"image": img, "palette": invalid_palette}
+        )
+    assert response.status_code == 400
+    assert (
+        b"Invalid RGB values in palette. Each value must be in the range [0, 255]."
+        in response.data
+    )

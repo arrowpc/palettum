@@ -96,3 +96,19 @@ def test_negative_dimensions(client):
         )
     assert response.status_code == 400
     assert b"Width must be a positive value." in response.data
+
+
+def test_palette_not_in_range(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    invalid_palette_path = os.path.join(current_dir, "test_palettes", "range.txt")
+    with open(image_path, "rb") as img, open(
+        invalid_palette_path, "rb"
+    ) as invalid_palette:
+        response = client.post(
+            "/upload", data={"image": img, "palette": invalid_palette}
+        )
+    assert response.status_code == 400
+    assert (
+        b"Invalid RGB values in palette. Each value must be in the range [0, 255]."
+        in response.data
+    )

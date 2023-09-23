@@ -112,3 +112,34 @@ def test_palette_not_in_range(client):
         b"Invalid RGB values in palette. Each value must be in the range [0, 255]."
         in response.data
     )
+
+
+def test_upload_image_with_contrast_adjustment(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
+    contrast_value = 2.0
+
+    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
+        response = client.post(
+            "/upload",
+            data={"image": img, "palette": palette, "contrast": contrast_value},
+        )
+
+    assert response.status_code == 200
+
+    image = Image.open(io.BytesIO(response.data))
+    assert image.format == "PNG"
+
+
+def test_upload_image_with_invalid_contrast(client):
+    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
+    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
+    invalid_contrast_values = [0]
+    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
+        response = client.post(
+            "/upload",
+            data={"image": img, "palette": palette, "contrast": contrast_value},
+        )
+
+        assert response.status_code == 400
+        assert b"Contrast must" in response.data

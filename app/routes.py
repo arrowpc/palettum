@@ -96,6 +96,16 @@ def upload_image():
 
     img = resize_image(img, width, height)
 
+    contrast = request.form.get("contrast", type=float)
+
+    if contrast is not None:
+        if contrast <= 0:
+            return jsonify(error="Contrast must be a positive value")
+        else:
+            alpha = contrast
+            beta = 0
+            img = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
+
     p = palettum.Palettum(img, palette)
     result = p.convertToPalette()
 

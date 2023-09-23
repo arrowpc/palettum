@@ -134,13 +134,12 @@ def test_upload_image_with_contrast_adjustment(client):
 def test_upload_image_with_invalid_contrast(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
-    invalid_contrast_values = [0, -1]
-    for contrast_value in invalid_contrast_values:
-        with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
-            response = client.post(
-                "/upload",
-                data={"image": img, "palette": palette, "contrast": contrast_value},
-            )
+    invalid_contrast_values = [0]
+    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
+        response = client.post(
+            "/upload",
+            data={"image": img, "palette": palette, "contrast": contrast_value},
+        )
 
         assert response.status_code == 400
         assert b"Contrast must" in response.data

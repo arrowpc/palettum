@@ -100,7 +100,7 @@ def upload_image():
 
     if contrast is not None:
         if contrast <= 0:
-            return jsonify(error="Contrast must be a positive value")
+            return jsonify(error="Contrast must be a positive value"), 400
         else:
             alpha = contrast
             beta = 0

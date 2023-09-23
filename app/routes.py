@@ -96,8 +96,6 @@ def upload_image():
 
     img = resize_image(img, width, height)
 
-    img = resize_image(img, width, height)
-
     p = palettum.Palettum(img, palette)
     result = p.convertToPalette()
 

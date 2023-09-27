@@ -28,11 +28,8 @@ jobs:
         id: cache-homebrew
         uses: actions/cache@v3
         with:
-         path: |
-                /usr/local/Cellar
-                /usr/local/opt
-                /usr/local/etc
-         key: homebrew-directories-macos-${{ runner.os }}-v1
+         path: $(brew --prefix)
+         key: homebrew-directories-macos-${{ runner.os }}-v2
 
       - name: Link OpenCV
         if: steps.cache-homebrew.outputs.cache-hit == 'true'

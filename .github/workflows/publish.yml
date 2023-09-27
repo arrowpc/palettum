@@ -34,12 +34,12 @@ jobs:
                 /usr/local/etc
          key: homebrew-directories-macos-${{ runner.os }}-v1
 
-      - name: Re-Link OpenCV
-        if: steps.cache-opencv.outputs.cache-hit == 'true'
+      - name: Link OpenCV
+        if: steps.cache-homebrew.outputs.cache-hit == 'true'
         run: brew link --overwrite opencv
 
       - name: Install OpenCV on macOS
-        if: matrix.os == 'macos-latest' && steps.cache-opencv.outputs.cache-hit != 'true'
+        if: matrix.os == 'macos-latest' && steps.cache-homebrew.outputs.cache-hit != 'true'
         run: |
           /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
           export HOMEBREW_NO_AUTO_UPDATE=1

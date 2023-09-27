@@ -16,31 +16,37 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-12-arm64]
+        os: [macos-latest]
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Cache Homebrew Directories
-        if: matrix.os == 'macos-latest'
-        id: cache-homebrew
+      - name: Cache OpenCV x86_64
+        id: cache-opencv-x86_64
         uses: actions/cache@v3
         with:
-         path: $(brew --prefix)
-         key: homebrew-directories-macos-${{ runner.os }}-v2
+          path: opencv_build/x86_64
+          key: opencv-x86_64-4.8.0
 
-      - name: Link OpenCV
-        if: steps.cache-homebrew.outputs.cache-hit == 'true'
-        run: brew link --overwrite opencv
+      - name: Cache OpenCV arm64
+        id: cache-opencv-arm64
+        uses: actions/cache@v3
+        with:
+          path: opencv_build/arm64
+          key: opencv-arm64-4.8.0
 
-      - name: Install OpenCV on macOS
-        if: matrix.os == 'macos-latest' && steps.cache-homebrew.outputs.cache-hit != 'true'
+      - name: Build OpenCV from source
+        if: steps.cache-opencv-x86_64.outputs.cache-hit != 'true' || steps.cache-opencv-arm64.outputs.cache-hit != 'true'
         run: |
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          export HOMEBREW_NO_AUTO_UPDATE=1
-          brew install opencv
+          git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
+          for arch in x86_64 arm64; do
+            mkdir -p opencv_build/$arch && cd opencv_build/$arch
+            cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=$(pwd) -D CMAKE_OSX_ARCHITECTURES=$arch -D BUILD_LIST=core,imgproc,imgcodecs,highgui -D BUILD_EXAMPLES=OFF -D BUILD_TESTS=OFF -D BUILD_PERF_TESTS=OFF ../../opencv
+            make -j$(sysctl -n hw.logicalcpu)
+            cd ../../
+          done
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -57,7 +63,6 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl
-
 
   publish:
     needs: build_wheels

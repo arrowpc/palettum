@@ -23,13 +23,16 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Cache OpenCV on macOS
+      - name: Cache Homebrew Directories
         if: matrix.os == 'macos-latest'
-        id: cache-opencv
+        id: cache-homebrew
         uses: actions/cache@v3
         with:
-          path: /usr/local/Cellar/opencv
-          key: opencv-macos-${{ runner.os }}-v1
+         path: |
+                /usr/local/Cellar
+                /usr/local/opt
+                /usr/local/etc
+         key: homebrew-directories-macos-${{ runner.os }}-v1
 
       - name: Re-Link OpenCV
         if: steps.cache-opencv.outputs.cache-hit == 'true'

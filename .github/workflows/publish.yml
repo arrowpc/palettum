@@ -51,9 +51,10 @@ jobs:
           python-version: '3.x'
 
       - name: Use cibuildwheel
-        uses: pypa/cibuildwheel@v2.15
+        uses: pypa/cibuildwheel@v2.16.1
         env:
           CIBW_BUILD: cp310-* cp311-*
+          CIBW_ARCHS_MACOS: auto universal2
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3

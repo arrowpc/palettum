@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest-arm64]
+        os: [macos-12-arm64]
 
     steps:
       - uses: actions/checkout@v4

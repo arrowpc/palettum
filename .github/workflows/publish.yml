@@ -31,6 +31,10 @@ jobs:
           path: /usr/local/Cellar/opencv
           key: opencv-macos-${{ runner.os }}-v1
 
+      - name: Re-Link OpenCV
+        if: steps.cache-opencv.outputs.cache-hit == 'true'
+        run: brew link --overwrite opencv
+
       - name: Install OpenCV on macOS
         if: matrix.os == 'macos-latest' && steps.cache-opencv.outputs.cache-hit != 'true'
         run: |

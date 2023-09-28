@@ -60,6 +60,7 @@ jobs:
                     -D BUILD_TESTS=OFF \
                     -D BUILD_PERF_TESTS=OFF \
                     -D WITH_IPP=OFF \
+                    -D WITH_OPENEXR=OFF \
                     -D PNG_PNG_INCLUDE_DIR=${GITHUB_WORKSPACE}/libpng-arm64/include \
                     -D PNG_LIBRARY=${GITHUB_WORKSPACE}/libpng-arm64/lib/libpng.a \
                     ../../opencv

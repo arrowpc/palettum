@@ -43,7 +43,15 @@ jobs:
           git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
           for arch in x86_64 arm64; do
             mkdir -p opencv_build/$arch && cd opencv_build/$arch
-            cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=$(pwd) -D CMAKE_OSX_ARCHITECTURES=$arch -D BUILD_LIST=core,imgproc,imgcodecs,highgui -D BUILD_EXAMPLES=OFF -D BUILD_TESTS=OFF -D BUILD_PERF_TESTS=OFF ../../opencv
+            cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                  -D CMAKE_OSX_ARCHITECTURES=$arch \
+                  -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
+                  -D BUILD_EXAMPLES=OFF \
+                  -D BUILD_TESTS=OFF \
+                  -D BUILD_PERF_TESTS=OFF \
+                  -D WITH_IPP=OFF \
+                  ../../opencv
             make -j$(sysctl -n hw.logicalcpu)
             cd ../../
           done

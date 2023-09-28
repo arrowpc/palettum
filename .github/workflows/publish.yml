@@ -25,9 +25,11 @@ jobs:
 
       - name: Install libpng for arm64
         run: |
-          arch -arm64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          echo "/usr/local/bin" >> $GITHUB_PATH
-          arch -arm64 brew install libpng
+          git clone https://git.code.sf.net/p/libpng/code libpng-code
+          cd libpng-code
+          ./configure --host=aarch64-apple-darwin --prefix=/usr/local/arm64
+          make
+          make install
 
       - name: Cache OpenCV x86_64
         id: cache-opencv-x86_64
@@ -49,16 +51,29 @@ jobs:
           git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
           for arch in x86_64 arm64; do
             mkdir -p opencv_build/$arch && cd opencv_build/$arch
-            cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                  -D CMAKE_OSX_ARCHITECTURES=$arch \
-                  -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
-                  -D BUILD_EXAMPLES=OFF \
-                  -D BUILD_TESTS=OFF \
-                  -D BUILD_PERF_TESTS=OFF \
-                  -D WITH_IPP=OFF \
-                  -D WITH_OPENEXR=OFF \
-                  ../../opencv
+            if [ "$arch" == "arm64" ]; then
+              cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                    -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                    -D CMAKE_OSX_ARCHITECTURES=$arch \
+                    -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
+                    -D BUILD_EXAMPLES=OFF \
+                    -D BUILD_TESTS=OFF \
+                    -D BUILD_PERF_TESTS=OFF \
+                    -D WITH_IPP=OFF \
+                    -D PNG_PNG_INCLUDE_DIR=/usr/local/arm64/include \
+                    -D PNG_LIBRARY=/usr/local/arm64/lib/libpng.a \
+                    ../../opencv
+            else
+              cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                    -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                    -D CMAKE_OSX_ARCHITECTURES=$arch \
+                    -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
+                    -D BUILD_EXAMPLES=OFF \
+                    -D BUILD_TESTS=OFF \
+                    -D BUILD_PERF_TESTS=OFF \
+                    -D WITH_IPP=OFF \
+                    ../../opencv
+            fi
             make -j$(sysctl -n hw.logicalcpu)
             cd ../../
           done

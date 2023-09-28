@@ -72,7 +72,6 @@ jobs:
                     -D BUILD_TESTS=OFF \
                     -D BUILD_PERF_TESTS=OFF \
                     -D WITH_IPP=OFF \
-                    -D WITH_OPENEXR=OFF \
                     ../../opencv
             fi
             make -j$(sysctl -n hw.logicalcpu)

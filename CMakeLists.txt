@@ -6,15 +6,16 @@ set(CMAKE_CXX_STANDARD 17)
 
 if(CMAKE_OSX_ARCHITECTURES)
     set(ARCH_DIR ${CMAKE_OSX_ARCHITECTURES})
+    set(OpenCV_DIR "$ENV{OpenCV_DIR_${ARCH_DIR}}")
 elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
     set(ARCH_DIR "arm64")
+    set(OpenCV_DIR "$ENV{OpenCV_DIR_arm64}")
 elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
     set(ARCH_DIR "x86_64")
+    set(OpenCV_DIR "$ENV{OpenCV_DIR_x86_64}")
 else()
     message(FATAL_ERROR "Unsupported architecture")
 endif()
-
-set(OpenCV_DIR "${CMAKE_SOURCE_DIR}/opencv_build/${ARCH_DIR}")
 
 FIND_PACKAGE(OpenCV REQUIRED)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})

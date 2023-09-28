@@ -92,6 +92,9 @@ jobs:
         env:
           CIBW_BUILD: cp310-* cp311-*
           CIBW_ARCHS_MACOS: auto universal2
+          CIBW_ENVIRONMENT_MACOS: |
+            OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64
+            OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3

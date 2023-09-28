@@ -14,7 +14,7 @@ else()
     message(FATAL_ERROR "Unsupported architecture")
 endif()
 
-set(OpenCV_DIR "${CMAKE_SOURCE_DIR}/opencv_build/${ARCH_DIR}/lib/cmake/opencv4")
+set(OpenCV_DIR "${CMAKE_SOURCE_DIR}/opencv_build/${ARCH_DIR}")
 
 FIND_PACKAGE(OpenCV REQUIRED)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})

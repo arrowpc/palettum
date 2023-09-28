@@ -23,11 +23,11 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install libpng for arm64
+      - name: Build libpng arm64 from source
         run: |
           git clone https://git.code.sf.net/p/libpng/code libpng-code
           cd libpng-code
-          ./configure --host=aarch64-apple-darwin --prefix=/usr/local/arm64
+          ./configure --prefix=${GITHUB_WORKSPACE}/libpng-arm64 --host=aarch64
           make
           make install
 
@@ -60,8 +60,8 @@ jobs:
                     -D BUILD_TESTS=OFF \
                     -D BUILD_PERF_TESTS=OFF \
                     -D WITH_IPP=OFF \
-                    -D PNG_PNG_INCLUDE_DIR=/usr/local/arm64/include \
-                    -D PNG_LIBRARY=/usr/local/arm64/lib/libpng.a \
+                    -D PNG_PNG_INCLUDE_DIR=${GITHUB_WORKSPACE}/libpng-arm64/include \
+                    -D PNG_LIBRARY=${GITHUB_WORKSPACE}/libpng-arm64/lib/libpng.a \
                     ../../opencv
             else
               cmake -D CMAKE_BUILD_TYPE=RELEASE \

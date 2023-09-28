@@ -23,6 +23,12 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Install libpng for arm64
+        run: |
+          arch -arm64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          echo "/usr/local/bin" >> $GITHUB_PATH
+          arch -arm64 brew install libpng
+
       - name: Cache OpenCV x86_64
         id: cache-opencv-x86_64
         uses: actions/cache@v3
@@ -52,7 +58,6 @@ jobs:
                   -D BUILD_PERF_TESTS=OFF \
                   -D WITH_IPP=OFF \
                   -D WITH_OPENEXR=OFF \
-                  -D WITH_PNG=OFF \
                   ../../opencv
             make -j$(sysctl -n hw.logicalcpu)
             cd ../../

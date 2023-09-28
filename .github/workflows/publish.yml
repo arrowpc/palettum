@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest]
+        os: [ macos-latest ]
 
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +27,7 @@ jobs:
         run: |
           git clone https://git.code.sf.net/p/libpng/code libpng-code
           cd libpng-code
-          ./configure --prefix=${GITHUB_WORKSPACE}/libpng-arm64 --host=aarch64
+          ./configure --prefix=${GITHUB_WORKSPACE}/libpng-arm64 --host=aarch64-apple-darwin
           make
           make install
 
@@ -49,7 +49,7 @@ jobs:
         if: steps.cache-opencv-x86_64.outputs.cache-hit != 'true' || steps.cache-opencv-arm64.outputs.cache-hit != 'true'
         run: |
           git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
-          for arch in x86_64 arm64; do
+          for arch in arm64 x86_64; do
             mkdir -p opencv_build/$arch && cd opencv_build/$arch
             if [ "$arch" == "arm64" ]; then
               cmake -D CMAKE_BUILD_TYPE=RELEASE \

@@ -55,6 +55,9 @@ jobs:
               cmake -D CMAKE_BUILD_TYPE=RELEASE \
                     -D CMAKE_INSTALL_PREFIX=$(pwd) \
                     -D CMAKE_OSX_ARCHITECTURES=$arch \
+                    -D CMAKE_SYSTEM_NAME=Darwin \
+                    -D CMAKE_SYSTEM_PROCESSOR=arm64 \
+                    -D ENABLE_NEON=OFF \
                     -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
                     -D BUILD_EXAMPLES=OFF \
                     -D BUILD_TESTS=OFF \

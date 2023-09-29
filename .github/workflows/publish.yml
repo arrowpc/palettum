@@ -80,12 +80,6 @@ jobs:
               lipo -create $ARM64_DIR/$libname $X86_64_DIR/$libname -output $UNIVERSAL_DIR/$libname
             fi
           done
-          cd $UNIVERSAL_DIR
-          for symlink in *.408.dylib; do
-            base=$(basename $symlink .408.dylib)
-            ln -sf $symlink $base.dylib
-            ln -sf $symlink lib$base.4.8.0.dylib
-          done
           # Copy CMake Configuration Files
           find opencv_build/arm64 -maxdepth 1 -type f -exec cp {} opencv_build/universal/ \;
 

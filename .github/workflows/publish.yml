@@ -36,6 +36,13 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Cache OpenCV x86_64
+        id: cache-opencv-x86_64-v2
+        uses: actions/cache@v3
+        with:
+          path: opencv_build/x86_64
+          key: opencv-x86_64-4.8.0
+
       - name: Cache OpenCV arm64
         id: cache-opencv-arm64-v2
         uses: actions/cache@v3
@@ -43,37 +50,51 @@ jobs:
           path: opencv_build/arm64
           key: opencv-arm64-4.8.0
 
-      - name: Build OpenCV from source
-        if: steps.cache-opencv-arm64.outputs.cache-hit != 'true'
+      - name: Build OpenCV for arm64 and x86_64 and Create Universal Libraries
         run: |
           git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
-          mkdir -p opencv_build/arm64 && cd opencv_build/arm64
-          cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                -D CMAKE_OSX_ARCHITECTURES=arm64 \
-                -D CMAKE_SYSTEM_NAME=Darwin \
-                -D CMAKE_SYSTEM_PROCESSOR=arm64 \
-                -D ENABLE_NEON=OFF \
-                -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
-                -D BUILD_EXAMPLES=OFF \
-                -D BUILD_TESTS=OFF \
-                -D BUILD_PERF_TESTS=OFF \
-                -D WITH_IPP=OFF \
-                -D WITH_OPENEXR=OFF \
-                -D PNG_PNG_INCLUDE_DIR=${GITHUB_WORKSPACE}/libpng-arm64/include \
-                -D PNG_LIBRARY=${GITHUB_WORKSPACE}/libpng-arm64/lib/libpng.a \
-                ../../opencv
-          make -j$(sysctl -n hw.logicalcpu)
-          cd ../../
+          for arch in arm64 x86_64; do
+            mkdir -p opencv_build/$arch && cd opencv_build/$arch
+            cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                  -D CMAKE_OSX_ARCHITECTURES=$arch \
+                  -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
+                  -D BUILD_EXAMPLES=OFF \
+                  -D BUILD_TESTS=OFF \
+                  -D BUILD_PERF_TESTS=OFF \
+                  -D WITH_IPP=OFF \
+                  -D WITH_OPENEXR=OFF \
+                  ../../opencv
+            make -j$(sysctl -n hw.logicalcpu)
+            cd ../../
+          done
+          # Create Universal Libraries using the provided script
+          ARM64_DIR=opencv_build/arm64/lib
+          X86_64_DIR=opencv_build/x86_64/lib
+          UNIVERSAL_DIR=opencv_build/universal/lib
+          mkdir -p $UNIVERSAL_DIR
+          for lib in $ARM64_DIR/*.dylib; do
+            libname=$(basename $lib)
+            if [ ! -L $lib ]; then
+              echo "Creating universal library for $libname"
+              lipo -create $ARM64_DIR/$libname $X86_64_DIR/$libname -output $UNIVERSAL_DIR/$libname
+            fi
+          done
+          cd $UNIVERSAL_DIR
+          for symlink in *.408.dylib; do
+            base=$(basename $symlink .408.dylib)
+            ln -sf $symlink $base.dylib
+            ln -sf $symlink lib$base.4.8.0.dylib
+          done
+          # Copy CMake Configuration Files
+          find opencv_build/arm64 -maxdepth 1 -type f -exec cp {} opencv_build/universal/ \;
 
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1
         env:
           CIBW_BUILD: cp310-* cp311-*
           CIBW_ARCHS_MACOS: universal2
-          CIBW_ENVIRONMENT_MACOS: OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64
-          CIBW_BEFORE_BUILD: |
-            echo $OpenCV_DIR_arm64
+          CIBW_ENVIRONMENT_MACOS: OpenCV_DIR=$(pwd)/opencv_build/universal
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3

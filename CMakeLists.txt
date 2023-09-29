@@ -4,7 +4,7 @@ project(Palettum_Core)
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(OpenCV_DIR "$ENV{OpenCV_DIR_arm64}")
+set(OpenCV_DIR "$ENV{OpenCV_DIR}")
 FIND_PACKAGE(OpenCV REQUIRED)
 INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 

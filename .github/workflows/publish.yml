@@ -31,6 +31,11 @@ jobs:
           make
           make install
 
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
       - name: Cache OpenCV x86_64
         id: cache-opencv-x86_64
         uses: actions/cache@v3
@@ -82,12 +87,8 @@ jobs:
             cd ../../
           done
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
       - name: Use cibuildwheel
+        continue-on-error: true
         uses: pypa/cibuildwheel@v2.16.1
         env:
           CIBW_BUILD: cp310-* cp311-*
@@ -95,8 +96,12 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: |
             OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64
             OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
+          CIBW_BEFORE_BUILD: |
+            echo $OpenCV_DIR_x86_64
+            echo $OpenCV_DIR_arm64
 
       - name: Upload wheels
+        if: success()
         uses: actions/upload-artifact@v3
         with:
           path: ./wheelhouse/*.whl

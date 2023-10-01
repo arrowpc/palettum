@@ -6,21 +6,23 @@ set(CMAKE_CXX_STANDARD 17)
 
 if(CMAKE_OSX_ARCHITECTURES)
     set(ARCH_DIR ${CMAKE_OSX_ARCHITECTURES})
-    set(OpenCV_DIR "$ENV{OpenCV_DIR_${ARCH_DIR}}")
 elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
     set(ARCH_DIR "arm64")
-    set(OpenCV_DIR "$ENV{OpenCV_DIR_arm64}")
 elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
     set(ARCH_DIR "x86_64")
-    set(OpenCV_DIR "$ENV{OpenCV_DIR_x86_64}")
 else()
     message(FATAL_ERROR "Unsupported architecture")
+endif()
+
+if(EXISTS "${CMAKE_SOURCE_DIR}/opencv_build/${ARCH_DIR}")
+    set(OpenCV_DIR "${CMAKE_SOURCE_DIR}/opencv_build/${ARCH_DIR}")
+else()
+    set(OpenCV_DIR "$ENV{OpenCV_DIR_${ARCH_DIR}}")
 endif()
 
 FIND_PACKAGE(OpenCV REQUIRED)
 
 add_subdirectory(external/pybind11)
-
 add_subdirectory(src)
 
 option(BUILD_TESTS "Build the tests" ON)

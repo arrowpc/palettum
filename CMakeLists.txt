@@ -4,8 +4,12 @@ project(Palettum_Core)
 
 set(CMAKE_CXX_STANDARD 17)
 
-if (APPLE)
-    set(OpenCV_DIR "${CMAKE_SOURCE_DIR}/opencv_build/${CMAKE_HOST_SYSTEM_PROCESSOR}")
+if(APPLE)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/opencv_build/${CMAKE_HOST_SYSTEM_PROCESSOR}")
+        set(OpenCV_DIR "${CMAKE_SOURCE_DIR}/opencv_build/${CMAKE_HOST_SYSTEM_PROCESSOR}")
+    else()
+        set(OpenCV_DIR "$ENV{OpenCV_DIR}")
+    endif()
 endif()
 
 FIND_PACKAGE(OpenCV REQUIRED)

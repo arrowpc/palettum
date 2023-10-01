@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-latest ]
+        os: [ macos-latest, ubuntu-latest ]
 
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +29,7 @@ jobs:
           python-version: '3.x'
 
       - name: Cache libpng arm64
+        if: runner.os == 'macOS'
         id: cache-libpng
         uses: actions/cache@v3
         with:
@@ -36,7 +37,7 @@ jobs:
           key: libpng-arm64
 
       - name: Build libpng arm64 from source
-        if: steps.cache-libpng.outputs.cache-hit != 'true'
+        if: runner.os == 'macOS' && steps.cache-libpng.outputs.cache-hit != 'true'
         run: |
           git clone https://git.code.sf.net/p/libpng/code libpng-code
           cd libpng-code
@@ -54,7 +55,7 @@ jobs:
           key: opencv-4.8.0-v2
 
       - name: Build OpenCV from source
-        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        if: runner.os == 'macOS' && steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
           for arch in arm64 x86_64; do
@@ -78,7 +79,6 @@ jobs:
             else
               cmake -D CMAKE_BUILD_TYPE=RELEASE \
                     -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                    -D CMAKE_OSX_ARCHITECTURES=$arch \
                     -D BUILD_LIST=core,imgcodecs \
                     -D BUILD_EXAMPLES=OFF \
                     -D BUILD_TESTS=OFF \
@@ -90,15 +90,31 @@ jobs:
             make -j$(sysctl -n hw.logicalcpu)
             cd ../../
           done
+
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1
         env:
           CIBW_BUILD: cp310-* cp311-*
           CIBW_ARCHS_MACOS: auto arm64
+          CIBW_ARCHS_LINUX: auto
           CIBW_ENVIRONMENT_MACOS: OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64 OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
-          CIBW_BEFORE_BUILD: |
-            echo $OpenCV_DIR_x86_64
-            echo $OpenCV_DIR_arm64
+          CIBW_ENVIRONMENT_LINUX: OpenCV_DIR_x86_64=/project/opencv_build/x86_64
+          CIBW_BEFORE_ALL_LINUX: |
+            yum install -y cmake gcc-c++ git &&
+            git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git &&
+            mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64 &&
+            cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                  -D BUILD_LIST=core,imgcodecs \
+                  -D BUILD_EXAMPLES=OFF \
+                  -D BUILD_TESTS=OFF \
+                  -D BUILD_PERF_TESTS=OFF \
+                  -D WITH_IPP=OFF \
+                  -D WITH_OPENEXR=OFF \
+                  ../../opencv &&
+            make -j$(nproc) &&
+            cd ../../
+
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:

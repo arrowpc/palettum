@@ -13,9 +13,9 @@ if(APPLE)
 endif()
 
 FIND_PACKAGE(OpenCV REQUIRED)
-INCLUDE_DIRECTORIES(${OpenCV_INCLUDE_DIRS})
 
 add_subdirectory(external/pybind11)
+
 add_subdirectory(src)
 
 option(BUILD_TESTS "Build the tests" ON)

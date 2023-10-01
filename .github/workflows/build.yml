@@ -5,10 +5,14 @@ on:
     paths:
       - '.github/workflows/build.yml'
       - 'src/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
   pull_request:
     paths:
       - '.github/workflows/build.yml'
       - 'src/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
 
 jobs:
   build:

@@ -7,12 +7,16 @@ on:
       - 'src/**'
       - 'tests/cpp/**'
       - 'tests/test_images/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
   pull_request:
     paths:
       - '.github/workflows/cpp_test.yml'
       - 'src/**'
       - 'tests/cpp/**'
       - 'tests/test_images/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
 
 jobs:
   test:

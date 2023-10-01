@@ -134,7 +134,7 @@ def test_upload_image_with_contrast_adjustment(client):
 def test_upload_image_with_invalid_contrast(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
-    invalid_contrast_values = [0]
+    contrast_value = 0
     with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
         response = client.post(
             "/upload",

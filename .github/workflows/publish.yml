@@ -23,13 +23,13 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Build libpng arm64 from source
-        run: |
-          git clone https://git.code.sf.net/p/libpng/code libpng-code
-          cd libpng-code
-          ./configure --prefix=${GITHUB_WORKSPACE}/libpng-arm64 --host=aarch64-apple-darwin
-          make
-          make install
+#      - name: Build libpng arm64 from source
+#        run: |
+#          git clone https://git.code.sf.net/p/libpng/code libpng-code
+#          cd libpng-code
+#          ./configure --prefix=${GITHUB_WORKSPACE}/libpng-arm64 --host=aarch64-apple-darwin
+#          make
+#          make install
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -61,7 +61,7 @@ jobs:
         env:
           CIBW_BUILD: cp310-* cp311-*
           CIBW_ARCHS_MACOS: x86_64
-          CIBW_ENVIRONMENT_MACOS: OpenCV_DIR=$(pwd)/opencv_build/x86_64
+#          CIBW_ENVIRONMENT_MACOS: OpenCV_DIR=$(pwd)/opencv_build/x86_64
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3

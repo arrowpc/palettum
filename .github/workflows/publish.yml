@@ -50,22 +50,11 @@ jobs:
 #          path: opencv_build/arm64
 #          key: opencv-arm64-4.8.0
 
-      - name: Build OpenCV from source
-#        if: steps.cache-opencv-x86_64.outputs.cache-hit != 'true' || steps.cache-opencv-arm64.outputs.cache-hit != 'true'
+      - name: Install OpenCV
         run: |
-          git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
-          mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
-          cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                -D CMAKE_OSX_ARCHITECTURES=x86_64 \
-                -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
-                -D BUILD_EXAMPLES=OFF \
-                -D BUILD_TESTS=OFF \
-                -D BUILD_PERF_TESTS=OFF \
-                -D WITH_IPP=OFF \
-                ../../opencv
-          make -j$(sysctl -n hw.logicalcpu)
-          cd ../../
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew install opencv
 
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1

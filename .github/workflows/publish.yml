@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ macos-11 ]
+        os: [ macos-latest ]
 
     steps:
       - uses: actions/checkout@v4
@@ -36,35 +36,53 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Cache OpenCV x86_64
-        id: cache-opencv-x86_64-v2
-        uses: actions/cache@v3
-        with:
-          path: opencv_build/x86_64
-          key: opencv-x86_64-4.8.0
+#      - name: Cache OpenCV x86_64
+#        id: cache-opencv-x86_64-v2
+#        uses: actions/cache@v3
+#        with:
+#          path: opencv_build/x86_64
+#          key: opencv-x86_64-4.8.0
+#
+#      - name: Cache OpenCV arm64
+#        id: cache-opencv-arm64-v2
+#        uses: actions/cache@v3
+#        with:
+#          path: opencv_build/arm64
+#          key: opencv-arm64-4.8.0
 
-      - name: Cache OpenCV arm64
-        id: cache-opencv-arm64-v2
-        uses: actions/cache@v3
-        with:
-          path: opencv_build/arm64
-          key: opencv-arm64-4.8.0
-
-      - name: Build OpenCV for arm64 and x86_64 and Create Universal Libraries
+      - name: Build OpenCV from source
+#        if: steps.cache-opencv-x86_64.outputs.cache-hit != 'true' || steps.cache-opencv-arm64.outputs.cache-hit != 'true'
         run: |
           git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
           for arch in arm64 x86_64; do
             mkdir -p opencv_build/$arch && cd opencv_build/$arch
-            cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                  -D CMAKE_OSX_ARCHITECTURES=$arch \
-                  -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
-                  -D BUILD_EXAMPLES=OFF \
-                  -D BUILD_TESTS=OFF \
-                  -D BUILD_PERF_TESTS=OFF \
-                  -D WITH_IPP=OFF \
-                  -D WITH_OPENEXR=OFF \
-                  ../../opencv
+            if [ "$arch" == "arm64" ]; then
+              cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                    -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                    -D CMAKE_OSX_ARCHITECTURES=$arch \
+                    -D CMAKE_SYSTEM_NAME=Darwin \
+                    -D CMAKE_SYSTEM_PROCESSOR=arm64 \
+                    -D ENABLE_NEON=OFF \
+                    -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
+                    -D BUILD_EXAMPLES=OFF \
+                    -D BUILD_TESTS=OFF \
+                    -D BUILD_PERF_TESTS=OFF \
+                    -D WITH_IPP=OFF \
+                    -D WITH_OPENEXR=OFF \
+                    -D PNG_PNG_INCLUDE_DIR=${GITHUB_WORKSPACE}/libpng-arm64/include \
+                    -D PNG_LIBRARY=${GITHUB_WORKSPACE}/libpng-arm64/lib/libpng.a \
+                    ../../opencv
+            else
+              cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                    -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                    -D CMAKE_OSX_ARCHITECTURES=$arch \
+                    -D BUILD_LIST=core,imgproc,imgcodecs,highgui \
+                    -D BUILD_EXAMPLES=OFF \
+                    -D BUILD_TESTS=OFF \
+                    -D BUILD_PERF_TESTS=OFF \
+                    -D WITH_IPP=OFF \
+                    ../../opencv
+            fi
             make -j$(sysctl -n hw.logicalcpu)
             cd ../../
           done

@@ -182,13 +182,13 @@ py::array_t<uint8_t> Palettum::convertToPalette()
     auto cols = image_.cols;
     py::array_t<uint8_t> convertedResult(py::buffer_info(
         result.data,
-        sizeof(uint8_t),  //itemsize
+        sizeof(uint8_t),
         py::format_descriptor<uint8_t>::format(),
-        3,  // ndim
+        3,
         std::vector<size_t>{static_cast<unsigned long>(rows),
-                            static_cast<unsigned long>(cols), 3},  // shape
+                            static_cast<unsigned long>(cols), 3},
         std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
-                            sizeof(uint8_t)}  // strides
+                            sizeof(uint8_t)}
         ));
     return convertedResult;
 }

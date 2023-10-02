@@ -46,6 +46,7 @@ jobs:
           make install
 
       - name: Cache OpenCV and OpenCV Build
+        if: runner.os == 'macOS'
         id: cache-opencv
         uses: actions/cache@v3
         with:

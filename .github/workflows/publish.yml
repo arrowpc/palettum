@@ -18,8 +18,8 @@ on:
       - '!**.github/workflows/**'
       - '.github/workflows/publish.yml'
 
-  env:
-    OPENCV_VERSION: 4.8.0
+env:
+  OPENCV_VERSION: 4.8.0
 
 jobs:
   build_wheels:

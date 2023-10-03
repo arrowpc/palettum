@@ -98,8 +98,8 @@ jobs:
       - name: Build OpenCV for Windows
         if: runner.os == 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
-          New-Item -Type Directory -Path opencv_build\amd64
-          cd opencv_build\amd64
+          New-Item -Type Directory -Path opencv_build\AMD64
+          cd opencv_build\AMD64
           cmake -D CMAKE_BUILD_TYPE=RELEASE `
                 -D CMAKE_INSTALL_PREFIX=$PWD.Path `
                 -D BUILD_LIST=core,imgcodecs `
@@ -117,7 +117,7 @@ jobs:
           CIBW_BUILD: cp310-* cp311-*
           CIBW_ARCHS_MACOS: auto arm64
           CIBW_ARCHS_LINUX: x86_64
-          CIBW_ARCHS_WINDOWS: amd64
+          CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux* *-win32"
           CIBW_ENVIRONMENT_MACOS: OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64 OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
           CIBW_ENVIRONMENT_WINDOWS: OpenCV_DIR_amd64=$PWD.Path\\opencv_build\\amd64

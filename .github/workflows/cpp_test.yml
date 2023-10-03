@@ -1,6 +1,22 @@
-name: Test
+name: C++ Test
 
-on: [ push, pull_request ]
+on:
+  push:
+    paths:
+      - '.github/workflows/cpp_test.yml'
+      - 'src/**'
+      - 'tests/cpp/**'
+      - 'tests/test_images/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
+  pull_request:
+    paths:
+      - '.github/workflows/cpp_test.yml'
+      - 'src/**'
+      - 'tests/cpp/**'
+      - 'tests/test_images/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
 
 jobs:
   test:

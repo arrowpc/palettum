@@ -26,10 +26,13 @@ cv::Mat Palettum::pyToMat(py::array_t<uint8_t> &image)
 }
 py::array_t<uint8_t> Palettum::matToPy(Mat &image)
 {
+    if (!Py_IsInitialized())
+        Py_Initialize();
+    PyGILState_STATE gstate;
+    gstate = PyGILState_Ensure();
+
     auto rows = image.rows;
     auto cols = image.cols;
-
-    Py_Initialize();
 
     py::array_t<uint8_t> converted(py::buffer_info(
         image.data, sizeof(uint8_t), py::format_descriptor<uint8_t>::format(),
@@ -38,7 +41,7 @@ py::array_t<uint8_t> Palettum::matToPy(Mat &image)
                             static_cast<unsigned long>(cols), 3},  // shape
         std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
                             sizeof(uint8_t)}));
-
+    PyGILState_Release(gstate);
     return converted;
 }
 double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
@@ -105,6 +108,22 @@ double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
     return std::sqrt(lightness * lightness + chroma * chroma + hue * hue +
                      rT * chroma * hue);
 }
+
+double Palettum::py_deltaE(const py::list &lab1, const py::list &lab2)
+{
+    if (lab1.size() != 3 || lab2.size() != 3)
+    {
+        throw std::runtime_error("Both lists should have exactly 3 elements.");
+    }
+
+    Vec3f lab1_ = {lab1[0].cast<float>(), lab1[1].cast<float>(),
+                   lab1[2].cast<float>()};
+    Vec3f lab2_ = {lab2[0].cast<float>(), lab2[1].cast<float>(),
+                   lab2[2].cast<float>()};
+
+    return deltaE(lab1_, lab2_);
+}
+
 void Palettum::mapToPalette(const int startRow, const int endRow,
                             const Mat &img_lab,
                             const std::vector<cv::Vec3b> &lab_palette,
@@ -162,15 +181,12 @@ py::array_t<uint8_t> Palettum::convertToPalette()
     auto rows = image_.rows;
     auto cols = image_.cols;
     py::array_t<uint8_t> convertedResult(py::buffer_info(
-        result.data,
-        sizeof(uint8_t),  //itemsize
-        py::format_descriptor<uint8_t>::format(),
-        3,  // ndim
+        result.data, sizeof(uint8_t), py::format_descriptor<uint8_t>::format(),
+        3,
         std::vector<size_t>{static_cast<unsigned long>(rows),
-                            static_cast<unsigned long>(cols), 3},  // shape
+                            static_cast<unsigned long>(cols), 3},
         std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
-                            sizeof(uint8_t)}  // strides
-        ));
+                            sizeof(uint8_t)}));
     return convertedResult;
 }
 

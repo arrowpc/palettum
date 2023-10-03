@@ -125,7 +125,7 @@ jobs:
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1
         env:
-          CIBW_BUILD: cp310-* cp311-*
+          CIBW_BUILD: cp38-* cp39-* cp310-* **cp311-* cp312-*
           CIBW_ARCHS_MACOS: auto arm64
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64

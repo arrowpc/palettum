@@ -140,5 +140,5 @@ setup(
     zip_safe=False,
     install_requires=["opencv-python==4.8.0.76"],
     extras_require={"test": ["pytest>=6.0"]},
-    python_requires=">=3.10",
+    python_requires=">=3.8",
 )

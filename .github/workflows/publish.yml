@@ -157,7 +157,6 @@ jobs:
           path: ./wheelhouse/*.whl
 
   publish:
-    if: contains(github.event.head_commit.modified, 'setup.py')
     needs: build_wheels
     runs-on: ubuntu-latest
     permissions:

@@ -54,8 +54,6 @@ jobs:
             opencv
             opencv_build
           key: opencv-4.8.0-${{ runner.os }}
-          restore-keys: |
-            opencv-4.8.0-
 
       - name: Clone OpenCV repository
         if: runner.os != 'Linux' && steps.cache-opencv.outputs.cache-hit != 'true'

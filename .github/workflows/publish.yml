@@ -16,10 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest, windows-latest]
-
-    env:
-      OpenCV_DIR_x86_64: $(pwd)/opencv_build/x86_64
+        os: [ macos-latest, ubuntu-latest, windows-latest ]
 
     steps:
       - uses: actions/checkout@v4
@@ -49,6 +46,7 @@ jobs:
           make install
 
       - name: Cache OpenCV
+        if: runner.os != 'Linux'
         id: cache-opencv
         uses: actions/cache@v3
         with:
@@ -58,7 +56,7 @@ jobs:
           key: opencv-4.8.0-${{ runner.os }}
 
       - name: Clone OpenCV repository
-        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        if: runner.os != 'Linux' && steps.cache-opencv.outputs.cache-hit != 'true'
         run: git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
 
       - name: Build OpenCV for macOS
@@ -113,23 +111,6 @@ jobs:
                 ..\..\opencv
           cmake --build . --config Release --parallel
 
-      - name: Build OpenCV for Linux
-        if: runner.os == 'Linux' && steps.cache-opencv.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get install -y cmake g++ git &&
-          mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64 &&
-          cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                -D BUILD_LIST=core,imgcodecs \
-                -D BUILD_EXAMPLES=OFF \
-                -D BUILD_TESTS=OFF \
-                -D BUILD_PERF_TESTS=OFF \
-                -D WITH_IPP=OFF \
-                -D WITH_OPENEXR=OFF \
-                ../../opencv &&
-          make -j$(nproc) &&
-          cd ../../
-
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1
         env:
@@ -137,10 +118,25 @@ jobs:
           CIBW_ARCHS_MACOS: auto arm64
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
-          CIBW_SKIP: "*musllinux* *-win32"
+          CIBW_SKIP: "*musllinux*"
           CIBW_ENVIRONMENT_MACOS: OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64 OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
           CIBW_ENVIRONMENT_WINDOWS: OpenCV_DIR_amd64=$PWD.Path\\opencv_build\\amd64
-          CIBW_ENVIRONMENT_PASS_LINUX: OpenCV_DIR_x86_64
+          CIBW_ENVIRONMENT_LINUX: OpenCV_DIR_x86_64=/project/opencv_build/x86_64
+          CIBW_BEFORE_ALL_LINUX: |
+            yum install -y cmake gcc-c++ git &&
+            git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git &&
+            mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64 &&
+            cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                  -D BUILD_LIST=core,imgcodecs \
+                  -D BUILD_EXAMPLES=OFF \
+                  -D BUILD_TESTS=OFF \
+                  -D BUILD_PERF_TESTS=OFF \
+                  -D WITH_IPP=OFF \
+                  -D WITH_OPENEXR=OFF \
+                  ../../opencv &&
+            make -j$(nproc) &&
+            cd ../../
 
       - name: Install delvewheel
         if: runner.os == 'Windows'

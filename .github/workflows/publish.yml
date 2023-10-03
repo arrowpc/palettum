@@ -18,6 +18,9 @@ on:
       - '!**.github/workflows/**'
       - '.github/workflows/publish.yml'
 
+  env:
+    OPENCV_VERSION: 4.8.0
+
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -61,11 +64,11 @@ jobs:
           path: |
             opencv
             opencv_build
-          key: opencv-4.8.0-${{ runner.os }}
+          key: opencv-${{ env.OPENCV_VERSION }}-${{ runner.os }}
 
       - name: Clone OpenCV repository
         if: runner.os != 'Linux' && steps.cache-opencv.outputs.cache-hit != 'true'
-        run: git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
+        run: git clone --branch ${{ env.OPENCV_VERSION }} --depth 1 https://github.com/opencv/opencv.git
 
       - name: Build OpenCV for macOS
         if: runner.os == 'macOS' && steps.cache-opencv.outputs.cache-hit != 'true'
@@ -130,9 +133,10 @@ jobs:
           CIBW_ENVIRONMENT_MACOS: OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64 OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
           CIBW_ENVIRONMENT_WINDOWS: OpenCV_DIR_amd64=$PWD.Path\\opencv_build\\amd64
           CIBW_ENVIRONMENT_LINUX: OpenCV_DIR_x86_64=/project/opencv_build/x86_64
+          CIBW_ENVIRONMENT_PASS_LINUX: OPENCV_VERSION
           CIBW_BEFORE_ALL_LINUX: |
             yum install -y cmake gcc-c++ git &&
-            git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git &&
+            git clone --branch $OPENCV_VERSION --depth 1 https://github.com/opencv/opencv.git &&
             mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64 &&
             cmake -D CMAKE_BUILD_TYPE=RELEASE \
                   -D CMAKE_INSTALL_PREFIX=$(pwd) \
@@ -170,6 +174,8 @@ jobs:
     permissions:
       contents: read
       id-token: write
+    if: contains(github.event.head_commit.message, '[publish-test]') || startsWith(github.ref, 'refs/tags/v')
+
     steps:
       - uses: actions/checkout@v4
 

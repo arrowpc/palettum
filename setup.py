@@ -128,7 +128,7 @@ class CMakeBuild(build_ext):
 # logic and declaration, and simpler if you include description/version in a file.
 setup(
     name="palettum",
-    version="0.1.4",
+    version="0.1.6",
     author="ArrowPC",
     description="Core functionality for the Palettum project.",
     long_description="Core functionality for the Palettum project.",
@@ -138,7 +138,7 @@ setup(
     ext_modules=[CMakeExtension("palettum")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
-    install_requires=["opencv-python"],
+    install_requires=["opencv-python==4.8.0.76"],
     extras_require={"test": ["pytest>=6.0"]},
     python_requires=">=3.10",
 )

@@ -6,16 +6,16 @@ on:
       - '**'
     tags:
       - 'v*.*.*'
-    paths-ignore:
-      - '.github/workflows/**'
     paths:
+      - '**'
+      - '!**.github/workflows/**'
       - '.github/workflows/publish.yml'
   pull_request:
     branches:
       - '**'
-    paths-ignore:
-      - '.github/workflows/**'
     paths:
+      - '**'
+      - '!**.github/workflows/**'
       - '.github/workflows/publish.yml'
 
 jobs:

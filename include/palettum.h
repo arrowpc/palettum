@@ -5,11 +5,23 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include <atomic>
 #include <cmath>
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <vector>
-#include <atomic>
+
+#ifndef M_PI
+#    define M_PI 3.14159265358979323846264338327950288
+#endif
+
+#ifndef M_PI_2
+#    define M_PI_2 1.57079632679489661923132169163975144
+#endif
+
+#ifndef M_PI_4
+#    define M_PI_4 0.785398163397448309615660845819875721
+#endif
 
 using namespace cv;
 using namespace std;
@@ -86,6 +98,7 @@ private:
 public:
     Palettum(py::array_t<uint8_t> &image, const py::list &palette);
     static double deltaE(const Vec3f &lab1, const Vec3f &lab2);
+    static double py_deltaE(const py::list &lab1, const py::list &lab2);
     py::array_t<uint8_t> convertToPalette();
     bool validateImageColors();
     static cv::Mat pyToMat(py::array_t<uint8_t> &image);

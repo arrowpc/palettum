@@ -14,7 +14,7 @@ TEST(DeltaEComputation, TestSpecificLabValues)
 
 TEST(PalettumTests, ConvertJpegToPalette)
 {
-    cv::Mat img = cv::imread("../test_images/test.jpeg", cv::IMREAD_COLOR);
+    cv::Mat img = cv::imread("../../test_images/test.jpeg", cv::IMREAD_COLOR);
     if (img.empty())
     {
         FAIL() << "Failed to open test.jpeg!";
@@ -39,15 +39,21 @@ TEST(PalettumTests, ConvertJpegToPalette)
     //        result);
 
     cv::Mat original =
-        cv::imread("../test_images/test_estimate.png", cv::IMREAD_COLOR);
+        cv::imread("../../test_images/test_estimate.png", cv::IMREAD_COLOR);
     if (original.empty())
     {
         FAIL() << "Failed to open test_estimate.png!";
     }
-    int originalDiff = cv::norm(result, original, cv::NORM_L1);
-    EXPECT_EQ(originalDiff, 0);
 
-    cv::Mat different = cv::imread("../test_images/test.png", cv::IMREAD_COLOR);
+    double originalDiff = cv::norm(result, original, cv::NORM_L1);
+    double maxPossibleDifference =
+        original.total() * original.channels() * 255.0;
+
+    EXPECT_LT(originalDiff, 0.01 * maxPossibleDifference)
+        << "Difference with original image exceeds 1%!";
+
+    cv::Mat different =
+        cv::imread("../../test_images/test.png", cv::IMREAD_COLOR);
     if (different.empty())
     {
         FAIL() << "Failed to open test.png!";

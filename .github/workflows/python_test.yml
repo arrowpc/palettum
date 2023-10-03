@@ -1,0 +1,70 @@
+name: Python Test
+
+on:
+  push:
+    paths:
+      - '.github/workflows/python_test.yml'
+      - 'src/**'
+      - 'tests/python/**'
+      - 'tests/test_images/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
+  pull_request:
+    paths:
+      - '.github/workflows/python_test.yml'
+      - 'src/**'
+      - 'tests/python/**'
+      - 'tests/test_images/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies from requirements.txt
+        run: pip install -r requirements.txt
+
+      - name: Install dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake \
+          libopencv-dev \
+          
+
+      - name: Build OpenCV from source
+        if: runner.os == 'macOS'
+        run: |
+          git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
+          mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
+          cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                -D CMAKE_OSX_ARCHITECTURES=x86_64 \
+                -D BUILD_LIST=core,imgcodecs \
+                -D BUILD_EXAMPLES=OFF \
+                -D BUILD_TESTS=OFF \
+                -D BUILD_PERF_TESTS=OFF \
+                -D WITH_IPP=OFF \
+                ../../opencv
+          make -j$(sysctl -n hw.logicalcpu)
+          cd ../../
+
+      - name: Build and Install palettum
+        run: |
+          pip install .
+
+      - name: Run Python tests
+        run: pytest tests/python/

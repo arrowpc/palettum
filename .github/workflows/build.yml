@@ -1,0 +1,51 @@
+name: Build
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'src/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
+  pull_request:
+    paths:
+      - '.github/workflows/build.yml'
+      - 'src/**'
+      - '**/CMakeLists.txt'
+      - '**/*.cmake'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install \
+          cmake \
+          libopencv-dev
+
+      - name: Create build directory
+        run: mkdir build
+
+      - name: Configure CMake
+        working-directory: build
+        run: cmake -DBUILD_TESTS=OFF ..
+
+      - name: Build project
+        working-directory: build
+        run: make -j$(nproc)
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Build and Install Python bindings
+        run: |
+          pip3 install .

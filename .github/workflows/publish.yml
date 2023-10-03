@@ -121,7 +121,7 @@ jobs:
           CIBW_ARCHS_WINDOWS: amd64
           CIBW_SKIP: "*musllinux*" "*-win32"
           CIBW_ENVIRONMENT_MACOS: OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64 OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
-          CIBW_ENVIRONMENT_WINDOWS: OpenCV_DIR_amd64=$PWD.Path\opencv_build\amd64
+          CIBW_ENVIRONMENT_WINDOWS: OpenCV_DIR_amd64=$PWD.Path\\opencv_build\\amd64
           CIBW_ENVIRONMENT_LINUX: OpenCV_DIR_x86_64=/project/opencv_build/x86_64
           CIBW_BEFORE_ALL_LINUX: |
             yum install -y cmake gcc-c++ git &&

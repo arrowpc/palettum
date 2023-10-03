@@ -46,6 +46,7 @@ jobs:
           make install
 
       - name: Cache OpenCV
+        if: runner.os != 'Linux'
         id: cache-opencv
         uses: actions/cache@v3
         with:
@@ -57,7 +58,7 @@ jobs:
             opencv-4.8.0-
 
       - name: Clone OpenCV repository
-        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        if: runner.os != 'Linux' && steps.cache-opencv.outputs.cache-hit != 'true'
         run: git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
 
       - name: Build OpenCV for macOS

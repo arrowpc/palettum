@@ -138,6 +138,19 @@ jobs:
             make -j$(nproc) &&
             cd ../../
 
+      - name: Install delvewheel
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install delvewheel
+
+      - name: Repair Windows wheels with delvewheel
+        if: runner.os == 'Windows'
+        run: |
+          $wheels = Get-ChildItem -Path wheelhouse -Filter "*win_amd64.whl"
+          foreach ($wheel in $wheels) {
+            delvewheel repair $wheel.FullName --add-path opencv_build\AMD64\bin\Release
+          }
+
       - name: Upload wheels
         uses: actions/upload-artifact@v3
         with:

@@ -6,9 +6,17 @@ on:
       - '**'
     tags:
       - 'v*.*.*'
+    paths-ignore:
+      - '.github/workflows/**'
+    paths:
+      - '.github/workflows/publish.yml'
   pull_request:
     branches:
       - '**'
+    paths-ignore:
+      - '.github/workflows/**'
+    paths:
+      - '.github/workflows/publish.yml'
 
 jobs:
   build_wheels:
@@ -175,7 +183,7 @@ jobs:
         run: ls dist/
 
       - name: Publish to TestPyPI
-        if: github.event_name != 'push' || (github.event_name == 'push' && github.ref != 'refs/heads/master')
+        if: contains(github.event.head_commit.message, '[publish-test]') && github.event_name == 'push' && !startsWith(github.ref, 'refs/tags')
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/

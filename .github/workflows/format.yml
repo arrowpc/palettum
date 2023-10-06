@@ -3,13 +3,13 @@ name: Formatting Check
 on:
   push:
     paths:
-      - '.github/workflows/code-formatting-check.yml'
+      - '.github/workflows/format.yml'
       - '**.cpp'
       - '**.h'
       - '**.py'
   pull_request:
     paths:
-      - '.github/workflows/code-formatting-check.yml'
+      - '.github/workflows/format.yml'
       - '**.cpp'
       - '**.h'
       - '**.py'

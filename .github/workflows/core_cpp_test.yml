@@ -51,17 +51,20 @@ jobs:
 
       - name: Create build directory
         run: |
-          mkdir build-test && cd build-test
+          mkdir build-test
 
       - name: Configure CMake
+        working-directory: apps/core/build-test
         run: |
           cmake ..
           
 
       - name: Build project
+        working-directory: apps/core/build-test
         run: |
           make -j$(nproc)
 
       - name: Run tests
+        working-directory: apps/core/build-test
         run: |
           ctest --output-on-failure

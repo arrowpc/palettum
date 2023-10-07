@@ -50,16 +50,18 @@ jobs:
           pip install numpy
 
       - name: Create build directory
-        run: mkdir build-test
+        run: |
+          mkdir build-test && cd build-test
 
       - name: Configure CMake
-        working-directory: build-test
-        run: cmake ..
+        run: |
+          cmake ..
+          
 
       - name: Build project
-        working-directory: build-test
-        run: make -j$(nproc)
+        run: |
+          make -j$(nproc)
 
       - name: Run tests
-        working-directory: build-test
-        run: ctest --output-on-failure
+        run: |
+          ctest --output-on-failure

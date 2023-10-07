@@ -1,26 +1,31 @@
-name: C++ Test
+name: Core C++ Tests
 
 on:
   push:
     paths:
-      - '.github/workflows/cpp_test.yml'
-      - 'src/**'
-      - 'tests/cpp/**'
-      - 'tests/test_images/**'
-      - '**/CMakeLists.txt'
-      - '**/*.cmake'
+      - '.github/workflows/core_cpp_test.yml'
+      - 'apps/core/tests/test_images/**'
+      - 'apps/core/**/CMakeLists.txt'
+      - 'apps/core/CMakeLists.txt'
+      - 'apps/core/**/*.cmake'
+      - 'apps/core/**.cpp'
+      - 'apps/core/**.h'
   pull_request:
     paths:
-      - '.github/workflows/cpp_test.yml'
-      - 'src/**'
-      - 'tests/cpp/**'
-      - 'tests/test_images/**'
-      - '**/CMakeLists.txt'
-      - '**/*.cmake'
+      - '.github/workflows/core_cpp_test.yml'
+      - 'apps/core/tests/test_images/**'
+      - 'apps/core/**/CMakeLists.txt'
+      - 'apps/core/CMakeLists.txt'
+      - 'apps/core/**/*.cmake'
+      - 'apps/core/**.cpp'
+      - 'apps/core/**.h'
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/core
 
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +42,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.x'
 
       - name: Install Python dependencies
         run: |
@@ -58,9 +63,3 @@ jobs:
       - name: Run tests
         working-directory: build-test
         run: ctest --output-on-failure
-
-#      - name: Upload intermediate result
-#        uses: actions/upload-artifact@v3
-#        with:
-#          name: intermediate-artifact
-#          path: /home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png

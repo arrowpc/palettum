@@ -1,22 +1,26 @@
-name: Python Test
+name: Core Python Tests
 
 on:
   push:
     paths:
-      - '.github/workflows/python_test.yml'
-      - 'src/**'
-      - 'tests/python/**'
-      - 'tests/test_images/**'
-      - '**/CMakeLists.txt'
-      - '**/*.cmake'
+      - '.github/workflows/core_python_test.yml'
+      - 'apps/core/tests/test_images/**'
+      - 'apps/core/**/CMakeLists.txt'
+      - 'apps/core/CMakeLists.txt'
+      - 'apps/core/**/*.cmake'
+      - 'apps/core/**.cpp'
+      - 'apps/core/**.h'
+      - 'apps/core/**.py'
   pull_request:
     paths:
-      - '.github/workflows/python_test.yml'
-      - 'src/**'
-      - 'tests/python/**'
-      - 'tests/test_images/**'
-      - '**/CMakeLists.txt'
-      - '**/*.cmake'
+      - '.github/workflows/core_python_test.yml'
+      - 'apps/core/tests/test_images/**'
+      - 'apps/core/**/CMakeLists.txt'
+      - 'apps/core/CMakeLists.txt'
+      - 'apps/core/**/*.cmake'
+      - 'apps/core/**.cpp'
+      - 'apps/core/**.h'
+      - 'apps/core/**.py'
 
 jobs:
   test:
@@ -24,6 +28,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: apps/core
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,7 +39,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.x'
 
       - name: Install dependencies from requirements.txt
         run: pip install -r requirements.txt

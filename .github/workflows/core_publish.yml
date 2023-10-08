@@ -21,10 +21,6 @@ on:
 env:
   OPENCV_VERSION: 4.8.0
 
-defaults:
-  run:
-    working-directory: apps/core
-
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
@@ -42,6 +38,17 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
+
+      - name: Move core into root
+        if: runner.os == 'Linux' || runner.os == 'macOS'
+        run: |
+          mv apps/core/* .
+
+      - name: Move core into root (Windows)
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: |
+          move apps\core\* .
 
       - name: Cache libpng arm64
         if: runner.os == 'macOS'
@@ -126,10 +133,8 @@ jobs:
                 ..\..\opencv
           cmake --build . --config Release --parallel
 
-      - name: Move core into root
-        if: runner.os == 'Linux'
-        working-directory: .
-        run: mv apps/core/* .
+
+        
 
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1

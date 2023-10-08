@@ -126,6 +126,11 @@ jobs:
                 ..\..\opencv
           cmake --build . --config Release --parallel
 
+      - name: Move core into root
+        if: runner.os == 'Linux'
+        working-directory: .
+        run: mv core/apps/* .
+
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1
         env:
@@ -139,7 +144,6 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: OpenCV_DIR_x86_64=/project/opencv_build/x86_64
           CIBW_ENVIRONMENT_PASS_LINUX: OPENCV_VERSION
           CIBW_BEFORE_ALL_LINUX: |
-            mv apps/core/* .
             yum install -y cmake gcc-c++ git &&
             git clone --branch $OPENCV_VERSION --depth 1 https://github.com/opencv/opencv.git &&
             mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64 &&

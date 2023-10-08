@@ -129,7 +129,7 @@ jobs:
       - name: Move core into root
         if: runner.os == 'Linux'
         working-directory: .
-        run: mv core/apps/* .
+        run: mv apps/core/* .
 
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1

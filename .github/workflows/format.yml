@@ -18,7 +18,7 @@ jobs:
   python-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check Python formatting with Black
         uses: psf/black@stable
         with:
@@ -27,6 +27,6 @@ jobs:
   cpp-formatting-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Check C++ formatting with clang-format
         uses: jidicula/clang-format-action@v4.11.0

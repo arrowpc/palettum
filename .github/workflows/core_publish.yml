@@ -9,17 +9,21 @@ on:
     paths:
       - '**'
       - '!**.github/workflows/**'
-      - '.github/workflows/publish.yml'
+      - '.github/workflows/core_publish.yml'
   pull_request:
     branches:
       - '**'
     paths:
       - '**'
       - '!**.github/workflows/**'
-      - '.github/workflows/publish.yml'
+      - '.github/workflows/core_publish.yml'
 
 env:
   OPENCV_VERSION: 4.8.0
+
+defaults:
+  run:
+    working-directory: apps/core
 
 jobs:
   build_wheels:

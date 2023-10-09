@@ -1,0 +1,6 @@
+[submodule "apps/core/external/googletest"]
+	path = apps/core/external/googletest
+	url = https://github.com/google/googletest
+[submodule "apps/core/external/pybind11"]
+	path = apps/core/external/pybind11
+	url = https://github.com/pybind/pybind11

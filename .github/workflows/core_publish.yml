@@ -1,0 +1,225 @@
+name: Build and Publish to PyPI
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*.*.*'
+    paths:
+      - 'apps/core/**'
+      - '.github/workflows/core_publish.yml'
+  pull_request:
+    branches:
+      - '**'
+    paths:
+      - 'apps/core/**'
+      - '.github/workflows/core_publish.yml'
+
+env:
+  OPENCV_VERSION: 4.8.0
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ macos-latest, ubuntu-latest, windows-latest ]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Move core into root
+        if: runner.os == 'Linux' || runner.os == 'macOS'
+        run: |
+          mv apps/core/* .
+
+      - name: Move core into root (Windows)
+        if: runner.os == 'Windows'
+        working-directory: .
+        run: |
+          move apps\core\* .
+
+      - name: Cache libpng arm64
+        if: runner.os == 'macOS'
+        id: cache-libpng
+        uses: actions/cache@v3
+        with:
+          path: libpng-arm64
+          key: libpng-arm64
+
+      - name: Build libpng arm64 from source
+        if: runner.os == 'macOS' && steps.cache-libpng.outputs.cache-hit != 'true'
+        run: |
+          git clone https://git.code.sf.net/p/libpng/code libpng-code
+          cd libpng-code
+          ./configure --prefix=${GITHUB_WORKSPACE}/libpng-arm64 --host=aarch64-apple-darwin
+          make
+          make install
+
+      - name: Cache OpenCV
+        if: runner.os != 'Linux'
+        id: cache-opencv
+        uses: actions/cache@v3
+        with:
+          path: |
+            opencv
+            opencv_build
+          key: opencv-${{ env.OPENCV_VERSION }}-${{ runner.os }}
+
+      - name: Clone OpenCV repository
+        if: runner.os != 'Linux' && steps.cache-opencv.outputs.cache-hit != 'true'
+        run: git clone --branch ${{ env.OPENCV_VERSION }} --depth 1 https://github.com/opencv/opencv.git
+
+      - name: Build OpenCV for macOS
+        if: runner.os == 'macOS' && steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          for arch in arm64 x86_64; do
+            mkdir -p opencv_build/$arch && cd opencv_build/$arch
+            if [ "$arch" == "arm64" ]; then
+              cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                    -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                    -D CMAKE_OSX_ARCHITECTURES=$arch \
+                    -D CMAKE_SYSTEM_NAME=Darwin \
+                    -D CMAKE_SYSTEM_PROCESSOR=arm64 \
+                    -D ENABLE_NEON=OFF \
+                    -D BUILD_LIST=core,imgcodecs \
+                    -D BUILD_EXAMPLES=OFF \
+                    -D BUILD_TESTS=OFF \
+                    -D BUILD_PERF_TESTS=OFF \
+                    -D WITH_IPP=OFF \
+                    -D WITH_OPENEXR=OFF \
+                    -D PNG_PNG_INCLUDE_DIR=${GITHUB_WORKSPACE}/libpng-arm64/include \
+                    -D PNG_LIBRARY=${GITHUB_WORKSPACE}/libpng-arm64/lib/libpng.a \
+                    ../../opencv
+            else
+              cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                    -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                    -D BUILD_LIST=core,imgcodecs \
+                    -D BUILD_EXAMPLES=OFF \
+                    -D BUILD_TESTS=OFF \
+                    -D BUILD_PERF_TESTS=OFF \
+                    -D WITH_IPP=OFF \
+                    -D WITH_OPENEXR=OFF \
+                    ../../opencv
+            fi
+            make -j$(sysctl -n hw.logicalcpu)
+            cd ../../
+          done
+
+      - name: Build OpenCV for Windows
+        if: runner.os == 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
+        run: |
+          New-Item -Type Directory -Path opencv_build\AMD64
+          cd opencv_build\AMD64
+          cmake -D CMAKE_BUILD_TYPE=RELEASE `
+                -D CMAKE_INSTALL_PREFIX=$PWD.Path `
+                -D BUILD_LIST=core,imgcodecs `
+                -D BUILD_EXAMPLES=OFF `
+                -D BUILD_TESTS=OFF `
+                -D BUILD_PERF_TESTS=OFF `
+                -D WITH_IPP=OFF `
+                -D WITH_OPENEXR=OFF `
+                ..\..\opencv
+          cmake --build . --config Release --parallel
+
+
+        
+
+      - name: Use cibuildwheel
+        uses: pypa/cibuildwheel@v2.16.1
+        env:
+          CIBW_BUILD: cp38-* cp39-* cp310-* **cp311-* cp312-*
+          CIBW_ARCHS_MACOS: auto arm64
+          CIBW_ARCHS_LINUX: x86_64
+          CIBW_ARCHS_WINDOWS: AMD64
+          CIBW_SKIP: "*musllinux*"
+          CIBW_ENVIRONMENT_MACOS: OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64 OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
+          CIBW_ENVIRONMENT_WINDOWS: OpenCV_DIR_amd64=$PWD.Path\\opencv_build\\amd64
+          CIBW_ENVIRONMENT_LINUX: OpenCV_DIR_x86_64=/project/opencv_build/x86_64
+          CIBW_ENVIRONMENT_PASS_LINUX: OPENCV_VERSION
+          CIBW_BEFORE_ALL_LINUX: |
+            yum install -y cmake gcc-c++ git &&
+            git clone --branch $OPENCV_VERSION --depth 1 https://github.com/opencv/opencv.git &&
+            mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64 &&
+            cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                  -D BUILD_LIST=core,imgcodecs \
+                  -D BUILD_EXAMPLES=OFF \
+                  -D BUILD_TESTS=OFF \
+                  -D BUILD_PERF_TESTS=OFF \
+                  -D WITH_IPP=OFF \
+                  -D WITH_OPENEXR=OFF \
+                  ../../opencv &&
+            make -j$(nproc) &&
+            cd ../../
+
+      - name: Install delvewheel
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install delvewheel
+
+      - name: Repair Windows wheels with delvewheel
+        if: runner.os == 'Windows'
+        run: |
+          $wheels = Get-ChildItem -Path wheelhouse -Filter "*win_amd64.whl"
+          foreach ($wheel in $wheels) {
+            delvewheel repair $wheel.FullName --add-path opencv_build\AMD64\bin\Release
+          }
+
+      - name: Upload wheels
+        uses: actions/upload-artifact@v3
+        with:
+          path: ./wheelhouse/*.whl
+
+  publish:
+    needs: build_wheels
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    if: contains(github.event.head_commit.message, '[publish-test]') || startsWith(github.ref, 'refs/tags')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download wheels
+        uses: actions/download-artifact@v3
+        with:
+          name: artifact
+          path: dist
+
+      - name: List wheel files
+        run: ls dist/
+
+      - name: Publish to TestPyPI
+        if: contains(github.event.head_commit.message, '[publish-test]') && github.event_name == 'push' && !startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          password: ${{ secrets.TEST_PYPI_PASSWORD }}
+
+      - name: Publish to PyPI
+        if: startsWith(github.ref, 'refs/tags')
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_PASSWORD }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false

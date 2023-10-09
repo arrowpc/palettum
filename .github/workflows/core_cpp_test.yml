@@ -1,0 +1,70 @@
+name: Core C++ Tests
+
+on:
+  push:
+    paths:
+      - '.github/workflows/core_cpp_test.yml'
+      - 'apps/core/tests/test_images/**'
+      - 'apps/core/**/CMakeLists.txt'
+      - 'apps/core/CMakeLists.txt'
+      - 'apps/core/**/*.cmake'
+      - 'apps/core/**.cpp'
+      - 'apps/core/**.h'
+  pull_request:
+    paths:
+      - '.github/workflows/core_cpp_test.yml'
+      - 'apps/core/tests/test_images/**'
+      - 'apps/core/**/CMakeLists.txt'
+      - 'apps/core/CMakeLists.txt'
+      - 'apps/core/**/*.cmake'
+      - 'apps/core/**.cpp'
+      - 'apps/core/**.h'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/core
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install \
+          cmake \
+          libopencv-dev
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy
+
+      - name: Create build directory
+        run: |
+          mkdir build-test
+
+      - name: Configure CMake
+        working-directory: apps/core/build-test
+        run: |
+          cmake ..
+          
+
+      - name: Build project
+        working-directory: apps/core/build-test
+        run: |
+          make -j$(nproc)
+
+      - name: Run tests
+        working-directory: apps/core/build-test
+        run: |
+          ctest --output-on-failure

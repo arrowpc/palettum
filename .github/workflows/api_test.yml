@@ -10,8 +10,9 @@ on:
       - '.github/workflows/api_test.yml'
       - 'apps/api/**'
 
-
-working-directory: apps/api
+defaults:
+  run:
+    working-directory: apps/api
 
 jobs:
   test:

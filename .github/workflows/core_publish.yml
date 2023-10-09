@@ -7,15 +7,13 @@ on:
     tags:
       - 'v*.*.*'
     paths:
-      - '**'
-      - '!**.github/workflows/**'
+      - 'apps/core/**'
       - '.github/workflows/core_publish.yml'
   pull_request:
     branches:
       - '**'
     paths:
-      - '**'
-      - '!**.github/workflows/**'
+      - 'apps/core/**'
       - '.github/workflows/core_publish.yml'
 
 env:

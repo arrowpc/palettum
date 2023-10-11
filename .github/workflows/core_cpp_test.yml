@@ -74,7 +74,7 @@ jobs:
                 -D BUILD_PERF_TESTS=OFF `
                 -D WITH_IPP=OFF `
                 -D WITH_OPENEXR=OFF `
-                ..\..\opencv
+                ..\..\external\opencv
           cmake --build . --config Release --parallel
 
       - name: Set up Python

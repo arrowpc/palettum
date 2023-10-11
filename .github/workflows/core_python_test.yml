@@ -90,6 +90,10 @@ jobs:
           $wheels = Get-ChildItem -Path dist -Filter "*win_amd64.whl"
           foreach ($wheel in $wheels) {
             delvewheel repair $wheel.FullName --add-path opencv_build\AMD64\bin\Release
+          }
+          
+          $wheels = Get-ChildItem -Path wheelhouse -Filter "*win_amd64.whl"
+          foreach ($wheel in $wheels) {
             pip install $wheel.FullName --force-reinstall
           }
 

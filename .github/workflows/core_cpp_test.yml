@@ -25,7 +25,10 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: apps/core
@@ -57,7 +60,7 @@ jobs:
                   -D WITH_IPP=OFF \
                   -D WITH_OPENEXR=OFF \
                   ../../external/opencv
-          make
+          make -j$(nproc)
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -77,7 +80,7 @@ jobs:
         working-directory: apps/core/build-test
         run: |
           cmake ..
-          
+
 
       - name: Build project
         working-directory: apps/core/build-test

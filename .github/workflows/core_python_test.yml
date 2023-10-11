@@ -76,8 +76,20 @@ jobs:
           cmake --build . --config Release --parallel
 
       - name: Build and Install palettum
+        if: runner.os != 'Windows'
         run: |
           pip install .
+
+      - name: Build and Install palettum (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          python setup.py install bdist_wheel
+          
+          $wheels = Get-ChildItem -Path dist -Filter "*win_amd64.whl"
+          foreach ($wheel in $wheels) {
+            delvewheel repair $wheel.FullName --add-path opencv_build\AMD64\bin\Release
+            pip install $wheel.FullName
+          }
 
       - name: Run Python tests
         run: pytest tests/python/

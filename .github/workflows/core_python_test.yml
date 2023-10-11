@@ -1,6 +1,8 @@
 name: Core Python Tests
 
 on:
+  workflow_dispatch:
+
   push:
     paths:
       - '.github/workflows/core_python_test.yml'

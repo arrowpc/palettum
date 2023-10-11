@@ -1,6 +1,8 @@
 name: Core C++ Tests
 
 on:
+  workflow_dispatch:
+
   push:
     paths:
       - '.github/workflows/core_cpp_test.yml'

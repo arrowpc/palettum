@@ -94,7 +94,7 @@ jobs:
       - name: Configure CMake
         working-directory: apps/core/build-test
         run: |
-          cmake ..
+          cmake -D CMAKE_BUILD_TYPE=Release ..
 
 
       - name: Build project
@@ -112,4 +112,4 @@ jobs:
       - name: Run tests
         working-directory: apps/core/build-test
         run: |
-          ctest --output-on-failure
+          ctest --output-on-failure -C Release

@@ -26,7 +26,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ ubuntu-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -44,30 +44,19 @@ jobs:
       - name: Install dependencies from requirements.txt
         run: pip install -r requirements.txt
 
-      - name: Install dependencies
-        if: runner.os == 'Linux'
+      - name: Build OpenCV
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake \
-          libopencv-dev \
-          
-
-      - name: Build OpenCV from source
-        if: runner.os == 'macOS'
-        run: |
-          git clone --branch 4.8.0 --depth 1 https://github.com/opencv/opencv.git
           mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
           cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                -D CMAKE_OSX_ARCHITECTURES=x86_64 \
-                -D BUILD_LIST=core,imgcodecs \
-                -D BUILD_EXAMPLES=OFF \
-                -D BUILD_TESTS=OFF \
-                -D BUILD_PERF_TESTS=OFF \
-                -D WITH_IPP=OFF \
-                ../../opencv
-          make -j$(sysctl -n hw.logicalcpu)
-          cd ../../
+                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                  -D BUILD_LIST=core,imgcodecs \
+                  -D BUILD_EXAMPLES=OFF \
+                  -D BUILD_TESTS=OFF \
+                  -D BUILD_PERF_TESTS=OFF \
+                  -D WITH_IPP=OFF \
+                  -D WITH_OPENEXR=OFF \
+                  ../../external/opencv
+          make -j$(nproc)
 
       - name: Build and Install palettum
         run: |

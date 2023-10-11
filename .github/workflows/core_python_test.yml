@@ -44,8 +44,16 @@ jobs:
       - name: Install dependencies from requirements.txt
         run: pip install -r requirements.txt
 
+      - name: Cache OpenCV
+        id: cache-opencv
+        uses: actions/cache@v3
+        with:
+          path: |
+            apps/core/opencv_build
+          key: opencv-${{ env.OPENCV_VERSION }}-${{ runner.os }}
+
       - name: Build OpenCV
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
           cmake -D CMAKE_BUILD_TYPE=RELEASE \
@@ -60,7 +68,7 @@ jobs:
           make -j$(nproc)
 
       - name: Build OpenCV (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           New-Item -Type Directory -Path opencv_build\AMD64
           cd opencv_build\AMD64

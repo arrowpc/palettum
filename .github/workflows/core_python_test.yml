@@ -26,7 +26,7 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest ]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -45,6 +45,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Build OpenCV
+        if: runner.os != 'Windows'
         run: |
           mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
           cmake -D CMAKE_BUILD_TYPE=RELEASE \
@@ -57,6 +58,22 @@ jobs:
                   -D WITH_OPENEXR=OFF \
                   ../../external/opencv
           make -j$(nproc)
+
+      - name: Build OpenCV (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          New-Item -Type Directory -Path opencv_build\AMD64
+          cd opencv_build\AMD64
+          cmake -D CMAKE_BUILD_TYPE=RELEASE `
+                -D CMAKE_INSTALL_PREFIX=$PWD.Path `
+                -D BUILD_LIST=core,imgcodecs `
+                -D BUILD_EXAMPLES=OFF `
+                -D BUILD_TESTS=OFF `
+                -D BUILD_PERF_TESTS=OFF `
+                -D WITH_IPP=OFF `
+                -D WITH_OPENEXR=OFF `
+                ..\..\external\opencv
+          cmake --build . --config Release --parallel
 
       - name: Build and Install palettum
         run: |

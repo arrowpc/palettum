@@ -49,15 +49,15 @@ jobs:
         run: |
           mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
           cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                -D CMAKE_OSX_ARCHITECTURES=x86_64 \
-                -D BUILD_LIST=core,imgcodecs \
-                -D BUILD_EXAMPLES=OFF \
-                -D BUILD_TESTS=OFF \
-                -D BUILD_PERF_TESTS=OFF \
-                -D WITH_IPP=OFF \
-                ../../external/opencv
-          make -j$(sysctl -n hw.logicalcpu)
+                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                  -D BUILD_LIST=core,imgcodecs \
+                  -D BUILD_EXAMPLES=OFF \
+                  -D BUILD_TESTS=OFF \
+                  -D BUILD_PERF_TESTS=OFF \
+                  -D WITH_IPP=OFF \
+                  -D WITH_OPENEXR=OFF \
+                  ../../external/opencv
+          make
 
       - name: Set up Python
         uses: actions/setup-python@v4

@@ -1,6 +1,8 @@
 name: Formatting Check
 
 on:
+  workflow_dispatch:
+
   push:
     paths:
       - '.github/workflows/format.yml'

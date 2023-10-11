@@ -1,6 +1,8 @@
 name: API Tests
 
 on:
+  workflow_dispatch:
+
   push:
     paths:
       - '.github/workflows/api_test.yml'

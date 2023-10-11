@@ -107,7 +107,7 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: apps/core/build-test
         run: |
-          cmake --build . --parallel
+          cmake --build . --config Release --parallel
 
       - name: Run tests
         working-directory: apps/core/build-test

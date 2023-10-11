@@ -45,6 +45,7 @@ jobs:
           key: opencv-${{ env.OPENCV_VERSION }}-${{ runner.os }}
 
       - name: Build OpenCV
+        if: steps.cache-opencv.outputs.cache-hit != 'true'
         run: |
           mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
           cmake -D CMAKE_BUILD_TYPE=RELEASE \

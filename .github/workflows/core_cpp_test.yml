@@ -98,13 +98,13 @@ jobs:
 
 
       - name: Build project
-        if: os.runner != 'Windows'
+        if: runner.os != 'Windows'
         working-directory: apps/core/build-test
         run: |
           make -j$(nproc)
 
       - name: Build project (Windows)
-        if: os.runner == 'Windows'
+        if: runner.os == 'Windows'
         working-directory: apps/core/build-test
         run: |
           cmake --build . --parallel

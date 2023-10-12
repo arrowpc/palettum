@@ -73,13 +73,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            opencv
             opencv_build
           key: opencv-${{ env.OPENCV_VERSION }}-${{ runner.os }}
-
-      - name: Clone OpenCV repository
-        if: runner.os != 'Linux' && steps.cache-opencv.outputs.cache-hit != 'true'
-        run: git clone --branch ${{ env.OPENCV_VERSION }} --depth 1 https://github.com/opencv/opencv.git
 
       - name: Build OpenCV for macOS
         if: runner.os == 'macOS' && steps.cache-opencv.outputs.cache-hit != 'true'
@@ -101,7 +96,7 @@ jobs:
                     -D WITH_OPENEXR=OFF \
                     -D PNG_PNG_INCLUDE_DIR=${GITHUB_WORKSPACE}/libpng-arm64/include \
                     -D PNG_LIBRARY=${GITHUB_WORKSPACE}/libpng-arm64/lib/libpng.a \
-                    ../../opencv
+                    ../../external/opencv
             else
               cmake -D CMAKE_BUILD_TYPE=RELEASE \
                     -D CMAKE_INSTALL_PREFIX=$(pwd) \
@@ -111,7 +106,7 @@ jobs:
                     -D BUILD_PERF_TESTS=OFF \
                     -D WITH_IPP=OFF \
                     -D WITH_OPENEXR=OFF \
-                    ../../opencv
+                    ../../external/opencv
             fi
             make -j$(sysctl -n hw.logicalcpu)
             cd ../../
@@ -130,11 +125,8 @@ jobs:
                 -D BUILD_PERF_TESTS=OFF `
                 -D WITH_IPP=OFF `
                 -D WITH_OPENEXR=OFF `
-                ..\..\opencv
+                ..\..\external\opencv
           cmake --build . --config Release --parallel
-
-
-        
 
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.16.1
@@ -160,7 +152,7 @@ jobs:
                   -D BUILD_PERF_TESTS=OFF \
                   -D WITH_IPP=OFF \
                   -D WITH_OPENEXR=OFF \
-                  ../../opencv &&
+                  ../../external/opencv &&
             make -j$(nproc) &&
             cd ../../
 

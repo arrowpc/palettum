@@ -29,15 +29,25 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Build OpenCV
+        working-directory: apps/core
+        run: |
+          mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
+          cmake -D CMAKE_BUILD_TYPE=RELEASE \
+                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
+                  -D BUILD_LIST=core,imgcodecs \
+                  -D BUILD_EXAMPLES=OFF \
+                  -D BUILD_TESTS=OFF \
+                  -D BUILD_PERF_TESTS=OFF \
+                  -D WITH_IPP=OFF \
+                  -D WITH_OPENEXR=OFF \
+                  ../../external/opencv
+          make -j$(nproc)
+
       - name: Install palettum
         working-directory: apps/core
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake \
-          libopencv-dev \
-          
           pip install .
-
 
       - name: Install dependencies from requirements.txt
         run: pip install -r requirements.txt

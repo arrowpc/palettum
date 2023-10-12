@@ -16,6 +16,9 @@ defaults:
   run:
     working-directory: apps/api
 
+env:
+  OPENCV_VERSION: 4.8.0
+
 jobs:
   test:
     strategy:
@@ -32,8 +35,16 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Cache OpenCV
+        id: cache-opencv
+        uses: actions/cache@v3
+        with:
+          path: |
+            apps/core/opencv_build
+          key: opencv-${{ env.OPENCV_VERSION }}-${{ runner.os }}
+
       - name: Build OpenCV
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
         working-directory: apps/core
         run: |
           mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
@@ -49,7 +60,7 @@ jobs:
           make -j$(nproc)
 
       - name: Build OpenCV (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
         working-directory: apps/core
         run: |
           New-Item -Type Directory -Path opencv_build\AMD64

@@ -12,30 +12,41 @@ TEST(DeltaEComputation, TestSpecificLabValues)
     EXPECT_NEAR(Palettum::deltaE(lab1, lab2), 61.2219665084882, 1e-2);
 }
 
-TEST(PalettumTests, ConvertJpegToPalette)
+class PalettumTests : public ::testing::Test
 {
-    cv::Mat img =
-        cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
-    if (img.empty())
+protected:
+    cv::Mat result;
+    cv::Mat img;
+    std::vector<std::array<int, 3>> palette;
+
+    void SetUp() override
     {
-        FAIL() << "Failed to open test.jpeg!";
+        img = cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
+        if (img.empty())
+        {
+            FAIL() << "Failed to open hydrangea.jpeg";
+        }
+
+        auto convertedImg = Palettum::matToPy(img);
+
+        palette = {
+            {190, 0, 57},   {255, 69, 0},    {255, 168, 0},   {255, 214, 53},
+            {0, 163, 104},  {0, 204, 120},   {126, 237, 86},  {0, 117, 111},
+            {0, 158, 170},  {36, 80, 164},   {54, 144, 234},  {81, 233, 244},
+            {73, 58, 193},  {106, 92, 255},  {129, 30, 159},  {180, 74, 192},
+            {255, 56, 129}, {255, 153, 170}, {109, 72, 47},   {156, 105, 38},
+            {0, 0, 0},      {137, 141, 144}, {212, 215, 217}, {255, 255, 255}};
+        py::list palette_py = py::cast(palette);
+
+        Palettum test(convertedImg, palette_py);
+        py::array_t<uint8_t> resultArray = test.convertToPalette();
+
+        result = Palettum::pyToMat(resultArray);
     }
-    auto convertedImg = Palettum::matToPy(img);
+};
 
-    std::vector<std::array<int, 3>> palette = {
-        {190, 0, 57},   {255, 69, 0},    {255, 168, 0},   {255, 214, 53},
-        {0, 163, 104},  {0, 204, 120},   {126, 237, 86},  {0, 117, 111},
-        {0, 158, 170},  {36, 80, 164},   {54, 144, 234},  {81, 233, 244},
-        {73, 58, 193},  {106, 92, 255},  {129, 30, 159},  {180, 74, 192},
-        {255, 56, 129}, {255, 153, 170}, {109, 72, 47},   {156, 105, 38},
-        {0, 0, 0},      {137, 141, 144}, {212, 215, 217}, {255, 255, 255}};
-    py::list palette_py = py::cast(palette);
-
-    auto test = Palettum(convertedImg, palette_py);
-    py::array_t<uint8_t> resultArray = test.convertToPalette();
-
-    auto result = Palettum::pyToMat(resultArray);
-
+TEST_F(PalettumTests, ConvertJpegToPalette)
+{
     cv::Mat original = cv::imread("../../test_images/hydrangea_estimate.png",
                                   cv::IMREAD_COLOR);
     if (original.empty())
@@ -54,29 +65,8 @@ TEST(PalettumTests, ConvertJpegToPalette)
     EXPECT_NE(differentDiff, 0);
 }
 
-TEST(PalettumTests, ValidateImageColors)
+TEST_F(PalettumTests, ValidateImageColors)
 {
-    cv::Mat img =
-        cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
-    if (img.empty())
-    {
-        FAIL() << "Failed to open test.jpeg!";
-    }
-    auto convertedImg = Palettum::matToPy(img);
-
-    std::vector<std::array<int, 3>> palette = {
-        {190, 0, 57},   {255, 69, 0},    {255, 168, 0},   {255, 214, 53},
-        {0, 163, 104},  {0, 204, 120},   {126, 237, 86},  {0, 117, 111},
-        {0, 158, 170},  {36, 80, 164},   {54, 144, 234},  {81, 233, 244},
-        {73, 58, 193},  {106, 92, 255},  {129, 30, 159},  {180, 74, 192},
-        {255, 56, 129}, {255, 153, 170}, {109, 72, 47},   {156, 105, 38},
-        {0, 0, 0},      {137, 141, 144}, {212, 215, 217}, {255, 255, 255}};
-    py::list palette_py = py::cast(palette);
-
-    auto test = Palettum(convertedImg, palette_py);
-    test.convertToPalette();
-    py::array_t<uint8_t> result = test.convertToPalette();
-
-    EXPECT_EQ(Palettum::py_validateImageColors(result, palette), true);
+    EXPECT_EQ(Palettum::validateImageColors(result, palette), true);
     EXPECT_EQ(Palettum::validateImageColors(img, palette), false);
 }

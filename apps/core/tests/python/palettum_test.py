@@ -58,7 +58,9 @@ def test_convert_jpeg_to_palette():
         difference_with_original < 0.01 * max_possible_difference
     ), "Resulting image difference with expected is more than 1%!"
 
-    different = cv2.imread(os.path.join(current_dir, "..", "test_images", "hydrangea.jpeg"))
+    different = cv2.imread(
+        os.path.join(current_dir, "..", "test_images", "hydrangea.jpeg")
+    )
     assert different is not None, "Failed to open hydrangea.jpeg!"
     difference_with_different = cv2.norm(result, different, cv2.NORM_L1)
     assert (

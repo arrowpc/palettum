@@ -100,7 +100,8 @@ public:
     static double py_deltaE(const py::list &lab1, const py::list &lab2);
     py::array_t<uint8_t> convertToPalette();
     static bool validateImageColors(
-        Mat &image, const std::vector<std::array<int, 3>> &palette);
+        pybind11::array_t<uint8_t> image,
+        const std::vector<std::array<int, 3>> &palette);
     static cv::Mat pyToMat(py::array_t<uint8_t> &image);
     static py::array_t<uint8_t> matToPy(cv::Mat &image);
 };

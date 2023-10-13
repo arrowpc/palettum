@@ -191,9 +191,12 @@ py::array_t<uint8_t> Palettum::convertToPalette()
 }
 
 bool Palettum::validateImageColors(
-    cv::Mat &image, const std::vector<std::array<int, 3>> &palette)
+    pybind11::array_t<uint8_t> image,
+    const std::vector<std::array<int, 3>> &palette)
 {
     std::atomic<bool> foundMismatch(false);
+
+    Mat img = pyToMat(image);
 
     auto isColorInPalette = [&palette](const cv::Vec3b &color) -> bool {
         for (const auto &paletteColor : palette)
@@ -208,12 +211,12 @@ bool Palettum::validateImageColors(
     };
 
     auto parallelValidator = [&isColorInPalette, &foundMismatch,
-                              &image](const cv::Range &range) {
+                              &img](const cv::Range &range) {
         for (int y = range.start; y < range.end; y++)
         {
-            for (int x = 0; x < image.cols; x++)
+            for (int x = 0; x < img.cols; x++)
             {
-                if (!isColorInPalette(image.at<cv::Vec3b>(y, x)))
+                if (!isColorInPalette(img.at<cv::Vec3b>(y, x)))
                 {
                     foundMismatch.store(true);
                     return;
@@ -222,7 +225,7 @@ bool Palettum::validateImageColors(
         }
     };
 
-    cv::parallel_for_(cv::Range(0, image.rows), parallelValidator);
+    cv::parallel_for_(cv::Range(0, img.rows), parallelValidator);
 
     return !foundMismatch.load();
 }

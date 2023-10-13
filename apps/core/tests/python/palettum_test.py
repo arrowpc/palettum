@@ -14,8 +14,8 @@ def test_deltaE_computation():
 
 def test_convert_jpeg_to_palette():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    img = cv2.imread(os.path.join(current_dir, "..", "test_images", "test.jpeg"))
-    assert img is not None, "Failed to open test.jpeg!"
+    img = cv2.imread(os.path.join(current_dir, "..", "test_images", "hydrangea.jpeg"))
+    assert img is not None, "Failed to open hydrangea.jpeg!"
 
     palette = [
         (190, 0, 57),
@@ -48,9 +48,9 @@ def test_convert_jpeg_to_palette():
     result = p.convertToPalette()
 
     original = cv2.imread(
-        os.path.join(current_dir, "..", "test_images", "test_estimate.png")
+        os.path.join(current_dir, "..", "test_images", "hydrangea_estimate.png")
     )
-    assert original is not None, "Failed to open test_estimate.png!"
+    assert original is not None, "Failed to open hydrangea_estimate.png!"
     difference_with_original = cv2.norm(result, original, cv2.NORM_L1)
 
     max_possible_difference = img.size * 255
@@ -58,8 +58,8 @@ def test_convert_jpeg_to_palette():
         difference_with_original < 0.01 * max_possible_difference
     ), "Resulting image difference with expected is more than 1%!"
 
-    different = cv2.imread(os.path.join(current_dir, "..", "test_images", "test.png"))
-    assert different is not None, "Failed to open test.png!"
+    different = cv2.imread(os.path.join(current_dir, "..", "test_images", "hydrangea.jpeg"))
+    assert different is not None, "Failed to open hydrangea.jpeg!"
     difference_with_different = cv2.norm(result, different, cv2.NORM_L1)
     assert (
         difference_with_different != 0

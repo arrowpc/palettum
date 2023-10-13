@@ -14,7 +14,7 @@ TEST(DeltaEComputation, TestSpecificLabValues)
 
 TEST(PalettumTests, ConvertJpegToPalette)
 {
-    cv::Mat img = cv::imread("../../test_images/test.jpeg", cv::IMREAD_COLOR);
+    cv::Mat img = cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
     if (img.empty())
     {
         FAIL() << "Failed to open test.jpeg!";
@@ -34,15 +34,12 @@ TEST(PalettumTests, ConvertJpegToPalette)
     py::array_t<uint8_t> resultArray = test.convertToPalette();
 
     auto result = Palettum::pyToMat(resultArray);
-    //    cv::imwrite(
-    //        "/home/runner/work/Palettum-Core/Palettum-Core/tests/intermediate.png",
-    //        result);
 
     cv::Mat original =
-        cv::imread("../../test_images/test_estimate.png", cv::IMREAD_COLOR);
+        cv::imread("../../test_images/hydrangea_estimate.png", cv::IMREAD_COLOR);
     if (original.empty())
     {
-        FAIL() << "Failed to open test_estimate.png!";
+        FAIL() << "Failed to open hydrangea_estimate.png!";
     }
 
     double originalDiff = cv::norm(result, original, cv::NORM_L1);
@@ -53,10 +50,10 @@ TEST(PalettumTests, ConvertJpegToPalette)
         << "Difference with original image exceeds 1%!";
 
     cv::Mat different =
-        cv::imread("../../test_images/test.png", cv::IMREAD_COLOR);
+        cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
     if (different.empty())
     {
-        FAIL() << "Failed to open test.png!";
+        FAIL() << "Failed to open hydrangea.jpeg!";
     }
     int differentDiff = cv::norm(result, different, cv::NORM_L1);
     EXPECT_NE(differentDiff, 0);

@@ -190,42 +190,30 @@ py::array_t<uint8_t> Palettum::convertToPalette()
     return convertedResult;
 }
 
-bool isColorInPalette(const cv::Vec3b &color,
-                      const std::vector<cv::Scalar> &palette)
-{
-    for (const auto &paletteColor : palette)
-    {
-        if (color[0] == paletteColor[0] && color[1] == paletteColor[1] &&
-            color[2] == paletteColor[2])
-        {
-            return true;
-        }
-    }
-    return false;
-}
-bool Palettum::isColorInPalette(const Vec3b &color)
-{
-    for (const auto &paletteColor : palette_)
-    {
-        if (color[0] == paletteColor[0] && color[1] == paletteColor[1] &&
-            color[2] == paletteColor[2])
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Palettum::validateImageColors()
+bool Palettum::validateImageColors(
+    cv::Mat &image, const std::vector<std::array<int, 3>> &palette)
 {
     std::atomic<bool> foundMismatch(false);
 
-    auto parallelValidator = [this, &foundMismatch](const cv::Range &range) {
+    auto isColorInPalette = [&palette](const cv::Vec3b &color) -> bool {
+        for (const auto &paletteColor : palette)
+        {
+            if (color[2] == paletteColor[0] && color[1] == paletteColor[1] &&
+                color[0] == paletteColor[2])
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto parallelValidator = [&isColorInPalette, &foundMismatch,
+                              &image](const cv::Range &range) {
         for (int y = range.start; y < range.end; y++)
         {
-            for (int x = 0; x < image_.cols; x++)
+            for (int x = 0; x < image.cols; x++)
             {
-                if (!isColorInPalette(image_.at<cv::Vec3b>(y, x)))
+                if (!isColorInPalette(image.at<cv::Vec3b>(y, x)))
                 {
                     foundMismatch.store(true);
                     return;
@@ -234,7 +222,7 @@ bool Palettum::validateImageColors()
         }
     };
 
-    cv::parallel_for_(cv::Range(0, image_.rows), parallelValidator);
+    cv::parallel_for_(cv::Range(0, image.rows), parallelValidator);
 
     return !foundMismatch.load();
 }

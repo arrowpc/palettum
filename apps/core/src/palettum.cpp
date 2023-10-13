@@ -13,7 +13,7 @@ Palettum::Palettum(py::array_t<uint8_t> &image, const py::list &palette)
     for (const auto &color : palette)
     {
         py::list l = color.cast<py::list>();
-        cv::Scalar c(l[0].cast<int>(), l[1].cast<int>(), l[2].cast<int>());
+        cv::Scalar c(l[2].cast<int>(), l[1].cast<int>(), l[0].cast<int>());
         palette_.push_back(c);
     }
 }

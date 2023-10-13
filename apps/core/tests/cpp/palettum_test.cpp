@@ -14,7 +14,8 @@ TEST(DeltaEComputation, TestSpecificLabValues)
 
 TEST(PalettumTests, ConvertJpegToPalette)
 {
-    cv::Mat img = cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
+    cv::Mat img =
+        cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
     if (img.empty())
     {
         FAIL() << "Failed to open test.jpeg!";
@@ -35,8 +36,8 @@ TEST(PalettumTests, ConvertJpegToPalette)
 
     auto result = Palettum::pyToMat(resultArray);
 
-    cv::Mat original =
-        cv::imread("../../test_images/hydrangea_estimate.png", cv::IMREAD_COLOR);
+    cv::Mat original = cv::imread("../../test_images/hydrangea_estimate.png",
+                                  cv::IMREAD_COLOR);
     if (original.empty())
     {
         FAIL() << "Failed to open hydrangea_estimate.png!";

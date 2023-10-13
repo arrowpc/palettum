@@ -28,8 +28,6 @@ py::array_t<uint8_t> Palettum::matToPy(Mat &image)
 {
     if (!Py_IsInitialized())
         Py_Initialize();
-    PyGILState_STATE gstate;
-    gstate = PyGILState_Ensure();
 
     auto rows = image.rows;
     auto cols = image.cols;
@@ -41,7 +39,6 @@ py::array_t<uint8_t> Palettum::matToPy(Mat &image)
                             static_cast<unsigned long>(cols), 3},  // shape
         std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
                             sizeof(uint8_t)}));
-    PyGILState_Release(gstate);
     return converted;
 }
 double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)

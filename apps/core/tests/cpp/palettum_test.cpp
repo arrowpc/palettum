@@ -75,9 +75,9 @@ TEST(PalettumTests, ValidateImageColors)
 
     auto test = Palettum(convertedImg, palette_py);
     test.convertToPalette();
-    py::array_t<uint8_t> resultArray = test.convertToPalette();
-    auto result = Palettum::pyToMat(resultArray);
+    py::array_t<uint8_t> result = test.convertToPalette();
 
     EXPECT_EQ(Palettum::validateImageColors(result, palette), true);
-    EXPECT_EQ(Palettum::validateImageColors(img, palette), false);
+    EXPECT_EQ(Palettum::validateImageColors(Palettum::matToPy(img), palette),
+              false);
 }

@@ -50,12 +50,34 @@ TEST(PalettumTests, ConvertJpegToPalette)
     EXPECT_LT(originalDiff, 0.01 * maxPossibleDifference)
         << "Difference with original image exceeds 1%!";
 
-    cv::Mat different =
-        cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
-    if (different.empty())
-    {
-        FAIL() << "Failed to open hydrangea.jpeg!";
-    }
-    int differentDiff = cv::norm(result, different, cv::NORM_L1);
+    int differentDiff = cv::norm(result, img, cv::NORM_L1);
     EXPECT_NE(differentDiff, 0);
+}
+
+TEST(PalettumTests, ValidateImageColors)
+{
+    cv::Mat img =
+        cv::imread("../../test_images/hydrangea.jpeg", cv::IMREAD_COLOR);
+    if (img.empty())
+    {
+        FAIL() << "Failed to open test.jpeg!";
+    }
+    auto convertedImg = Palettum::matToPy(img);
+
+    std::vector<std::array<int, 3>> palette = {
+        {190, 0, 57},   {255, 69, 0},    {255, 168, 0},   {255, 214, 53},
+        {0, 163, 104},  {0, 204, 120},   {126, 237, 86},  {0, 117, 111},
+        {0, 158, 170},  {36, 80, 164},   {54, 144, 234},  {81, 233, 244},
+        {73, 58, 193},  {106, 92, 255},  {129, 30, 159},  {180, 74, 192},
+        {255, 56, 129}, {255, 153, 170}, {109, 72, 47},   {156, 105, 38},
+        {0, 0, 0},      {137, 141, 144}, {212, 215, 217}, {255, 255, 255}};
+    py::list palette_py = py::cast(palette);
+
+    auto test = Palettum(convertedImg, palette_py);
+    test.convertToPalette();
+    py::array_t<uint8_t> resultArray = test.convertToPalette();
+    auto result = Palettum::pyToMat(resultArray);
+
+    EXPECT_EQ(Palettum::validateImageColors(result, palette), true);
+    EXPECT_EQ(Palettum::validateImageColors(img, palette), false);
 }

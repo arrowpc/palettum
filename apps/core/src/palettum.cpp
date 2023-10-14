@@ -13,7 +13,7 @@ Palettum::Palettum(py::array_t<uint8_t> &image, const py::list &palette)
     for (const auto &color : palette)
     {
         py::list l = color.cast<py::list>();
-        cv::Scalar c(l[0].cast<int>(), l[1].cast<int>(), l[2].cast<int>());
+        cv::Scalar c(l[2].cast<int>(), l[1].cast<int>(), l[0].cast<int>());
         palette_.push_back(c);
     }
 }
@@ -28,8 +28,6 @@ py::array_t<uint8_t> Palettum::matToPy(Mat &image)
 {
     if (!Py_IsInitialized())
         Py_Initialize();
-    PyGILState_STATE gstate;
-    gstate = PyGILState_Ensure();
 
     auto rows = image.rows;
     auto cols = image.cols;
@@ -41,7 +39,6 @@ py::array_t<uint8_t> Palettum::matToPy(Mat &image)
                             static_cast<unsigned long>(cols), 3},  // shape
         std::vector<size_t>{sizeof(uint8_t) * cols * 3, sizeof(uint8_t) * 3,
                             sizeof(uint8_t)}));
-    PyGILState_Release(gstate);
     return converted;
 }
 double Palettum::deltaE(const Vec3f &lab1, const Vec3f &lab2)
@@ -190,42 +187,30 @@ py::array_t<uint8_t> Palettum::convertToPalette()
     return convertedResult;
 }
 
-bool isColorInPalette(const cv::Vec3b &color,
-                      const std::vector<cv::Scalar> &palette)
-{
-    for (const auto &paletteColor : palette)
-    {
-        if (color[0] == paletteColor[0] && color[1] == paletteColor[1] &&
-            color[2] == paletteColor[2])
-        {
-            return true;
-        }
-    }
-    return false;
-}
-bool Palettum::isColorInPalette(const Vec3b &color)
-{
-    for (const auto &paletteColor : palette_)
-    {
-        if (color[0] == paletteColor[0] && color[1] == paletteColor[1] &&
-            color[2] == paletteColor[2])
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Palettum::validateImageColors()
+bool Palettum::validateImageColors(
+    const Mat &image, const std::vector<std::array<int, 3>> &palette)
 {
     std::atomic<bool> foundMismatch(false);
 
-    auto parallelValidator = [this, &foundMismatch](const cv::Range &range) {
+    auto isColorInPalette = [&palette](const cv::Vec3b &color) -> bool {
+        for (const auto &paletteColor : palette)
+        {
+            if (color[2] == paletteColor[0] && color[1] == paletteColor[1] &&
+                color[0] == paletteColor[2])
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+
+    auto parallelValidator = [&isColorInPalette, &foundMismatch,
+                              &image](const cv::Range &range) {
         for (int y = range.start; y < range.end; y++)
         {
-            for (int x = 0; x < image_.cols; x++)
+            for (int x = 0; x < image.cols; x++)
             {
-                if (!isColorInPalette(image_.at<cv::Vec3b>(y, x)))
+                if (!isColorInPalette(image.at<cv::Vec3b>(y, x)))
                 {
                     foundMismatch.store(true);
                     return;
@@ -234,7 +219,15 @@ bool Palettum::validateImageColors()
         }
     };
 
-    cv::parallel_for_(cv::Range(0, image_.rows), parallelValidator);
+    cv::parallel_for_(cv::Range(0, image.rows), parallelValidator);
 
     return !foundMismatch.load();
+}
+
+bool Palettum::py_validateImageColors(
+    pybind11::array_t<uint8_t> &image,
+    const std::vector<std::array<int, 3>> &palette)
+{
+    auto img = pyToMat(image);
+    return validateImageColors(img, palette);
 }

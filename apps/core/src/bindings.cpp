@@ -11,6 +11,6 @@ PYBIND11_MODULE(palettum, m)
     py::class_<Palettum>(m, "Palettum")
         .def(py::init<py::array_t<uint8_t> &, const py::list &>())
         .def("convertToPalette", &Palettum::convertToPalette)
-        .def_static("deltaE", &Palettum::py_deltaE);
-    //        .def("validateImageColors", &Palettum::validateImageColors);
+        .def_static("deltaE", &Palettum::py_deltaE)
+        .def_static("validateImageColors", &Palettum::py_validateImageColors);
 }

@@ -93,14 +93,17 @@ private:
     }
     void mapToPalette(int startRow, int endRow, const Mat &img_lab,
                       const std::vector<cv::Vec3b> &lab_palette, Mat &result);
-    bool isColorInPalette(const Vec3b &color);
 
 public:
     Palettum(py::array_t<uint8_t> &image, const py::list &palette);
     static double deltaE(const Vec3f &lab1, const Vec3f &lab2);
     static double py_deltaE(const py::list &lab1, const py::list &lab2);
     py::array_t<uint8_t> convertToPalette();
-    bool validateImageColors();
+    static bool validateImageColors(
+        const Mat &image, const std::vector<std::array<int, 3>> &palette);
+    static bool py_validateImageColors(
+        pybind11::array_t<uint8_t> &image,
+        const std::vector<std::array<int, 3>> &palette);
     static cv::Mat pyToMat(py::array_t<uint8_t> &image);
     static py::array_t<uint8_t> matToPy(cv::Mat &image);
 };

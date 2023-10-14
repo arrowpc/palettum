@@ -42,6 +42,8 @@ protected:
         py::array_t<uint8_t> resultArray = test.convertToPalette();
 
         result = Palettum::pyToMat(resultArray);
+
+        result = result.clone();
     }
 };
 

@@ -1,13 +1,15 @@
 import React from 'react';
-import ImageUpload from './components/ImageUpload';
 import './App.css';
+import Dropzone from './components/Dropzone';
 
-const App: React.FC = () => {
+function App() {
   return (
     <div className="App">
-      <ImageUpload />
+      {}
+      <Dropzone />
+      {}
     </div>
   );
-};
+}
 
 export default App;

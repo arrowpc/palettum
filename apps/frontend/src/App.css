@@ -36,3 +36,15 @@
     transform: rotate(360deg);
   }
 }
+
+.dropzone {
+  border: 2px dashed #aaa;
+  border-radius: 4px;
+  padding: 20px;
+  text-align: center;
+  transition: border 0.3s ease-in-out;
+}
+
+.dropzone.drag-over {
+  border-color: #000;
+}

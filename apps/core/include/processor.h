@@ -58,10 +58,21 @@ struct Image {
         }
 
         size_t pos = (y * width + x) * 3;
-        return Pixel(data[pos],      // R
+        return Pixel(data[pos + 0],  // R
                      data[pos + 1],  // G
                      data[pos + 2]   // B
         );
+    }
+    void set(int x, int y, const Pixel &pixel) const
+    {
+        if (x < 0 || x >= width || y < 0 || y >= height)
+        {
+            throw std::out_of_range("Pixel coordinates out of bounds");
+        }
+        size_t pos = (y * width + x) * 3;
+        data[pos + 0] = pixel.r;
+        data[pos + 1] = pixel.g;
+        data[pos + 2] = pixel.b;
     }
     bool operator==(Image const &rhs) const
     {

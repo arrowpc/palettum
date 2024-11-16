@@ -22,6 +22,19 @@ TEST(ImageProcessing, TestDeletingImage)
     EXPECT_EQ(img->data, nullptr);
 }
 
+TEST(ImageProcessing, TestWritingImage)
+{
+    Image original("../../test_images/hydrangea.jpeg");
+    bool success = processor::write(original, "hydrangea.png");
+    EXPECT_TRUE(success);
+
+    Image written("hydrangea.png");
+    EXPECT_EQ(original, written);
+
+    Image different("../../test_images/hydrangea_accurate.png");
+    EXPECT_NE(original, different);
+}
+
 TEST(DeltaEComputation, TestSpecificLabValues)
 {
     cv::Vec3f lab1 = {50.0, 2.6772, -100.7751};

@@ -4,6 +4,23 @@
 #include <pybind11/pybind11.h>
 #include <opencv2/opencv.hpp>
 #include <vector>
+#include "processor.h"
+
+TEST(ImageProcessing, TestLoadingImage)
+{
+    Image img("../../test_images/hydrangea.jpeg");
+    EXPECT_EQ(img.width, 1200);
+    EXPECT_EQ(img.height, 1366);
+    EXPECT_EQ(img.channels, 3);
+}
+
+TEST(ImageProcessing, TestDeletingImage)
+{
+    auto img = new Image("../../test_images/hydrangea.jpeg");
+    EXPECT_NE(img->data, nullptr);
+    delete img;
+    EXPECT_EQ(img->data, nullptr);
+}
 
 TEST(DeltaEComputation, TestSpecificLabValues)
 {

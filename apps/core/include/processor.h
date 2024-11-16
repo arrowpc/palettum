@@ -6,6 +6,32 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 
+struct Pixel {
+    unsigned char r, g, b;
+    explicit Pixel(unsigned char r = 0, unsigned char g = 0,
+                   unsigned char b = 0)
+        : r(r)
+        , g(g)
+        , b(b)
+    {
+    }
+    friend std::ostream &operator<<(std::ostream &os, const Pixel &pixel)
+    {
+        os << "(" << static_cast<int>(pixel.r) << ", "
+           << static_cast<int>(pixel.g) << ", " << static_cast<int>(pixel.b)
+           << ")";
+        return os;
+    }
+    bool operator==(const Pixel &rhs) const
+    {
+        return (this->r == rhs.r && this->g == rhs.g && this->b == rhs.b);
+    }
+    bool operator!=(const Pixel &rhs) const
+    {
+        return !(*this == rhs);
+    }
+};
+
 struct Image {
     explicit Image(  // NOLINT(*-pro-type-member-init)
         const std::string &filename)
@@ -23,6 +49,19 @@ struct Image {
     ~Image()
     {
         stbi_image_free(data);
+    }
+    Pixel get(int x, int y) const
+    {
+        if (x < 0 || x >= width || y < 0 || y >= height)
+        {
+            throw std::out_of_range("Pixel coordinates out of bounds");
+        }
+
+        size_t pos = (y * width + x) * 3;
+        return Pixel(data[pos],      // R
+                     data[pos + 1],  // G
+                     data[pos + 2]   // B
+        );
     }
     bool operator==(Image const &rhs) const
     {

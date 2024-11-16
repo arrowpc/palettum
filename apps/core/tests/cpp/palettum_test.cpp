@@ -9,23 +9,23 @@
 TEST(ImageProcessing, TestLoadingImage)
 {
     Image img("../../test_images/hydrangea.jpeg");
-    EXPECT_EQ(img.width, 1200);
-    EXPECT_EQ(img.height, 1366);
-    EXPECT_EQ(img.channels, 3);
+    EXPECT_EQ(img.width(), 1200);
+    EXPECT_EQ(img.height(), 1366);
+    EXPECT_EQ(img.channels(), 3);
 }
 
 TEST(ImageProcessing, TestDeletingImage)
 {
     auto img = new Image("../../test_images/hydrangea.jpeg");
-    EXPECT_NE(img->data, nullptr);
+    EXPECT_NE(img->data(), nullptr);
     delete img;
-    EXPECT_EQ(img->data, nullptr);
+    EXPECT_EQ(img->data(), nullptr);
 }
 
 TEST(ImageProcessing, TestWritingImage)
 {
     Image original("../../test_images/hydrangea.jpeg");
-    bool success = processor::write(original, "hydrangea.png");
+    bool success = original.write("hydrangea.png");
     EXPECT_TRUE(success);
 
     Image written("hydrangea.png");

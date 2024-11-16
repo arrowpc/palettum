@@ -6,106 +6,180 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 
-struct Pixel {
-    unsigned char r, g, b;
-    explicit Pixel(unsigned char r = 0, unsigned char g = 0,
-                   unsigned char b = 0)
-        : r(r)
-        , g(g)
-        , b(b)
-    {
-    }
-    friend std::ostream &operator<<(std::ostream &os, const Pixel &pixel)
-    {
-        os << "(" << static_cast<int>(pixel.r) << ", "
-           << static_cast<int>(pixel.g) << ", " << static_cast<int>(pixel.b)
-           << ")";
-        return os;
-    }
-    bool operator==(const Pixel &rhs) const
-    {
-        return (this->r == rhs.r && this->g == rhs.g && this->b == rhs.b);
-    }
-    bool operator!=(const Pixel &rhs) const
-    {
-        return !(*this == rhs);
-    }
-};
-
-struct Image {
-    explicit Image(  // NOLINT(*-pro-type-member-init)
-        const std::string &filename)
-    {
-        data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
-        if (data == nullptr)
-            throw std::invalid_argument("Image could not be loaded");
-    }
-    explicit Image(const char *filename)  // NOLINT(*-pro-type-member-init)
-    {
-        data = stbi_load(filename, &width, &height, &channels, 0);
-        if (data == nullptr)
-            throw std::invalid_argument("Image could not be loaded");
-    }
-    ~Image()
-    {
-        stbi_image_free(data);
-    }
-    Pixel get(int x, int y) const
-    {
-        if (x < 0 || x >= width || y < 0 || y >= height)
-        {
-            throw std::out_of_range("Pixel coordinates out of bounds");
-        }
-
-        size_t pos = (y * width + x) * 3;
-        return Pixel(data[pos + 0],  // R
-                     data[pos + 1],  // G
-                     data[pos + 2]   // B
-        );
-    }
-    void set(int x, int y, const Pixel &pixel) const
-    {
-        if (x < 0 || x >= width || y < 0 || y >= height)
-        {
-            throw std::out_of_range("Pixel coordinates out of bounds");
-        }
-        size_t pos = (y * width + x) * 3;
-        data[pos + 0] = pixel.r;
-        data[pos + 1] = pixel.g;
-        data[pos + 2] = pixel.b;
-    }
-    bool operator==(Image const &rhs) const
-    {
-        size_t total_size = static_cast<size_t>(width) *
-                            static_cast<size_t>(height) *
-                            static_cast<size_t>(channels);
-        return std::memcmp(data, rhs.data, total_size) == 0;
-    }
-    bool operator!=(Image const &rhs) const
-    {
-        return !(*this == rhs);
-    }
-    int width;
-    int height;
-    int channels;
-    unsigned char *data;
-};
-
-class processor
+class Pixel
 {
 public:
-    static bool write(Image &image, const std::string &filename)
+    explicit Pixel(unsigned char r = 0, unsigned char g = 0,
+                   unsigned char b = 0) noexcept
+        : m_r(r)
+        , m_g(g)
+        , m_b(b)
     {
-        return stbi_write_png(filename.c_str(), image.width, image.height,
-                              image.channels, image.data,
-                              image.width * image.channels);
     }
-    static bool write(Image &image, const char *filename)
+
+    [[nodiscard]] unsigned char red() const noexcept
     {
-        return stbi_write_png(filename, image.width, image.height,
-                              image.channels, image.data,
-                              image.width * image.channels);
+        return m_r;
     }
+    [[nodiscard]] unsigned char green() const noexcept
+    {
+        return m_g;
+    }
+    [[nodiscard]] unsigned char blue() const noexcept
+    {
+        return m_b;
+    }
+
+    bool operator==(const Pixel &rhs) const noexcept
+    {
+        return m_r == rhs.m_r && m_g == rhs.m_g && m_b == rhs.m_b;
+    }
+
+    bool operator!=(const Pixel &rhs) const noexcept
+    {
+        return !(*this == rhs);
+    }
+
+    friend std::ostream &operator<<(std::ostream &os, const Pixel &pixel)
+    {
+        return os << '(' << static_cast<int>(pixel.m_r) << ", "
+                  << static_cast<int>(pixel.m_g) << ", "
+                  << static_cast<int>(pixel.m_b) << ')';
+    }
+
+private:
+    unsigned char m_r, m_g, m_b;
+};
+
+class Image
+{
+public:
+    explicit Image(const std::string &filename)
+        : Image(filename.c_str())
+    {
+    }
+
+    explicit Image(const char *filename)
+    {
+        m_data = stbi_load(filename, &m_width, &m_height, &m_channels, 3);
+        if (!m_data)
+        {
+            throw std::runtime_error("Failed to load image: " +
+                                     std::string(filename));
+        }
+    }
+
+    ~Image()
+    {
+        if (m_data)
+        {
+            stbi_image_free(m_data);
+        }
+    }
+
+    Image(const Image &) = delete;
+    Image &operator=(const Image &) = delete;
+
+    Image(Image &&other) noexcept
+        : m_width(other.m_width)
+        , m_height(other.m_height)
+        , m_channels(other.m_channels)
+        , m_data(other.m_data)
+    {
+        other.m_data = nullptr;
+    }
+
+    Image &operator=(Image &&other) noexcept
+    {
+        if (this != &other)
+        {
+            if (m_data)
+            {
+                stbi_image_free(m_data);
+            }
+            m_width = other.m_width;
+            m_height = other.m_height;
+            m_channels = other.m_channels;
+            m_data = other.m_data;
+            other.m_data = nullptr;
+        }
+        return *this;
+    }
+    bool write(const std::string &filename)
+    {
+        return write(filename.c_str());
+    }
+
+    bool write(const char *filename)
+    {
+        return stbi_write_png(filename, m_width, m_height, m_channels, m_data,
+                              m_width * m_channels);
+    }
+
+    [[nodiscard]] Pixel get(int x, int y) const
+    {
+        validateCoordinates(x, y);
+        size_t pos = (y * m_width + x) * 3;
+        return Pixel(m_data[pos], m_data[pos + 1], m_data[pos + 2]);
+    }
+
+    void set(int x, int y, const Pixel &pixel)
+    {
+        validateCoordinates(x, y);
+        size_t pos = (y * m_width + x) * 3;
+        m_data[pos] = pixel.red();
+        m_data[pos + 1] = pixel.green();
+        m_data[pos + 2] = pixel.blue();
+    }
+
+    [[nodiscard]] int width() const noexcept
+    {
+        return m_width;
+    }
+    [[nodiscard]] int height() const noexcept
+    {
+        return m_height;
+    }
+    [[nodiscard]] int channels() const noexcept
+    {
+        return m_channels;
+    }
+    [[nodiscard]] const unsigned char *data() const noexcept
+    {
+        return m_data;
+    }
+
+    bool operator==(const Image &rhs) const
+    {
+        if (m_width != rhs.m_width || m_height != rhs.m_height ||
+            m_channels != rhs.m_channels)
+        {
+            return false;
+        }
+        size_t total_size = static_cast<size_t>(m_width) *
+                            static_cast<size_t>(m_height) *
+                            static_cast<size_t>(m_channels);
+        return std::memcmp(m_data, rhs.m_data, total_size) == 0;
+    }
+
+    bool operator!=(const Image &rhs) const
+    {
+        return !(*this == rhs);
+    }
+
+private:
+    void validateCoordinates(int x, int y) const
+    {
+        if (x < 0 || x >= m_width || y < 0 || y >= m_height)
+        {
+            throw std::out_of_range("Pixel coordinates out of bounds");
+        }
+    }
+
+    int m_width;
+    int m_height;
+    int m_channels;
+    unsigned char *m_data;
 };
 
 #endif  // PROCESSOR_H

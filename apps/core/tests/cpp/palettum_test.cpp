@@ -4,7 +4,6 @@
 #include <pybind11/pybind11.h>
 #include <opencv2/opencv.hpp>
 #include <vector>
-#include "processor.h"
 
 TEST(ImageProcessing, TestLoadingImage)
 {
@@ -52,9 +51,9 @@ TEST(ImageProcessing, TestPixelSetter)
 
 TEST(DeltaEComputation, TestSpecificLabValues)
 {
-    cv::Vec3f lab1 = {50.0, 2.6772, -100.7751};
-    cv::Vec3f lab2 = {50.0, 50.0, 89.7485};
-    EXPECT_NEAR(Palettum::deltaE(lab1, lab2), 61.2219665084882, 1e-2);
+    Lab lab1(50.0, 2.6772, -100.7751);
+    Lab lab2(50.0, 50.0, 89.7485);
+    EXPECT_NEAR(lab1.deltaE(lab2), 61.2219665084882, 1e-2);
 }
 
 class PalettumTests : public ::testing::Test

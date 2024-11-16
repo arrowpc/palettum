@@ -35,6 +35,13 @@ TEST(ImageProcessing, TestWritingImage)
     EXPECT_NE(original, different);
 }
 
+TEST(ImageProcessing, TestPixelGetter)
+{
+    Image img("../../test_images/hydrangea.jpeg");
+    Pixel p(72, 111, 108);
+    EXPECT_EQ(img.get(0, 0), p);
+}
+
 TEST(DeltaEComputation, TestSpecificLabValues)
 {
     cv::Vec3f lab1 = {50.0, 2.6772, -100.7751};

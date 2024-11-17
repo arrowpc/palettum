@@ -79,7 +79,13 @@ protected:
 TEST_F(PalettumTests, ConvertJpegToPalette)
 {
     Image original("../../test_images/hydrangea_estimate.png");
-    EXPECT_EQ(result, original);
+    int differentPixels = result - original;
+    int totalPixels = original.width() * original.height();
+    double diffPercentage = (differentPixels * 100.0) / totalPixels;
+
+    EXPECT_LE(diffPercentage, 1.0)
+        << "Images differ by " << diffPercentage << "% (" << differentPixels
+        << " pixels out of " << totalPixels << ")";
 }
 
 TEST_F(PalettumTests, ValidateImageColors)

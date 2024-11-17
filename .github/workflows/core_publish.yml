@@ -58,9 +58,12 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
+          CIBW_ENVIRONMENT_MACOS: >
+            MPLIB="$([ $(uname -m) = 'arm64' ] && echo '/opt/homebrew/opt/libomp/lib/libomp.dylib' || echo '/usr/local/lib/libomp.dylib')"
+            MPINC="$([ $(uname -m) = 'arm64' ] && echo '/opt/homebrew/opt/libomp/include' || echo '/usr/local/include')"
 
       - name: Upload wheels
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: ./wheelhouse/*.whl
 
@@ -76,7 +79,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download wheels
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: artifact
           path: dist

@@ -58,13 +58,16 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install libomp
-          export OpenMP_ROOT=$(brew --prefix)/opt/libomp
 
       - name: Configure CMake
         working-directory: apps/core/build-test
         run: |
+          case "$RUNNER_OS" in
+          macOS)
+          export OpenMP_ROOT=$(brew --prefix)/opt/libomp
+          ;;
+          esac
           cmake -D CMAKE_BUILD_TYPE=Release ..
-
 
       - name: Build project
         if: runner.os != 'Windows'

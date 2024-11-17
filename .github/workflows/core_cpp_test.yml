@@ -54,6 +54,11 @@ jobs:
         run: |
           mkdir build-test
 
+      - name: Install OpenMP
+        if: runner.os == 'macOS'
+        run: |
+          brew install libomp
+
       - name: Configure CMake
         working-directory: apps/core/build-test
         run: |

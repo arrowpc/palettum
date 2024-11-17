@@ -61,12 +61,11 @@ jobs:
 
       - name: Configure CMake
         working-directory: apps/core/build-test
+        shell: bash
         run: |
-          case "$RUNNER_OS" in
-          macOS)
-          export OpenMP_ROOT=$(brew --prefix)/opt/libomp
-          ;;
-          esac
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            export OpenMP_ROOT=$(brew --prefix)/opt/libomp
+          fi
           cmake -D CMAKE_BUILD_TYPE=Release ..
 
       - name: Build project

@@ -65,9 +65,6 @@ protected:
     void SetUp() override
     {
         img = Image("../../test_images/hydrangea.jpeg");
-
-        auto img_py = Palettum::imageToPy(img);
-
         palette = {
             {190, 0, 57},   {255, 69, 0},    {255, 168, 0},   {255, 214, 53},
             {0, 163, 104},  {0, 204, 120},   {126, 237, 86},  {0, 117, 111},
@@ -75,13 +72,7 @@ protected:
             {73, 58, 193},  {106, 92, 255},  {129, 30, 159},  {180, 74, 192},
             {255, 56, 129}, {255, 153, 170}, {109, 72, 47},   {156, 105, 38},
             {0, 0, 0},      {137, 141, 144}, {212, 215, 217}, {255, 255, 255}};
-
-        py::list palette_py = py::cast(palette);
-
-        Palettum test(img_py, palette_py);
-        py::array_t<uint8_t> resultArray = test.convertToPalette();
-
-        result = Palettum::pyToImage(resultArray);
+        result = Palettum::convertToPalette(img, palette);
     }
 };
 

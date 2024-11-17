@@ -1,7 +1,6 @@
 #ifndef PROCESSOR_H
 #define PROCESSOR_H
 
-#include <pybind11/pybind11.h>
 #include <cmath>
 #include <iostream>
 
@@ -35,9 +34,9 @@ class Lab
 public:
     explicit Lab(double L = 0, double a = 0, double b = 0) noexcept;
     [[nodiscard]] RGB toRGB() const noexcept;
-    [[nodiscard]] constexpr double L() const noexcept;
-    [[nodiscard]] constexpr double a() const noexcept;
-    [[nodiscard]] constexpr double b() const noexcept;
+    [[nodiscard]] double L() const noexcept;
+    [[nodiscard]] double a() const noexcept;
+    [[nodiscard]] double b() const noexcept;
     [[nodiscard]] double deltaE(const Lab &other) const noexcept;
     friend std::ostream &operator<<(std::ostream &os, const Lab &lab);
 
@@ -77,78 +76,17 @@ private:
     [[nodiscard]] static double pivotXYZ(double n) noexcept;
 };
 
-namespace py = pybind11;
-namespace pybind11 {
-namespace detail {
-    template <>
-    struct type_caster<RGB> {
-        PYBIND11_TYPE_CASTER(RGB, _("RGB"));
-
-        bool load(handle src, bool)
-        {
-            if (!src)
-                return false;
-
-            if (py::isinstance<py::sequence>(src))
-            {
-                auto seq = py::cast<py::sequence>(src);
-                if (seq.size() != 3)
-                    return false;
-
-                try
-                {
-                    value = RGB(seq[0].cast<unsigned char>(),
-                                seq[1].cast<unsigned char>(),
-                                seq[2].cast<unsigned char>());
-                    return true;
-                }
-                catch (...)
-                {
-                    return false;
-                }
-            }
-
-            try
-            {
-                auto rgb = src.cast<py::object>();
-                if (py::hasattr(rgb, "red") && py::hasattr(rgb, "green") &&
-                    py::hasattr(rgb, "blue"))
-                {
-                    value = RGB(rgb.attr("red")().cast<unsigned char>(),
-                                rgb.attr("green")().cast<unsigned char>(),
-                                rgb.attr("blue")().cast<unsigned char>());
-                    return true;
-                }
-            }
-            catch (...)
-            {
-                return false;
-            }
-
-            return false;
-        }
-
-        static handle cast(const RGB &src, return_value_policy /* policy */,
-                           handle /* parent */)
-        {
-            return py::make_tuple(src.red(), src.green(), src.blue()).release();
-        }
-    };
-}  // namespace detail
-}  // namespace pybind11
-
 class Image
 {
 public:
     explicit Image() = default;
     explicit Image(const std::string &filename);
     explicit Image(const char *filename);
-    explicit Image(int width, int height, unsigned char *data);
+    explicit Image(int width, int height, unsigned char *data = nullptr);
     ~Image();
-    Image(const Image &) = delete;
-    Image &operator=(const Image &) = delete;
-    Image(Image &&other) noexcept;
-    Image &operator=(Image &&other) noexcept;
+
+    Image(const Image &other);
+    Image &operator=(const Image &other);
 
     bool write(const std::string &filename);
     bool write(const char *filename);
@@ -162,6 +100,7 @@ public:
     bool operator!=(const Image &rhs) const;
 
 private:
+    void copyFrom(const Image &other);
     void validateCoordinates(int x, int y) const;
     int m_width;
     int m_height;

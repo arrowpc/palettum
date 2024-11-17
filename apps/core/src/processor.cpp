@@ -51,15 +51,15 @@ RGB Lab::toRGB() const noexcept
                static_cast<unsigned char>(std::round(b)));
 }
 
-constexpr double Lab::L() const noexcept
+double Lab::L() const noexcept
 {
     return m_L;
 }
-constexpr double Lab::a() const noexcept
+double Lab::a() const noexcept
 {
     return m_a;
 }
-constexpr double Lab::b() const noexcept
+double Lab::b() const noexcept
 {
     return m_b;
 }
@@ -292,7 +292,10 @@ Image::Image(int width, int height, unsigned char *data)
 {
     size_t size = width * height * 3;
     m_data = new unsigned char[size];
-    std::memcpy(m_data, data, size);
+    if (data)
+        std::memcpy(m_data, data, size);
+    else
+        m_data = new unsigned char[width * height * m_channels]();
 }
 
 Image::~Image()
@@ -303,28 +306,37 @@ Image::~Image()
     }
 }
 
-Image::Image(Image &&other) noexcept
-    : m_width(other.m_width)
-    , m_height(other.m_height)
-    , m_channels(other.m_channels)
-    , m_data(other.m_data)
+void Image::copyFrom(const Image &other)
 {
-    other.m_data = nullptr;
+    m_width = other.m_width;
+    m_height = other.m_height;
+    m_channels = other.m_channels;
+
+    if (other.m_data)
+    {
+        const size_t size = m_width * m_height * m_channels;
+        m_data = new unsigned char[size];
+        std::memcpy(m_data, other.m_data, size);
+    }
+    else
+    {
+        m_data = nullptr;
+    }
 }
 
-Image &Image::operator=(Image &&other) noexcept
+Image::Image(const Image &other)
+    : m_data(nullptr)
+{
+    copyFrom(other);
+}
+
+Image &Image::operator=(const Image &other)
 {
     if (this != &other)
     {
-        if (m_data)
-        {
-            stbi_image_free(m_data);
-        }
-        m_width = other.m_width;
-        m_height = other.m_height;
-        m_channels = other.m_channels;
-        m_data = other.m_data;
-        other.m_data = nullptr;
+        delete[] m_data;
+        m_data = nullptr;
+        copyFrom(other);
     }
     return *this;
 }

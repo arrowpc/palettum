@@ -277,67 +277,22 @@ Image::Image(const std::string &filename)
 
 Image::Image(const char *filename)
 {
-    m_data = stbi_load(filename, &m_width, &m_height, &m_channels, 3);
-    if (!m_data)
+    unsigned char *data =
+        stbi_load(filename, &m_width, &m_height, &m_channels, 3);
+    if (!data)
     {
         throw std::runtime_error("Failed to load image: " +
                                  std::string(filename));
     }
+    m_data.assign(data, data + size());
+    stbi_image_free(data);
 }
 
-Image::Image(int width, int height, unsigned char *data)
+Image::Image(int width, int height)
     : m_width(width)
     , m_height(height)
-    , m_channels(3)
+    , m_data(size())
 {
-    size_t size = width * height * 3;
-    m_data = new unsigned char[size];
-    if (data)
-        std::memcpy(m_data, data, size);
-}
-
-Image::~Image()
-{
-    if (m_data)
-    {
-        stbi_image_free(m_data);
-        m_data = nullptr;
-    }
-}
-
-void Image::copyFrom(const Image &other)
-{
-    m_width = other.m_width;
-    m_height = other.m_height;
-    m_channels = other.m_channels;
-
-    if (other.m_data)
-    {
-        const size_t size = m_width * m_height * m_channels;
-        m_data = new unsigned char[size];
-        std::memcpy(m_data, other.m_data, size);
-    }
-    else
-    {
-        m_data = nullptr;
-    }
-}
-
-Image::Image(const Image &other)
-    : m_data(nullptr)
-{
-    copyFrom(other);
-}
-
-Image &Image::operator=(const Image &other)
-{
-    if (this != &other)
-    {
-        stbi_image_free(m_data);
-        m_data = nullptr;
-        copyFrom(other);
-    }
-    return *this;
 }
 
 int Image::operator-(const Image &other) const
@@ -376,21 +331,21 @@ bool Image::write(const std::string &filename)
 
 bool Image::write(const char *filename)
 {
-    return stbi_write_png(filename, m_width, m_height, m_channels, m_data,
-                          m_width * m_channels);
+    return stbi_write_png(filename, m_width, m_height, m_channels,
+                          m_data.data(), m_width * m_channels);
 }
 
 RGB Image::get(int x, int y) const
 {
     validateCoordinates(x, y);
-    size_t pos = (y * m_width + x) * 3;
+    size_t pos = (y * m_width + x) * m_channels;
     return RGB(m_data[pos], m_data[pos + 1], m_data[pos + 2]);
 }
 
 void Image::set(int x, int y, const RGB &RGB)
 {
     validateCoordinates(x, y);
-    size_t pos = (y * m_width + x) * 3;
+    size_t pos = (y * m_width + x) * m_channels;
     m_data[pos] = RGB.red();
     m_data[pos + 1] = RGB.green();
     m_data[pos + 2] = RGB.blue();
@@ -400,35 +355,31 @@ int Image::width() const noexcept
 {
     return m_width;
 }
+
 int Image::height() const noexcept
 {
     return m_height;
 }
+
 int Image::channels() const noexcept
 {
     return m_channels;
 }
-const unsigned char *Image::data() const noexcept
+
+const uint8_t *Image::data() const noexcept
 {
-    return m_data;
+    return m_data.data();
 }
 
-bool Image::operator==(const Image &rhs) const
+bool Image::operator==(const Image &other) const
 {
-    if (m_width != rhs.m_width || m_height != rhs.m_height ||
-        m_channels != rhs.m_channels)
-    {
-        return false;
-    }
-    size_t total_size = static_cast<size_t>(m_width) *
-                        static_cast<size_t>(m_height) *
-                        static_cast<size_t>(m_channels);
-    return std::memcmp(m_data, rhs.m_data, total_size) == 0;
+    return m_width == other.m_width && m_height == other.m_height &&
+           m_data == other.m_data;
 }
 
-bool Image::operator!=(const Image &rhs) const
+bool Image::operator!=(const Image &other) const
 {
-    return !(*this == rhs);
+    return !(*this == other);
 }
 
 void Image::validateCoordinates(int x, int y) const
@@ -437,4 +388,9 @@ void Image::validateCoordinates(int x, int y) const
     {
         throw std::out_of_range("RGB coordinates out of bounds");
     }
+}
+
+int Image::size() const noexcept
+{
+    return m_width * m_height * m_channels;
 }

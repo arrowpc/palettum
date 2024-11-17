@@ -1,6 +1,7 @@
 #ifndef PROCESSOR_H
 #define PROCESSOR_H
 
+#include <pybind11/pybind11.h>
 #include <cmath>
 #include <iostream>
 
@@ -75,6 +76,66 @@ private:
     unsigned char m_r, m_g, m_b;
     [[nodiscard]] static double pivotXYZ(double n) noexcept;
 };
+
+namespace py = pybind11;
+namespace pybind11 {
+namespace detail {
+    template <>
+    struct type_caster<RGB> {
+        PYBIND11_TYPE_CASTER(RGB, _("RGB"));
+
+        bool load(handle src, bool)
+        {
+            if (!src)
+                return false;
+
+            if (py::isinstance<py::sequence>(src))
+            {
+                auto seq = py::cast<py::sequence>(src);
+                if (seq.size() != 3)
+                    return false;
+
+                try
+                {
+                    value = RGB(seq[0].cast<unsigned char>(),
+                                seq[1].cast<unsigned char>(),
+                                seq[2].cast<unsigned char>());
+                    return true;
+                }
+                catch (...)
+                {
+                    return false;
+                }
+            }
+
+            try
+            {
+                auto rgb = src.cast<py::object>();
+                if (py::hasattr(rgb, "red") && py::hasattr(rgb, "green") &&
+                    py::hasattr(rgb, "blue"))
+                {
+                    value = RGB(rgb.attr("red")().cast<unsigned char>(),
+                                rgb.attr("green")().cast<unsigned char>(),
+                                rgb.attr("blue")().cast<unsigned char>());
+                    return true;
+                }
+            }
+            catch (...)
+            {
+                return false;
+            }
+
+            return false;
+        }
+
+        static handle cast(const RGB &src, return_value_policy /* policy */,
+                           handle /* parent */)
+        {
+            return py::make_tuple(src.red(), src.green(), src.blue()).release();
+        }
+    };
+}  // namespace detail
+}  // namespace pybind11
 
 class Image
 {

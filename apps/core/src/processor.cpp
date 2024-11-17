@@ -12,6 +12,45 @@ Lab::Lab(double L, double a, double b) noexcept
 {
 }
 
+Pixel Lab::toRGB() const noexcept
+{
+    double y = (m_L + 16.0) / 116.0;
+    double x = m_a / 500.0 + y;
+    double z = y - m_b / 200.0;
+
+    XYZ xyz;
+    double x3 = x * x * x;
+    double z3 = z * z * z;
+
+    xyz.X =
+        XYZ::WHITE_X * (x3 > XYZ::EPSILON ? x3 : (x - 16.0 / 116.0) / 7.787);
+    xyz.Y = XYZ::WHITE_Y * (m_L > (XYZ::KAPPA * XYZ::EPSILON)
+                                ? std::pow((m_L + 16.0) / 116.0, 3)
+                                : m_L / XYZ::KAPPA);
+    xyz.Z =
+        XYZ::WHITE_Z * (z3 > XYZ::EPSILON ? z3 : (z - 16.0 / 116.0) / 7.787);
+
+    xyz.X /= 100.0;
+    xyz.Y /= 100.0;
+    xyz.Z /= 100.0;
+
+    double r = xyz.X * 3.2404542 - xyz.Y * 1.5371385 - xyz.Z * 0.4985314;
+    double g = xyz.X * -0.9692660 + xyz.Y * 1.8760108 + xyz.Z * 0.0415560;
+    double b = xyz.X * 0.0556434 - xyz.Y * 0.2040259 + xyz.Z * 1.0572252;
+
+    r = (r > 0.0031308) ? 1.055 * std::pow(r, 1 / 2.4) - 0.055 : 12.92 * r;
+    g = (g > 0.0031308) ? 1.055 * std::pow(g, 1 / 2.4) - 0.055 : 12.92 * g;
+    b = (b > 0.0031308) ? 1.055 * std::pow(b, 1 / 2.4) - 0.055 : 12.92 * b;
+
+    r = std::clamp(r, 0.0, 1.0) * 255.0;
+    g = std::clamp(g, 0.0, 1.0) * 255.0;
+    b = std::clamp(b, 0.0, 1.0) * 255.0;
+
+    return Pixel(static_cast<unsigned char>(std::round(r)),
+                 static_cast<unsigned char>(std::round(g)),
+                 static_cast<unsigned char>(std::round(b)));
+}
+
 constexpr double Lab::L() const noexcept
 {
     return m_L;
@@ -116,6 +155,9 @@ double Lab::FastAtan(double x)
 
 double Lab::FastAtan2(double y, double x)
 {
+    if (x == 0 && y == 0)
+        return 0;
+
     if (x >= 0)
     {
         if (y >= 0)
@@ -157,6 +199,45 @@ Pixel::Pixel(unsigned char r, unsigned char g, unsigned char b) noexcept
     , m_g(g)
     , m_b(b)
 {
+}
+
+Lab Pixel::toLab() const noexcept
+{
+    double r = m_r / 255.0;
+    double g = m_g / 255.0;
+    double b = m_b / 255.0;
+
+    r = (r > 0.04045) ? std::pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+    g = (g > 0.04045) ? std::pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+    b = (b > 0.04045) ? std::pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+    XYZ xyz;
+    xyz.X = r * 0.4124564 + g * 0.3575761 + b * 0.1804375;
+    xyz.Y = r * 0.2126729 + g * 0.7151522 + b * 0.0721750;
+    xyz.Z = r * 0.0193339 + g * 0.1191920 + b * 0.9503041;
+
+    xyz.X = xyz.X * 100.0;
+    xyz.Y = xyz.Y * 100.0;
+    xyz.Z = xyz.Z * 100.0;
+
+    double xr = xyz.X / XYZ::WHITE_X;
+    double yr = xyz.Y / XYZ::WHITE_Y;
+    double zr = xyz.Z / XYZ::WHITE_Z;
+
+    xr = pivotXYZ(xr);
+    yr = pivotXYZ(yr);
+    zr = pivotXYZ(zr);
+
+    double L = std::max(0.0, 116.0 * yr - 16.0);
+    double a = 500.0 * (xr - yr);
+    b = 200.0 * (yr - zr);
+
+    return Lab(L, a, b);
+}
+
+double Pixel::pivotXYZ(double n) noexcept
+{
+    return n > XYZ::EPSILON ? std::cbrt(n) : (XYZ::KAPPA * n + 16.0) / 116.0;
 }
 
 unsigned char Pixel::red() const noexcept
@@ -202,6 +283,16 @@ Image::Image(const char *filename)
         throw std::runtime_error("Failed to load image: " +
                                  std::string(filename));
     }
+}
+
+Image::Image(int width, int height, unsigned char *data)
+    : m_width(width)
+    , m_height(height)
+    , m_channels(3)
+{
+    size_t size = width * height * 3;
+    m_data = new unsigned char[size];
+    std::memcpy(m_data, data, size);
 }
 
 Image::~Image()

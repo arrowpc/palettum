@@ -19,8 +19,8 @@ namespace py = pybind11;
 class Palettum
 {
 private:
-    Mat image_;
-    vector<Scalar> palette_;
+    Image m_image;
+    vector<Pixel> m_palette;
 
     void mapToPalette(int startRow, int endRow, const Mat &img_lab,
                       const std::vector<Lab> &lab_palette, Mat &result);
@@ -34,8 +34,8 @@ public:
     static bool py_validateImageColors(
         pybind11::array_t<uint8_t> &image,
         const std::vector<std::array<int, 3>> &palette);
-    static cv::Mat pyToMat(py::array_t<uint8_t> &image);
-    static py::array_t<uint8_t> matToPy(cv::Mat &image);
+    static Image pyToImage(py::array_t<uint8_t> &image);
+    static py::array_t<uint8_t> imageToPy(Image &image);
 };
 
 #endif  //PALETTUM_CORE_PALETTUM_H

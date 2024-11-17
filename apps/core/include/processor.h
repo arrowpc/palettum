@@ -16,10 +16,24 @@
 #    define M_PI_4 0.785398163397448309615660845819875721
 #endif
 
+class Pixel;
+class Lab;
+
+struct XYZ {
+    double X{0}, Y{0}, Z{0};
+
+    static constexpr double WHITE_X = 95.047;
+    static constexpr double WHITE_Y = 100.000;
+    static constexpr double WHITE_Z = 108.883;
+
+    static constexpr double EPSILON = 0.008856;
+    static constexpr double KAPPA = 903.3;
+};
 class Lab
 {
 public:
     explicit Lab(double L = 0, double a = 0, double b = 0) noexcept;
+    [[nodiscard]] Pixel toRGB() const noexcept;
     [[nodiscard]] constexpr double L() const noexcept;
     [[nodiscard]] constexpr double a() const noexcept;
     [[nodiscard]] constexpr double b() const noexcept;
@@ -32,7 +46,7 @@ private:
     double m_b;
 
     static double fastPow(double a, double b);
-    static double deg2Rad(const double deg);
+    static double deg2Rad(double deg);
     static double FastAtan(double x);
     static double FastAtan2(double y, double x);
 };
@@ -42,6 +56,7 @@ class Pixel
 public:
     explicit Pixel(unsigned char r = 0, unsigned char g = 0,
                    unsigned char b = 0) noexcept;
+    [[nodiscard]] Lab toLab() const noexcept;
     [[nodiscard]] unsigned char red() const noexcept;
     [[nodiscard]] unsigned char green() const noexcept;
     [[nodiscard]] unsigned char blue() const noexcept;
@@ -51,6 +66,7 @@ public:
 
 private:
     unsigned char m_r, m_g, m_b;
+    [[nodiscard]] static double pivotXYZ(double n) noexcept;
 };
 
 class Image
@@ -58,6 +74,7 @@ class Image
 public:
     explicit Image(const std::string &filename);
     explicit Image(const char *filename);
+    explicit Image(int width, int height, unsigned char *data);
     ~Image();
     Image(const Image &) = delete;
     Image &operator=(const Image &) = delete;

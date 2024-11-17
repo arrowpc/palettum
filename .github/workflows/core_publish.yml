@@ -50,6 +50,11 @@ jobs:
         run: |
           move apps\core\* .
 
+      - name: Install OpenMP
+        if: runner.os == 'macOS'
+        run: |
+          brew install libomp
+
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.19.2
         env:
@@ -58,9 +63,6 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
-          CIBW_ENVIRONMENT_MACOS: >
-            MPLIB="$([ $(uname -m) = 'arm64' ] && echo '/opt/homebrew/opt/libomp/lib/libomp.dylib' || echo '/usr/local/lib/libomp.dylib')"
-            MPINC="$([ $(uname -m) = 'arm64' ] && echo '/opt/homebrew/opt/libomp/include' || echo '/usr/local/include')"
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

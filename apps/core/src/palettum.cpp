@@ -12,7 +12,7 @@ Palettum::Palettum(py::array_t<uint8_t> &image, const py::list &palette)
     for (const auto &color : palette)
     {
         auto l = color.cast<py::list>();
-        Pixel c(l[0].cast<int>(), l[1].cast<int>(), l[2].cast<int>());
+        RGB c(l[0].cast<int>(), l[1].cast<int>(), l[2].cast<int>());
         m_palette.push_back(c);
     }
 }
@@ -72,47 +72,25 @@ py::array_t<uint8_t> Palettum::convertToPalette()
     return imageToPy(m_image);
 }
 
-//bool Palettum::validateImageColors(
-//    const Mat &image, const std::vector<std::array<int, 3>> &palette)
-//{
-//    std::atomic<bool> foundMismatch(false);
-//
-//    auto isColorInPalette = [&palette](const cv::Vec3b &color) -> bool {
-//        for (const auto &paletteColor : palette)
-//        {
-//            if (color[2] == paletteColor[0] && color[1] == paletteColor[1] &&
-//                color[0] == paletteColor[2])
-//            {
-//                return true;
-//            }
-//        }
-//        return false;
-//    };
-//
-//    auto parallelValidator = [&isColorInPalette, &foundMismatch,
-//                              &image](const cv::Range &range) {
-//        for (int y = range.start; y < range.end; y++)
-//        {
-//            for (int x = 0; x < image.cols; x++)
-//            {
-//                if (!isColorInPalette(image.at<cv::Vec3b>(y, x)))
-//                {
-//                    foundMismatch.store(true);
-//                    return;
-//                }
-//            }
-//        }
-//    };
-//
-//    cv::parallel_for_(cv::Range(0, image.rows), parallelValidator);
-//
-//    return !foundMismatch.load();
-//}
-
-//bool Palettum::py_validateImageColors(
-//    pybind11::array_t<uint8_t> &image,
-//    const std::vector<std::array<int, 3>> &palette)
-//{
-//    auto img = pyToMat(image);
-//    return validateImageColors(img, palette);
-//}
+bool Palettum::validateImageColors(Image &image, vector<RGB> &palette)
+{
+    const int height = image.height();
+    const int width = image.width();
+    bool isValid = true;
+#pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            bool foundMatch = false;
+            for (const auto &color : palette)
+            {
+                if (image.get(x, y) == color)
+                    foundMatch = true;
+            }
+            if (!foundMatch)
+                isValid = false;
+        }
+    }
+    return isValid;
+}

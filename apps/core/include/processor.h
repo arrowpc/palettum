@@ -16,7 +16,7 @@
 #    define M_PI_4 0.785398163397448309615660845819875721
 #endif
 
-class Pixel;
+class RGB;
 class Lab;
 
 struct XYZ {
@@ -33,7 +33,7 @@ class Lab
 {
 public:
     explicit Lab(double L = 0, double a = 0, double b = 0) noexcept;
-    [[nodiscard]] Pixel toRGB() const noexcept;
+    [[nodiscard]] RGB toRGB() const noexcept;
     [[nodiscard]] constexpr double L() const noexcept;
     [[nodiscard]] constexpr double a() const noexcept;
     [[nodiscard]] constexpr double b() const noexcept;
@@ -51,18 +51,25 @@ private:
     static double FastAtan2(double y, double x);
 };
 
-class Pixel
+class RGB
 {
 public:
-    explicit Pixel(unsigned char r = 0, unsigned char g = 0,
-                   unsigned char b = 0) noexcept;
+    explicit RGB(unsigned char r = 0, unsigned char g = 0,
+                 unsigned char b = 0) noexcept;
     [[nodiscard]] Lab toLab() const noexcept;
+    RGB(std::initializer_list<unsigned char> il) noexcept
+    {
+        auto it = il.begin();
+        m_r = it != il.end() ? *it++ : 0;
+        m_g = it != il.end() ? *it++ : 0;
+        m_b = it != il.end() ? *it : 0;
+    }
     [[nodiscard]] unsigned char red() const noexcept;
     [[nodiscard]] unsigned char green() const noexcept;
     [[nodiscard]] unsigned char blue() const noexcept;
-    bool operator==(const Pixel &rhs) const noexcept;
-    bool operator!=(const Pixel &rhs) const noexcept;
-    friend std::ostream &operator<<(std::ostream &os, const Pixel &pixel);
+    bool operator==(const RGB &rhs) const noexcept;
+    bool operator!=(const RGB &rhs) const noexcept;
+    friend std::ostream &operator<<(std::ostream &os, const RGB &RGB);
 
 private:
     unsigned char m_r, m_g, m_b;
@@ -72,6 +79,7 @@ private:
 class Image
 {
 public:
+    explicit Image() = default;
     explicit Image(const std::string &filename);
     explicit Image(const char *filename);
     explicit Image(int width, int height, unsigned char *data);
@@ -83,8 +91,8 @@ public:
 
     bool write(const std::string &filename);
     bool write(const char *filename);
-    [[nodiscard]] Pixel get(int x, int y) const;
-    void set(int x, int y, const Pixel &pixel);
+    [[nodiscard]] RGB get(int x, int y) const;
+    void set(int x, int y, const RGB &RGB);
     [[nodiscard]] int width() const noexcept;
     [[nodiscard]] int height() const noexcept;
     [[nodiscard]] int channels() const noexcept;

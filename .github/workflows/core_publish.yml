@@ -27,7 +27,13 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-13, macos-14, windows-2019 ]
+        include:
+          - os: ubuntu-latest
+          - os: windows-2019
+          - os: macos-13
+            deployment-target: "13.0"
+          - os: macos-14
+            deployment-target: "14.0"
 
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +71,7 @@ jobs:
           CIBW_SKIP: "*musllinux*"
           CIBW_ENVIRONMENT_MACOS: >
             OpenMP_ROOT=$(brew --prefix)/opt/libomp
-            MACOSX_DEPLOYMENT_TARGET=13.0
+            MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

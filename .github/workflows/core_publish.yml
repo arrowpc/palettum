@@ -27,7 +27,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        os: [ ubuntu-latest, macos-13, windows-2019 ]
 
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +35,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
@@ -50,119 +50,14 @@ jobs:
         run: |
           move apps\core\* .
 
-      - name: Cache libpng arm64
-        if: runner.os == 'macOS'
-        id: cache-libpng
-        uses: actions/cache@v3
-        with:
-          path: libpng-arm64
-          key: libpng-arm64
-
-      - name: Build libpng arm64 from source
-        if: runner.os == 'macOS' && steps.cache-libpng.outputs.cache-hit != 'true'
-        run: |
-          git clone https://git.code.sf.net/p/libpng/code libpng-code
-          cd libpng-code
-          ./configure --prefix=${GITHUB_WORKSPACE}/libpng-arm64 --host=aarch64-apple-darwin
-          make
-          make install
-
-      - name: Cache OpenCV
-        if: runner.os != 'Linux'
-        id: cache-opencv
-        uses: actions/cache@v3
-        with:
-          path: |
-            opencv_build
-          key: opencv-${{ env.OPENCV_VERSION }}-${{ runner.os }}
-
-      - name: Build OpenCV for macOS
-        if: runner.os == 'macOS' && steps.cache-opencv.outputs.cache-hit != 'true'
-        run: |
-          for arch in arm64 x86_64; do
-            mkdir -p opencv_build/$arch && cd opencv_build/$arch
-            if [ "$arch" == "arm64" ]; then
-              cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                    -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                    -D CMAKE_OSX_ARCHITECTURES=$arch \
-                    -D CMAKE_SYSTEM_NAME=Darwin \
-                    -D CMAKE_SYSTEM_PROCESSOR=arm64 \
-                    -D ENABLE_NEON=OFF \
-                    -D BUILD_LIST=core,imgcodecs \
-                    -D BUILD_EXAMPLES=OFF \
-                    -D BUILD_TESTS=OFF \
-                    -D BUILD_PERF_TESTS=OFF \
-                    -D WITH_IPP=OFF \
-                    -D WITH_OPENEXR=OFF \
-                    -D PNG_PNG_INCLUDE_DIR=${GITHUB_WORKSPACE}/libpng-arm64/include \
-                    -D PNG_LIBRARY=${GITHUB_WORKSPACE}/libpng-arm64/lib/libpng.a \
-                    ../../external/opencv
-            else
-              cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                    -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                    -D BUILD_LIST=core,imgcodecs \
-                    -D BUILD_EXAMPLES=OFF \
-                    -D BUILD_TESTS=OFF \
-                    -D BUILD_PERF_TESTS=OFF \
-                    -D WITH_IPP=OFF \
-                    -D WITH_OPENEXR=OFF \
-                    ../../external/opencv
-            fi
-            make -j$(sysctl -n hw.logicalcpu)
-            cd ../../
-          done
-
-      - name: Build OpenCV for Windows
-        if: runner.os == 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
-        run: |
-          New-Item -Type Directory -Path opencv_build\AMD64
-          cd opencv_build\AMD64
-          cmake -D CMAKE_BUILD_TYPE=RELEASE `
-                -D CMAKE_INSTALL_PREFIX=$PWD.Path `
-                -D BUILD_LIST=core,imgcodecs `
-                -D BUILD_EXAMPLES=OFF `
-                -D BUILD_TESTS=OFF `
-                -D BUILD_PERF_TESTS=OFF `
-                -D WITH_IPP=OFF `
-                -D WITH_OPENEXR=OFF `
-                ..\..\external\opencv
-          cmake --build . --config Release --parallel
-
       - name: Use cibuildwheel
-        uses: pypa/cibuildwheel@v2.16.1
+        uses: pypa/cibuildwheel@v2.19.2
         env:
           CIBW_BUILD: cp38-* cp39-* cp310-* **cp311-* cp312-*
           CIBW_ARCHS_MACOS: auto arm64
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
-          CIBW_ENVIRONMENT_MACOS: OpenCV_DIR_arm64=$(pwd)/opencv_build/arm64 OpenCV_DIR_x86_64=$(pwd)/opencv_build/x86_64
-          CIBW_ENVIRONMENT_WINDOWS: OpenCV_DIR_amd64=$PWD.Path\\opencv_build\\amd64
-          CIBW_ENVIRONMENT_LINUX: OpenCV_DIR_x86_64=/project/opencv_build/x86_64
-          CIBW_BEFORE_ALL_LINUX: |
-            yum install -y cmake gcc-c++ git &&
-            mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64 &&
-            cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                  -D BUILD_LIST=core,imgcodecs \
-                  -D BUILD_EXAMPLES=OFF \
-                  -D BUILD_TESTS=OFF \
-                  -D BUILD_PERF_TESTS=OFF \
-                  -D WITH_IPP=OFF \
-                  -D WITH_OPENEXR=OFF \
-                  ../../external/opencv &&
-            make -j$(nproc) &&
-            cd ../../
-
-      - name: Repair wheels with delvewheel (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          python -m pip install delvewheel
-          
-          $wheels = Get-ChildItem -Path wheelhouse -Filter "*win_amd64.whl"
-          foreach ($wheel in $wheels) {
-            delvewheel repair $wheel.FullName --add-path opencv_build\AMD64\bin\Release
-          }
 
       - name: Upload wheels
         uses: actions/upload-artifact@v3

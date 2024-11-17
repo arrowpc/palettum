@@ -133,12 +133,11 @@ setup(
     description="Core functionality for the Palettum project.",
     long_description="Core functionality for the Palettum project.",
     long_description_content_type="text/x-rst",
-    url="https://github.com/ArrowPC/Palettum-Core",
+    url="https://github.com/ArrowPC/palettum/",
     license="GNU Affero General Public License v3.0",
     ext_modules=[CMakeExtension("palettum")],
     cmdclass={"build_ext": CMakeBuild},
     zip_safe=False,
-    install_requires=["opencv-python==4.8.0.76"],
     extras_require={"test": ["pytest>=6.0"]},
     python_requires=">=3.8",
 )

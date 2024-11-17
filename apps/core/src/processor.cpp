@@ -303,6 +303,7 @@ Image::~Image()
     if (m_data)
     {
         stbi_image_free(m_data);
+        m_data = nullptr;
     }
 }
 

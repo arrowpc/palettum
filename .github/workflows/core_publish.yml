@@ -63,6 +63,7 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
+          CIBW_ENVIRONMENT_MACOS: OpenMP_ROOT=$(brew --prefix)/opt/libomp
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

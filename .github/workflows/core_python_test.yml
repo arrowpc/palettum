@@ -53,6 +53,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install libomp
+          export OpenMP_ROOT=$(brew --prefix)/opt/libomp
 
       - name: Build and Install palettum
         run: |

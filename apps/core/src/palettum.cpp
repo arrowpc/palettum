@@ -5,7 +5,7 @@ Image Palettum::convertToPalette(Image &image, vector<RGB> &palette)
     Image result(image.width(), image.height());
     std::vector<Lab> constants_lab(palette.size());
 #pragma omp parallel for
-    for (size_t i = 0; i < palette.size(); ++i)
+    for (int i = 0; i < palette.size(); ++i)
     {
         constants_lab[i] = palette[i].toLab();
     }
@@ -21,7 +21,7 @@ Image Palettum::convertToPalette(Image &image, vector<RGB> &palette)
             Lab currentPixel = image.get(x, y).toLab();
             Lab closestColor = constants_lab[0];
             double closestDE = constants_lab[0].deltaE(currentPixel);
-            for (size_t i = 1; i < constants_lab.size(); ++i)
+            for (int i = 1; i < constants_lab.size(); ++i)
             {
                 double dE = constants_lab[i].deltaE(currentPixel);
                 if (dE < closestDE)

@@ -65,7 +65,7 @@ jobs:
           CIBW_SKIP: "*musllinux*"
           CIBW_ENVIRONMENT_MACOS: >
             OpenMP_ROOT=$(brew --prefix)/opt/libomp
-            MACOSX_DEPLOYMENT_TARGET=10.14
+            MACOSX_DEPLOYMENT_TARGET=13.0
 
       - name: Upload wheels
         uses: actions/upload-artifact@v4

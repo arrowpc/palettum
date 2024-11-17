@@ -44,7 +44,7 @@ PYBIND11_MODULE(palettum, m)
     py::class_<Image>(m, "Image")
         .def(py::init<>())
         .def(py::init<const std::string &>())
-        .def(py::init<int, int, unsigned char *>())
+        .def(py::init<int, int>())
         .def("write",
              static_cast<bool (Image:: *)(const std::string &)>(&Image::write))
         .def("get", &Image::get)
@@ -54,7 +54,7 @@ PYBIND11_MODULE(palettum, m)
         .def("channels", &Image::channels)
         .def("data",
              [](const Image &img) {
-                 return py::array_t<unsigned char>(
+                 return py::array_t<uint8_t>(
                      {img.height(), img.width(), img.channels()},  // shape
                      {img.width() * img.channels(), img.channels(),
                       1},           // strides

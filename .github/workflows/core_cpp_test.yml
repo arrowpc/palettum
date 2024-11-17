@@ -58,7 +58,9 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install libomp
-
+          export LDFLAGS="-L/usr/local/opt/libomp/lib"
+          export CPPFLAGS="-I/usr/local/opt/libomp/include"
+        
       - name: Configure CMake
         working-directory: apps/core/build-test
         run: |

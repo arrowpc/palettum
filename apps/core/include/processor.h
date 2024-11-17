@@ -1,7 +1,9 @@
 #ifndef PROCESSOR_H
 #define PROCESSOR_H
 
+#include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 
 #ifndef M_PI

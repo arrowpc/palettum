@@ -88,7 +88,7 @@ protected:
 TEST_F(PalettumTests, ConvertJpegToPalette)
 {
     Image original("../../test_images/hydrangea_estimate.png");
-    EXPECT_NE(result, original);
+    EXPECT_EQ(result, original);
 }
 
 TEST_F(PalettumTests, ValidateImageColors)

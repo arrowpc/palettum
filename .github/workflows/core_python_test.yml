@@ -55,7 +55,6 @@ jobs:
           brew install libomp
 
       - name: Build and Install palettum
-        if: runner.os != 'Windows'
         run: |
           pip install .
 

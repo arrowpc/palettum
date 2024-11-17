@@ -1,7 +1,5 @@
 #include "palettum.h"
 #include <gtest/gtest.h>
-#include <pybind11/numpy.h>
-#include <pybind11/pybind11.h>
 #include <vector>
 
 TEST(ImageProcessing, TestLoadingImage)
@@ -10,14 +8,6 @@ TEST(ImageProcessing, TestLoadingImage)
     EXPECT_EQ(img.width(), 1200);
     EXPECT_EQ(img.height(), 1366);
     EXPECT_EQ(img.channels(), 3);
-}
-
-TEST(ImageProcessing, TestDeletingImage)
-{
-    auto img = new Image("../../test_images/hydrangea.jpeg");
-    EXPECT_NE(img->data(), nullptr);
-    delete img;
-    EXPECT_EQ(img->data(), nullptr);
 }
 
 TEST(ImageProcessing, TestWritingImage)

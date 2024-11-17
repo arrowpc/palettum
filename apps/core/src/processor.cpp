@@ -294,8 +294,6 @@ Image::Image(int width, int height, unsigned char *data)
     m_data = new unsigned char[size];
     if (data)
         std::memcpy(m_data, data, size);
-    else
-        m_data = new unsigned char[width * height * m_channels]();
 }
 
 Image::~Image()
@@ -335,7 +333,7 @@ Image &Image::operator=(const Image &other)
 {
     if (this != &other)
     {
-        delete[] m_data;
+        stbi_image_free(m_data);
         m_data = nullptr;
         copyFrom(other);
     }

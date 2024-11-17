@@ -4,6 +4,3 @@
 [submodule "apps/core/external/pybind11"]
 	path = apps/core/external/pybind11
 	url = https://github.com/pybind/pybind11
-[submodule "apps/core/external/opencv"]
-	path = apps/core/external/opencv
-	url = https://github.com/opencv/opencv

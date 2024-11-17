@@ -12,7 +12,7 @@ Lab::Lab(double L, double a, double b) noexcept
 {
 }
 
-Pixel Lab::toRGB() const noexcept
+RGB Lab::toRGB() const noexcept
 {
     double y = (m_L + 16.0) / 116.0;
     double x = m_a / 500.0 + y;
@@ -46,9 +46,9 @@ Pixel Lab::toRGB() const noexcept
     g = std::clamp(g, 0.0, 1.0) * 255.0;
     b = std::clamp(b, 0.0, 1.0) * 255.0;
 
-    return Pixel(static_cast<unsigned char>(std::round(r)),
-                 static_cast<unsigned char>(std::round(g)),
-                 static_cast<unsigned char>(std::round(b)));
+    return RGB(static_cast<unsigned char>(std::round(r)),
+               static_cast<unsigned char>(std::round(g)),
+               static_cast<unsigned char>(std::round(b)));
 }
 
 constexpr double Lab::L() const noexcept
@@ -194,14 +194,14 @@ double Lab::FastAtan2(double y, double x)
     }
 }
 
-Pixel::Pixel(unsigned char r, unsigned char g, unsigned char b) noexcept
+RGB::RGB(unsigned char r, unsigned char g, unsigned char b) noexcept
     : m_r(r)
     , m_g(g)
     , m_b(b)
 {
 }
 
-Lab Pixel::toLab() const noexcept
+Lab RGB::toLab() const noexcept
 {
     double r = m_r / 255.0;
     double g = m_g / 255.0;
@@ -235,39 +235,39 @@ Lab Pixel::toLab() const noexcept
     return Lab(L, a, b);
 }
 
-double Pixel::pivotXYZ(double n) noexcept
+double RGB::pivotXYZ(double n) noexcept
 {
     return n > XYZ::EPSILON ? std::cbrt(n) : (XYZ::KAPPA * n + 16.0) / 116.0;
 }
 
-unsigned char Pixel::red() const noexcept
+unsigned char RGB::red() const noexcept
 {
     return m_r;
 }
-unsigned char Pixel::green() const noexcept
+unsigned char RGB::green() const noexcept
 {
     return m_g;
 }
-unsigned char Pixel::blue() const noexcept
+unsigned char RGB::blue() const noexcept
 {
     return m_b;
 }
 
-bool Pixel::operator==(const Pixel &rhs) const noexcept
+bool RGB::operator==(const RGB &rhs) const noexcept
 {
     return m_r == rhs.m_r && m_g == rhs.m_g && m_b == rhs.m_b;
 }
 
-bool Pixel::operator!=(const Pixel &rhs) const noexcept
+bool RGB::operator!=(const RGB &rhs) const noexcept
 {
     return !(*this == rhs);
 }
 
-std::ostream &operator<<(std::ostream &os, const Pixel &pixel)
+std::ostream &operator<<(std::ostream &os, const RGB &RGB)
 {
-    return os << '(' << static_cast<int>(pixel.m_r) << ", "
-              << static_cast<int>(pixel.m_g) << ", "
-              << static_cast<int>(pixel.m_b) << ')';
+    return os << '(' << static_cast<int>(RGB.m_r) << ", "
+              << static_cast<int>(RGB.m_g) << ", " << static_cast<int>(RGB.m_b)
+              << ')';
 }
 
 Image::Image(const std::string &filename)
@@ -340,20 +340,20 @@ bool Image::write(const char *filename)
                           m_width * m_channels);
 }
 
-Pixel Image::get(int x, int y) const
+RGB Image::get(int x, int y) const
 {
     validateCoordinates(x, y);
     size_t pos = (y * m_width + x) * 3;
-    return Pixel(m_data[pos], m_data[pos + 1], m_data[pos + 2]);
+    return RGB(m_data[pos], m_data[pos + 1], m_data[pos + 2]);
 }
 
-void Image::set(int x, int y, const Pixel &pixel)
+void Image::set(int x, int y, const RGB &RGB)
 {
     validateCoordinates(x, y);
     size_t pos = (y * m_width + x) * 3;
-    m_data[pos] = pixel.red();
-    m_data[pos + 1] = pixel.green();
-    m_data[pos + 2] = pixel.blue();
+    m_data[pos] = RGB.red();
+    m_data[pos + 1] = RGB.green();
+    m_data[pos + 2] = RGB.blue();
 }
 
 int Image::width() const noexcept
@@ -395,6 +395,6 @@ void Image::validateCoordinates(int x, int y) const
 {
     if (x < 0 || x >= m_width || y < 0 || y >= m_height)
     {
-        throw std::out_of_range("Pixel coordinates out of bounds");
+        throw std::out_of_range("RGB coordinates out of bounds");
     }
 }

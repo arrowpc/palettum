@@ -63,5 +63,6 @@ PYBIND11_MODULE(palettum, m)
                  );
              })
         .def("__eq__", &Image::operator==)
-        .def("__ne__", &Image::operator!=);
+        .def("__ne__", &Image::operator!=)
+        .def("__sub__", &Image::operator-);
 }

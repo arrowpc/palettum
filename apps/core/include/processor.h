@@ -86,8 +86,8 @@ public:
     explicit Image(const char *filename);
     explicit Image(int width, int height, unsigned char *data = nullptr);
     ~Image();
-
     Image(const Image &other);
+    int operator-(const Image &other) const;
     Image &operator=(const Image &other);
 
     bool write(const std::string &filename);

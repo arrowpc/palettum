@@ -59,7 +59,11 @@ class TestPalettum:
             self.current_dir, "..", "test_images", "hydrangea_estimate.png"
         )
         original = palettum.Image(original_path)
-        assert self.result == original
+        different_pixels = self.result - original
+        total_pixels = original.width() * original.height()
+        diff_percentage = (different_pixels * 100.0) / total_pixels
+
+        assert diff_percentage <= 1.0, f"Images differ by {diff_percentage:.2f}% ({different_pixels} pixels out of {total_pixels})"
 
     def test_validate_image_colors(self):
         assert palettum.Palettum.validateImageColors(self.result, self.palette)

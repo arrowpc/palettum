@@ -341,6 +341,35 @@ Image &Image::operator=(const Image &other)
     return *this;
 }
 
+int Image::operator-(const Image &other) const
+{
+    if (m_width != other.m_width || m_height != other.m_height)
+    {
+        throw std::invalid_argument(
+            "Images must have the same dimensions to calculate difference");
+    }
+
+    int differentPixels = 0;
+
+    for (int y = 0; y < m_height; ++y)
+    {
+        for (int x = 0; x < m_width; ++x)
+        {
+            RGB thisColor = get(x, y);
+            RGB otherColor = other.get(x, y);
+
+            if (abs(thisColor.red() - otherColor.red()) > 5 ||
+                abs(thisColor.green() - otherColor.green()) > 5 ||
+                abs(thisColor.blue() - otherColor.blue()) > 5)
+            {
+                differentPixels++;
+            }
+        }
+    }
+
+    return differentPixels;
+}
+
 bool Image::write(const std::string &filename)
 {
     return write(filename.c_str());

@@ -4,3 +4,9 @@
 [submodule "apps/core/external/pybind11"]
 	path = apps/core/external/pybind11
 	url = https://github.com/pybind/pybind11
+[submodule "apps/core/external/stb"]
+	path = apps/core/external/stb
+	url = https://github.com/nothings/stb
+[submodule "apps/core/external/simd_utils"]
+	path = apps/core/external/simd_utils
+	url = https://github.com/JishinMaster/simd_utils

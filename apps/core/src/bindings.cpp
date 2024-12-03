@@ -29,12 +29,12 @@ PYBIND11_MODULE(palettum, m)
         });
 
     py::class_<Lab>(m, "Lab")
-        .def(py::init<double, double, double>())
+        .def(py::init<float, float, float>())
         .def("L", &Lab::L)
         .def("a", &Lab::a)
         .def("b", &Lab::b)
+        .def("deltaE", py::overload_cast<const Lab &>(&Lab::deltaE, py::const_))
         .def("toRGB", &Lab::toRGB)
-        .def("deltaE", &Lab::deltaE)
         .def("__repr__", [](const Lab &lab) {
             return "Lab(" + std::to_string(lab.L()) + ", " +
                    std::to_string(lab.a()) + ", " + std::to_string(lab.b()) +
@@ -46,7 +46,7 @@ PYBIND11_MODULE(palettum, m)
         .def(py::init<const std::string &>())
         .def(py::init<int, int>())
         .def("write",
-             static_cast<bool (Image:: *)(const std::string &)>(&Image::write))
+             py::overload_cast<const std::string &>(&Image::write, py::const_))
         .def("get", &Image::get)
         .def("set", &Image::set)
         .def("width", &Image::width)

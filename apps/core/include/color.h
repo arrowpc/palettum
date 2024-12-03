@@ -1,10 +1,13 @@
 #ifndef COLOR_H
 #define COLOR_H
 
-#pragma push_macro("min")
-#undef min
+#ifdef min
+#    undef min
+#endif
+#ifdef max
+#    undef max
+#endif
 #include <simd_utils.h>
-#pragma pop_macro("min")
 #include <algorithm>
 #include <iostream>
 

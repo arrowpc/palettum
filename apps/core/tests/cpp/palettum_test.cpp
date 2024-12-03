@@ -68,7 +68,7 @@ protected:
 
 TEST_F(PalettumTests, ConvertJpegToPalette)
 {
-    Image original("../../test_images/hydrangea_estimate.png");
+    Image original("../../test_images/hydrangea_basic.png");
     int differentPixels = result - original;
     int totalPixels = original.width() * original.height();
     double diffPercentage = (differentPixels * 100.0) / totalPixels;

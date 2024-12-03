@@ -2,9 +2,8 @@
 #define PALETTUM_CORE_PALETTUM_H
 
 #include <omp.h>
-#include <cmath>
 #include <vector>
-#include "processor.h"
+#include "image.h"
 
 using namespace std;
 

@@ -3,34 +3,34 @@
 Image Palettum::convertToPalette(Image &image, vector<RGB> &palette)
 {
     Image result(image.width(), image.height());
-    std::vector<Lab> constants_lab(palette.size());
+    Lab constants_lab[palette.size()];
 #pragma omp parallel for
     for (int i = 0; i < palette.size(); ++i)
     {
         constants_lab[i] = palette[i].toLab();
     }
-
     const int height = image.height();
     const int width = image.width();
-
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
+            float closestDE = 250.0f;
+            RGB closestColor;
             Lab currentPixel = image.get(x, y).toLab();
-            Lab closestColor = constants_lab[0];
-            double closestDE = constants_lab[0].deltaE(currentPixel);
-            for (int i = 1; i < constants_lab.size(); ++i)
+            float results[palette.size()];
+            Lab::deltaE(currentPixel, constants_lab, results, palette.size());
+
+            for (size_t i{}; i < palette.size(); ++i)
             {
-                double dE = constants_lab[i].deltaE(currentPixel);
-                if (dE < closestDE)
+                if (results[i] < closestDE)
                 {
-                    closestDE = dE;
-                    closestColor = constants_lab[i];
+                    closestDE = results[i];
+                    closestColor = palette[i];
                 }
             }
-            result.set(x, y, closestColor.toRGB());
+            result.set(x, y, closestColor);
         }
     }
     return result;

@@ -1,7 +1,10 @@
 #ifndef COLOR_H
 #define COLOR_H
 
+#pragma push_macro("min")
+#undef min
 #include <simd_utils.h>
+#pragma pop_macro("min")
 #include <iostream>
 
 #ifndef M_PI

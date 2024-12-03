@@ -5,6 +5,7 @@
 #undef min
 #include <simd_utils.h>
 #pragma pop_macro("min")
+#include <algorithm>
 #include <iostream>
 
 #ifndef M_PI

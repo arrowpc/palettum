@@ -24,9 +24,6 @@ on:
       - 'apps/core/**.h'
       - 'apps/core/**.py'
 
-env:
-  OPENCV_VERSION: 4.8.0
-
 jobs:
   test:
     strategy:

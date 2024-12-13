@@ -3,6 +3,24 @@
 #include <stb_image_resize2.h>
 #include <stb_image_write.h>
 
+Image::Image(const unsigned char *buffer, int length)
+{
+    int width, height, channels;
+    uint8_t *data = stbi_load_from_memory(buffer, length, &width, &height,
+                                          &channels, STBI_rgb);
+    if (!data)
+    {
+        throw std::runtime_error(
+            std::string("Failed to load image from memory: ") +
+            stbi_failure_reason());
+    }
+    m_width = width;
+    m_height = height;
+    m_channels = 3;
+    m_data.assign(data, data + (width * height * m_channels));
+    stbi_image_free(data);
+}
+
 Image::Image(const std::string &filename)
     : Image(filename.c_str())
 {
@@ -56,6 +74,23 @@ int Image::operator-(const Image &other) const
     }
 
     return differentPixels;
+}
+
+std::vector<unsigned char> Image::write() const
+{
+    int len;
+    unsigned char *png_data =
+        stbi_write_png_to_mem(m_data.data(), m_width * m_channels, m_width,
+                              m_height, m_channels, &len);
+    if (!png_data)
+    {
+        return std::vector<unsigned char>();
+    }
+
+    std::vector<unsigned char> result(png_data, png_data + len);
+    STBIW_FREE(png_data);
+
+    return result;
 }
 
 bool Image::write(const std::string &filename) const

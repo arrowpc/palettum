@@ -45,6 +45,17 @@ PYBIND11_MODULE(palettum, m)
         .def(py::init<>())
         .def(py::init<const std::string &>())
         .def(py::init<int, int>())
+        .def(py::init([](py::buffer buffer) {
+            py::buffer_info info = buffer.request();
+            if (info.ndim != 1)
+            {
+                throw std::runtime_error("Buffer must be 1-dimensional");
+            }
+            return std::make_unique<Image>(
+                static_cast<const unsigned char *>(info.ptr),
+                static_cast<int>(info.size));
+        }))
+        .def("write", py::overload_cast<>(&Image::write, py::const_))
         .def("write",
              py::overload_cast<const std::string &>(&Image::write, py::const_))
         .def("resize", &Image::resize)

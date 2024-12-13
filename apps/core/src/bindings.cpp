@@ -47,6 +47,7 @@ PYBIND11_MODULE(palettum, m)
         .def(py::init<int, int>())
         .def("write",
              py::overload_cast<const std::string &>(&Image::write, py::const_))
+        .def("resize", &Image::resize)
         .def("get", &Image::get)
         .def("set", &Image::set)
         .def("width", &Image::width)

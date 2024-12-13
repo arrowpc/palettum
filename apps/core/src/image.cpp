@@ -1,6 +1,7 @@
 #include "image.h"
-#include "stb_image.h"
-#include "stb_image_write.h"
+#include <stb_image.h>
+#include <stb_image_resize2.h>
+#include <stb_image_write.h>
 
 Image::Image(const std::string &filename)
     : Image(filename.c_str())
@@ -66,6 +67,19 @@ bool Image::write(const char *filename) const
 {
     return stbi_write_png(filename, m_width, m_height, m_channels,
                           m_data.data(), m_width * m_channels);
+}
+
+bool Image::resize(int width, int height)
+{
+    bool res =
+        stbir_resize_uint8_linear(m_data.data(), m_width, m_height, 0,
+                                  m_data.data(), width, height, 0, STBIR_RGB);
+    if (res)
+    {
+        m_width = width;
+        m_height = height;
+    }
+    return res;
 }
 
 RGB Image::get(int x, int y) const

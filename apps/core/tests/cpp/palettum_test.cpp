@@ -23,6 +23,22 @@ TEST(ImageProcessing, TestWritingImage)
     EXPECT_NE(original, different);
 }
 
+TEST(ImageProcessing, TestResizingImage)
+{
+    Image img("../../test_images/hydrangea.jpeg");
+
+    EXPECT_EQ(img.width(), 1200);
+    EXPECT_EQ(img.height(), 1366);
+    EXPECT_EQ(img.channels(), 3);
+
+    bool success = img.resize(600, 683);
+    EXPECT_TRUE(success);
+
+    EXPECT_EQ(img.width(), 600);
+    EXPECT_EQ(img.height(), 683);
+    EXPECT_EQ(img.channels(), 3);
+}
+
 TEST(ImageProcessing, TestPixelGetter)
 {
     Image img("../../test_images/hydrangea.jpeg");

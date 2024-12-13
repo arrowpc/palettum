@@ -130,7 +130,11 @@ void Lab::deltaE(const Lab &ref, const Lab *comp, float *results, int len)
 {
     const size_t totalFloats = len * 50;
 
-    std::vector<float> workspace(totalFloats);
+    thread_local std::vector<float> workspace;
+    if (workspace.size() < totalFloats)
+    {
+        workspace.resize(totalFloats);
+    }
 
     float *comp_L = workspace.data();
     float *comp_a = comp_L + len;

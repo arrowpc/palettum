@@ -102,16 +102,14 @@ static inline void compute_g_C(float *cBar, float *g, float *onePlusG, int len)
 #pragma omp simd
     for (int i = 0; i < len; i++)
     {
-        // Compute cBar^7 using the efficient power method from before
         float result = cBar[i];
-        float x2 = result * result;      // x²
-        float x4 = x2 * x2;              // x⁴
-        float cBar7 = x4 * x2 * result;  // x⁷
+        float x2 = result * result;
+        float x4 = x2 * x2;
+        float cBar7 = x4 * x2 * result;
 
-        // Compute g in one go
         float sqrt_val = std::sqrt(cBar7 / (cBar7 + pow25_7));
         g[i] = 0.5f * (1.0f - sqrt_val);
-        onePlusG[i] = 1.0f + g[i];  // Compute onePlusG in the same loop
+        onePlusG[i] = 1.0f + g[i];
     }
 }
 
@@ -130,74 +128,113 @@ static inline void compute_T_C(float *hBarPrime, float *T, int len)
 
 void Lab::deltaE(const Lab &ref, const Lab *comp, float *results, int len)
 {
+    const size_t totalFloats = len * 49;
+
+    std::vector<float> workspace(totalFloats);
+
+    float *comp_L = workspace.data();
+    float *comp_a = comp_L + len;
+    float *comp_b = comp_a + len;
+    float *lBarPrime = comp_b + len;
+    float *c2 = lBarPrime + len;
+    float *cBar = c2 + len;
+    float *g = cBar + len;
+    float *onePlusG = g + len;
+    float *a1Prime = onePlusG + len;
+    float *a2Prime = a1Prime + len;
+    float *c1Prime = a2Prime + len;
+    float *a1PrimeSq = c1Prime + len;
+    float *c2Prime = a1PrimeSq + len;
+    float *a2PrimeSq = c2Prime + len;
+    float *b2Sq = a2PrimeSq + len;
+    float *cBarPrime = b2Sq + len;
+    float *h1Prime = cBarPrime + len;
+    float *h2Prime = h1Prime + len;
+    float *deltaLPrime = h2Prime + len;
+    float *deltaCPrime = deltaLPrime + len;
+    float *deltahPrime = deltaCPrime + len;
+    float *c1Primec2Prime = deltahPrime + len;
+    float *sinDeltahPrime = c1Primec2Prime + len;
+    float *deltaHPrime = sinDeltahPrime + len;
+    float *lBarMinus50 = deltaHPrime + len;
+    float *lBarMinus50Sq = lBarMinus50 + len;
+    float *denominator = lBarMinus50Sq + len;
+    float *numerator = denominator + len;
+    float *fraction = numerator + len;
+    float *sL = fraction + len;
+    float *sC = sL + len;
+    float *hSum = sC + len;
+    float *hDiff = hSum + len;
+    float *hBarPrime = hDiff + len;
+    float *t = hBarPrime + len;
+    float *sH = t + len;
+    float *cBar7 = sH + len;
+    float *division = cBar7 + len;
+    float *expTerm = division + len;
+    float *negExpTerm = expTerm + len;
+    float *sinTerm = negExpTerm + len;
+    float *rT = sinTerm + len;
+    float *lightness = rT + len;
+    float *chroma = lightness + len;
+    float *hue = chroma + len;
+    float *lightnessSq = hue + len;
+    float *chromaSq = lightnessSq + len;
+    float *hueSq = chromaSq + len;
+    float *rTChroma = hueSq + len;
+    float *sum = rTChroma + len;
+
     const float ref_L = ref.L();
     const float ref_a = ref.a();
     const float ref_b = ref.b();
 
-    float comp_L[len], comp_a[len], comp_b[len];
-    for (size_t i{}; i < len; ++i)
+#pragma omp simd
+    for (size_t i = 0; i < len; ++i)
     {
         comp_L[i] = comp[i].L();
         comp_a[i] = comp[i].a();
         comp_b[i] = comp[i].b();
     }
 
-    float lBarPrime[len];
     addmulcf_C(comp_L, ref_L, 0.5f, lBarPrime, len);
 
     const float c1 = sqrtf(ref_a * ref_a + ref_b * ref_b);
 
-    float c2[len];
     hypotf_C(comp_a, comp_b, c2, len);
 
-    float cBar[len];
     addmulcf_C(c2, c1, 0.5f, cBar, len);
 
-    float g[len], onePlusG[len];
     compute_g_C(cBar, g, onePlusG, len);
 
-    float a1Prime[len];
     mulcf_C(onePlusG, ref_a, a1Prime, len);
 
-    float a2Prime[len];
     mulf_C(comp_a, onePlusG, a2Prime, len);
 
-    float c1Prime[len];
-    float a1PrimeSq[len];
     mulf_C(a1Prime, a1Prime, a1PrimeSq, len);
     float bSq = ref_b * ref_b;
     addcf_C(a1PrimeSq, bSq, c1Prime, len);
     sqrtf_C(c1Prime, c1Prime, len);
 
-    float c2Prime[len];
-    float a2PrimeSq[len];
     mulf_C(a2Prime, a2Prime, a2PrimeSq, len);
-    float b2Sq[len];
     mulf_C(comp_b, comp_b, b2Sq, len);
     addf_c(a2PrimeSq, b2Sq, c2Prime, len);
     sqrtf_C(c2Prime, c2Prime, len);
 
-    float cBarPrime[len];
     addf_c(c1Prime, c2Prime, cBarPrime, len);
     mulcf_C(cBarPrime, 0.5f, cBarPrime, len);
 
-    float h1Prime[len];
     atan2cf_C(ref_b, a1Prime, h1Prime, len);
     muladdccf_C(h1Prime, RAD_TO_DEG, 360, h1Prime, len);
 
-    float h2Prime[len];
     atan2f_C(comp_b, a2Prime, h2Prime, len);
     muladdccf_C(h2Prime, RAD_TO_DEG, 360, h2Prime, len);
 
-    float deltaLPrime[len];
     addcf_C(comp_L, -ref_L, deltaLPrime, len);
 
-    float deltaCPrime[len];
     subf_c(c2Prime, c1Prime, deltaCPrime, len);
 
-    float deltahPrime[len];
     subf_c(h2Prime, h1Prime, deltahPrime, len);
 
+#pragma omp simd
     for (size_t i = 0; i < len; ++i)
     {
         if (std::abs(h1Prime[i] - h2Prime[i]) <= 180)
@@ -206,61 +243,49 @@ void Lab::deltaE(const Lab &ref, const Lab *comp, float *results, int len)
         }
         else if (h2Prime[i] <= h1Prime[i])
         {
-            deltahPrime[i] += 360;  // h2Prime - h1Prime + 360
+            deltahPrime[i] += 360;
         }
         else
         {
-            deltahPrime[i] -= 360;  // h2Prime - h1Prime - 360
+            deltahPrime[i] -= 360;
         }
     }
 
-    float c1Primec2Prime[len];
     mulf_C(c1Prime, c2Prime, c1Primec2Prime, len);
     sqrtf_C(c1Primec2Prime, c1Primec2Prime, len);
 
-    float sinDeltahPrime[len];
     mulcf_C(deltahPrime, HALF_DEG_TO_RAD, sinDeltahPrime, len);
     sinf_C(sinDeltahPrime, sinDeltahPrime, len);
 
-    float deltaHPrime[len];
     mulf_C(c1Primec2Prime, sinDeltahPrime, deltaHPrime, len);
     mulcf_C(deltaHPrime, 2, deltaHPrime, len);
 
-    float lBarMinus50[len];
     addcf_C(lBarPrime, -50.0f, lBarMinus50, len);
 
-    float lBarMinus50Sq[len];
     mulf_C(lBarMinus50, lBarMinus50, lBarMinus50Sq, len);
 
-    float denominator[len];
     addcf_C(lBarMinus50Sq, 20.0f, denominator, len);
     sqrtf_C(denominator, denominator, len);
 
-    float numerator[len];
     mulcf_C(lBarMinus50Sq, 0.015f, numerator, len);
 
-    float fraction[len];
     divf_C(numerator, denominator, fraction, len);
 
-    float sL[len];
     addcf_C(fraction, 1.0f, sL, len);
 
-    float sC[len];
     muladdccf_C(cBarPrime, 0.045f, 1, sC, len);
 
-    // First calculate h1Prime + h2Prime
-    float hSum[len];
     addf_c(h1Prime, h2Prime, hSum, len);
 
-    // Calculate absolute difference |h1Prime - h2Prime|
-    float hDiff[len];
     subf_c(h1Prime, h2Prime, hDiff, len);
-    for (float &f : hDiff)
+
+#pragma omp simd
+    for (int i = 0; i < len; ++i)
     {
-        f = std::abs(f);
+        hDiff[i] = std::abs(hDiff[i]);
     }
 
-    float hBarPrime[len];
+#pragma omp simd
     for (int i = 0; i < len; ++i)
     {
         if (hDiff[i] <= 180)
@@ -277,82 +302,56 @@ void Lab::deltaE(const Lab &ref, const Lab *comp, float *results, int len)
         }
     }
 
-    float t[len];
     compute_T_C(hBarPrime, t, len);
 
-    float sH[len];
     mulcf_C(cBarPrime, 0.015f, sH, len);
     muladdcf_C(sH, t, 1, sH, len);
 
-    // First calculate (cBarPrime^7)
-    float cBar7[len];
-    //    copyf_C(cBarPrime, cBar7, len);
     copyf_C(cBarPrime, cBar7, len);
-    mulf_C(cBar7, cBar7, cBar7, len);      // cBar^2
-    mulf_C(cBar7, cBar7, cBar7, len);      // cBar^4
-    mulf_C(cBar7, cBarPrime, cBar7, len);  // cBar^5
-    mulf_C(cBar7, cBarPrime, cBar7, len);  // cBar^6
-    mulf_C(cBar7, cBarPrime, cBar7, len);  // cBar^7
+    mulf_C(cBar7, cBar7, cBar7, len);
+    mulf_C(cBar7, cBar7, cBar7, len);
+    mulf_C(cBar7, cBarPrime, cBar7, len);
+    mulf_C(cBar7, cBarPrime, cBar7, len);
+    mulf_C(cBar7, cBarPrime, cBar7, len);
 
-    // Calculate sqrt(cBar^7 / (cBar^7 + 25^7))
-    float division[len];
-    addcf_C(cBar7, pow25_7, denominator, len);  // cBar^7 + 25^7
-    divf_C(cBar7, denominator, division, len);  // cBar^7 / (cBar^7 + 25^7)
-    sqrtf_C(division, division, len);           // sqrt(...)
+    addcf_C(cBar7, pow25_7, denominator, len);
+    divf_C(cBar7, denominator, division, len);
+    sqrtf_C(division, division, len);
 
-    // Calculate (hBarPrime - 275) / 25
-    float expTerm[len];
     addcf_C(hBarPrime, -275.0f, expTerm, len);
     mulcf_C(expTerm, 1 / 25.0f, expTerm, len);
 
-    // Calculate -(expTerm^2)
-    float negExpTerm[len];
     mulf_C(expTerm, expTerm, negExpTerm, len);
     mulcf_C(negExpTerm, -1.0f, negExpTerm, len);
 
-    // Calculate exp(-(expTerm^2))
     expf_C(negExpTerm, negExpTerm, len);
 
-    // Calculate 60 * exp(...) * PI/180
     mulcf_C(negExpTerm, 60.0f, negExpTerm, len);
-    mulcf_C(negExpTerm, DEG_TO_RAD, negExpTerm,
-            len);  // Convert to radians using your HALF_DEG_TO_RAD
+    mulcf_C(negExpTerm, DEG_TO_RAD, negExpTerm, len);
 
-    float sinTerm[len];
     sinf_C(negExpTerm, sinTerm, len);
-    float rT[len];
     mulf_C(division, sinTerm, rT, len);
     mulcf_C(rT, -2.0f, rT, len);
 
-    float lightness[len];
     divf_C(deltaLPrime, sL, lightness, len);
 
-    float chroma[len];
     divf_C(deltaCPrime, sC, chroma, len);
 
-    float hue[len];
     divf_C(deltaHPrime, sH, hue, len);
 
-    // First square all the terms
-    float lightnessSq[len], chromaSq[len], hueSq[len];
-    mulf_C(lightness, lightness, lightnessSq, len);  // lightness^2
-    mulf_C(chroma, chroma, chromaSq, len);           // chroma^2
-    mulf_C(hue, hue, hueSq, len);                    // hue^2
+    mulf_C(lightness, lightness, lightnessSq, len);
+    mulf_C(chroma, chroma, chromaSq, len);
+    mulf_C(hue, hue, hueSq, len);
 
-    // Calculate rT * chroma * hue
-    float rTChroma[len];
     mulf_C(rT, chroma, rTChroma, len);
     mulf_C(rTChroma, hue, rTChroma, len);
 
-    // Sum all terms
-    float sum[len];
     copyf_C(lightnessSq, sum, len);
-    addf_c(sum, chromaSq, sum, len);  // Add chroma^2
-    addf_c(sum, hueSq, sum, len);     // Add hue^2
-    addf_c(sum, rTChroma, sum, len);  // Add rT*chroma*hue
+    addf_c(sum, chromaSq, sum, len);
+    addf_c(sum, hueSq, sum, len);
+    addf_c(sum, rTChroma, sum, len);
 
-    // Take square root and store in results
-    sqrtf_C(sum, results, len);  // Final deltaE result
+    sqrtf_C(sum, results, len);
 }
 
 float Lab::deltaE(const Lab &other) const noexcept

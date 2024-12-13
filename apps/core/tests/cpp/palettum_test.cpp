@@ -50,7 +50,7 @@ class PalettumTests : public ::testing::Test
 protected:
     Image result;
     Image img;
-    vector<RGB> palette;
+    std::vector<RGB> palette;
 
     void SetUp() override
     {

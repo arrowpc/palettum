@@ -80,4 +80,12 @@ private:
     [[nodiscard]] static float pivotXYZ(float n) noexcept;
 };
 
+template <>
+struct std::hash<RGB> {
+    size_t operator()(const RGB &rgb) const
+    {
+        return (rgb.red() << 16) | (rgb.green() << 8) | rgb.blue();
+    }
+};
+
 #endif  //COLOR_H

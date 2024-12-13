@@ -3,6 +3,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <vector>
 #include "color.h"
 
@@ -19,6 +20,8 @@ public:
 
     bool write(const std::string &filename) const;
     bool write(const char *filename) const;
+
+    bool resize(int width, int height);
     [[nodiscard]] RGB get(int x, int y) const;
     void set(int x, int y, const RGB &RGB);
     [[nodiscard]] int width() const noexcept;

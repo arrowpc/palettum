@@ -1,9 +1,9 @@
-from flask import jsonify, request, send_file
-import cv2
 import io
-import numpy as np
-import palettum
+
 from app import app
+from flask import jsonify, request, send_file
+
+import palettum
 
 VALID_IMAGE_PREFIX = "image/"
 RGB_RANGE = range(256)
@@ -30,88 +30,104 @@ def validate_image_content_type(image):
 
 
 def parse_palette(palette_file):
-    palette_lines = palette_file.read().decode("utf-8").splitlines()
     try:
-        palette = [eval(color) for color in palette_lines]
-        if not all(isinstance(color, tuple) and len(color) == 3 for color in palette):
-            raise ValueError
-    except (SyntaxError, ValueError):
-        raise ValueError("Invalid palette format. Please provide a valid RGB palette.")
+        content = palette_file.read()
+        palette_text = content.decode("utf-8")
+        palette_lines = palette_text.splitlines()
 
-    for color in palette:
-        if not all(value in RGB_RANGE for value in color):
-            raise ValueError(
-                "Invalid RGB values in palette. Each value must be in the range [0, 255]."
-            )
+        palette = []
+        for line in palette_lines:
+            r, g, b = eval(line)
+            color = palettum.RGB(r, g, b)
+            palette.append(color)
 
-    return palette
+        for color in palette:
+            if not all(
+                value in RGB_RANGE
+                for value in [color.red(), color.green(), color.blue()]
+            ):
+                raise ValueError(
+                    "Invalid RGB values in palette. Each value must be in the range [0, 255]."
+                )
+
+        return palette
+
+    except UnicodeDecodeError as e:
+        raise ValueError("Palette file must be a text file containing RGB values")
+    except Exception as e:
+        print(f"Other error: {type(e)}, {str(e)}")
+        raise
 
 
 def resize_image(img, width, height):
-    original_height, original_width = img.shape[:2]
-
     if width and not height:
-        aspect_ratio = original_height / original_width
+        aspect_ratio = img.height() / img.width()
         height = int(aspect_ratio * width)
     elif height and not width:
-        aspect_ratio = original_width / original_height
+        aspect_ratio = img.width() / img.height()
         width = int(aspect_ratio * height)
 
     if width and height:
         if width <= 0 or height <= 0:
             raise ValueError("Invalid dimensions after aspect ratio calculation.")
-        img = cv2.resize(img, (width, height))
+        img.resize(width, height)
 
     return img
 
 
 @app.route("/upload", methods=["POST"])
 def upload_image():
-    if "image" not in request.files:
-        return "No image provided", 400
-    if "palette" not in request.files:
-        return "No palette provided", 400
+    try:
+        if "image" not in request.files:
+            return "No image provided", 400
+        if "palette" not in request.files:
+            return "No palette provided", 400
 
-    image = request.files["image"]
-    palette_file = request.files["palette"]
+        image = request.files["image"]
+        palette_file = request.files["palette"]
 
-    validate_image_content_type(image)
-    palette = parse_palette(palette_file)
+        validate_image_content_type(image)
 
-    img_stream = io.BytesIO(image.read())
-    img = cv2.imdecode(np.frombuffer(img_stream.read(), np.uint8), 1)
+        print("Reading palette...")
+        palette = parse_palette(palette_file)
+        print(f"Palette parsed successfully, got {len(palette)} colors")
 
-    if img is None:
-        raise ValueError(
-            "Failed to decode the image. Please provide a valid image format."
-        )
+        print("Reading image...")
 
-    width = request.form.get("width", type=int)
-    height = request.form.get("height", type=int)
+        img_data = memoryview(image.read())
 
-    if width is not None and width <= 0:
-        return jsonify(error="Width must be a positive value."), 400
-    if height is not None and height <= 0:
-        return jsonify(error="Height must be a positive value."), 400
+        try:
+            img = palettum.Image(img_data)
+            print("Image loaded successfully")
+        except RuntimeError as e:
+            print(f"Image loading error: {e}")
+            return jsonify(error=str(e)), 400
 
-    img = resize_image(img, width, height)
+        width = request.form.get("width", type=int)
+        height = request.form.get("height", type=int)
+        print(f"Resize parameters: width={width}, height={height}")
 
-    contrast = request.form.get("contrast", type=float)
+        if width is not None and width <= 0:
+            return jsonify(error="Width must be a positive value."), 400
+        if height is not None and height <= 0:
+            return jsonify(error="Height must be a positive value."), 400
 
-    if contrast is not None:
-        if contrast <= 0:
-            return jsonify(error="Contrast must be a positive value"), 400
-        else:
-            alpha = contrast
-            beta = 0
-            img = cv2.convertScaleAbs(img, alpha=alpha, beta=beta)
+        img = resize_image(img, width, height)
+        print("Image resized successfully")
 
-    p = palettum.Palettum(img, palette)
-    result = p.convertToPalette()
+        print("Converting to palette...")
+        result = palettum.Palettum.convertToPalette(img, palette)
+        print("Conversion complete")
 
-    is_success, buffer = cv2.imencode(".png", result)
-    if not is_success:
-        raise ValueError("Failed to encode the processed image.")
+        print("Writing result...")
+        png_data = result.write()
+        if not png_data:
+            raise ValueError("Failed to encode the processed image.")
 
-    io_buf = io.BytesIO(buffer)
-    return send_file(io_buf, mimetype="image/png")
+        print("Sending response...")
+        io_buf = io.BytesIO(bytes(png_data))
+        return send_file(io_buf, mimetype="image/png")
+
+    except Exception as e:
+        print(f"Error in upload_image: {type(e).__name__}: {str(e)}")
+        return jsonify(error=str(e)), 400

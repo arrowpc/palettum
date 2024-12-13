@@ -11,6 +11,7 @@ class Image
 {
 public:
     explicit Image() = default;
+    explicit Image(const unsigned char *buffer, int length);
     explicit Image(const std::string &filename);
     explicit Image(const char *filename);
     explicit Image(int width, int height);
@@ -18,6 +19,7 @@ public:
     Image &operator=(const Image &) = default;
     int operator-(const Image &other) const;
 
+    [[nodiscard]] std::vector<unsigned char> write() const;
     bool write(const std::string &filename) const;
     bool write(const char *filename) const;
 

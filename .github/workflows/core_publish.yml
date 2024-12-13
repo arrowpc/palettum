@@ -2,12 +2,19 @@ name: Build and Publish to PyPI
 
 on:
   workflow_dispatch:
-
+    inputs:
+      publish_target:
+        description: 'Publish to PyPI or TestPyPI'
+        required: true
+        type: choice
+        options:
+          - 'none'
+          - 'test'
+          - 'production'
+        default: 'none'
   push:
     branches:
       - '**'
-    tags:
-      - 'v*.*.*'
     paths:
       - 'apps/core/**'
       - '.github/workflows/core_publish.yml'
@@ -64,7 +71,7 @@ jobs:
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.19.2
         env:
-          CIBW_BUILD: cp38-* cp39-* cp310-* **cp311-* cp312-*
+          CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-*
           CIBW_ARCHS_MACOS: auto
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
@@ -85,8 +92,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    if: contains(github.event.head_commit.message, '[publish-test]') || startsWith(github.ref, 'refs/tags')
-
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.publish_target != 'none'
     steps:
       - uses: actions/checkout@v4
       - name: Download wheels
@@ -100,20 +106,20 @@ jobs:
         run: ls dist/
 
       - name: Publish to TestPyPI
-        if: contains(github.event.head_commit.message, '[publish-test]') && github.event_name == 'push' && !startsWith(github.ref, 'refs/tags')
+        if: github.event.inputs.publish_target == 'test'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
           password: ${{ secrets.TEST_PYPI_PASSWORD }}
 
       - name: Publish to PyPI
-        if: startsWith(github.ref, 'refs/tags')
+        if: github.event.inputs.publish_target == 'production'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_PASSWORD }}
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags')
+        if: github.event.inputs.publish_target == 'production'
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <optional>
 #include <vector>
 
 #ifndef M_PI
@@ -68,10 +69,19 @@ public:
         m_g = it != il.end() ? *it++ : 0;
         m_b = it != il.end() ? *it : 0;
     }
-    [[nodiscard]] unsigned char red() const noexcept;
-    [[nodiscard]] unsigned char green() const noexcept;
-    [[nodiscard]] unsigned char blue() const noexcept;
     bool operator==(const RGB &rhs) const noexcept;
+    [[nodiscard]] constexpr unsigned char red() const noexcept
+    {
+        return m_r;
+    }
+    [[nodiscard]] constexpr unsigned char green() const noexcept
+    {
+        return m_g;
+    }
+    [[nodiscard]] constexpr unsigned char blue() const noexcept
+    {
+        return m_b;
+    }
     bool operator!=(const RGB &rhs) const noexcept;
     friend std::ostream &operator<<(std::ostream &os, const RGB &RGB);
 
@@ -80,11 +90,49 @@ private:
     [[nodiscard]] static float pivotXYZ(float n) noexcept;
 };
 
-template <>
-struct std::hash<RGB> {
-    size_t operator()(const RGB &rgb) const
+class RGBCache
+{
+private:
+    static constexpr int R_SHIFT = 16;
+    static constexpr int G_SHIFT = 8;
+
+    struct Entry {
+        RGB val;
+        bool init;
+
+        Entry()
+            : val{}
+            , init{false}
+        {
+        }
+    };
+
+    std::vector<Entry> m_entries;
+
+public:
+    RGBCache()
+        : m_entries(1 << 24)
     {
-        return (rgb.red() << 16) | (rgb.green() << 8) | rgb.blue();
+    }
+
+    void set(const RGB &key, const RGB &val) noexcept
+    {
+        const size_t idx = makeIndex(key);
+        m_entries[idx].val = val;
+        m_entries[idx].init = true;
+    }
+
+    [[nodiscard]] std::optional<RGB> get(const RGB &key) const noexcept
+    {
+        const size_t idx = makeIndex(key);
+        return m_entries[idx].init ? std::optional{m_entries[idx].val}
+                                   : std::nullopt;
+    }
+
+private:
+    [[nodiscard]] static constexpr size_t makeIndex(const RGB &rgb) noexcept
+    {
+        return (rgb.red() << R_SHIFT) | (rgb.green() << G_SHIFT) | rgb.blue();
     }
 };
 

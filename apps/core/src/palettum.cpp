@@ -4,6 +4,7 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette)
 {
     Image result(image.width(), image.height());
     std::vector<Lab> constants_lab(palette.size());
+    RGBCache cache;
 #pragma omp parallel for
     for (int i = 0; i < palette.size(); ++i)
     {
@@ -11,41 +12,32 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette)
     }
     const int height = image.height();
     const int width = image.width();
-#pragma omp parallel
+#pragma omp parallel for collapse(2) schedule(dynamic)
+    for (int y = 0; y < height; ++y)
     {
-        std::unordered_map<RGB, RGB> cache;
-
-#pragma omp for collapse(2) schedule(dynamic)
-        for (int y = 0; y < height; ++y)
+        for (int x = 0; x < width; ++x)
         {
-            for (int x = 0; x < width; ++x)
-            {
-                RGB currentPixel = image.get(x, y);
-                RGB closestColor;
+            RGB currentPixel = image.get(x, y);
+            auto closestColor = cache.get(currentPixel);
 
-                auto it = cache.find(currentPixel);
-                if (it != cache.end())
+            if (!closestColor)
+            {
+                float closestDE = 250.0f;
+                std::vector<float> results(palette.size());
+                Lab::deltaE(currentPixel.toLab(), constants_lab.data(),
+                            results.data(), palette.size());
+
+                for (size_t i = 0; i < palette.size(); ++i)
                 {
-                    closestColor = it->second;
-                }
-                else
-                {
-                    float closestDE = 250.0f;
-                    std::vector<float> results(palette.size());
-                    Lab::deltaE(currentPixel.toLab(), constants_lab.data(),
-                                results.data(), palette.size());
-                    for (size_t i{}; i < palette.size(); ++i)
+                    if (results[i] < closestDE)
                     {
-                        if (results[i] < closestDE)
-                        {
-                            closestDE = results[i];
-                            closestColor = palette[i];
-                        }
+                        closestDE = results[i];
+                        closestColor = palette[i];
                     }
-                    cache[currentPixel] = closestColor;
                 }
-                result.set(x, y, closestColor);
+                cache.set(currentPixel, *closestColor);
             }
+            result.set(x, y, *closestColor);
         }
     }
     return result;

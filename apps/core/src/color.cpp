@@ -467,19 +467,6 @@ float RGB::pivotXYZ(float n) noexcept
     return n > XYZ::EPSILON ? std::cbrt(n) : (XYZ::KAPPA * n + 16.0f) / 116.0f;
 }
 
-unsigned char RGB::red() const noexcept
-{
-    return m_r;
-}
-unsigned char RGB::green() const noexcept
-{
-    return m_g;
-}
-unsigned char RGB::blue() const noexcept
-{
-    return m_b;
-}
-
 bool RGB::operator==(const RGB &rhs) const noexcept
 {
     return m_r == rhs.m_r && m_g == rhs.m_g && m_b == rhs.m_b;

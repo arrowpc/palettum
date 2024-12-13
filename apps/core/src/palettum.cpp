@@ -1,6 +1,6 @@
 #include "palettum.h"
 
-Image Palettum::convertToPalette(Image &image, vector<RGB> &palette)
+Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette)
 {
     Image result(image.width(), image.height());
     std::vector<Lab> constants_lab(palette.size());
@@ -11,33 +11,47 @@ Image Palettum::convertToPalette(Image &image, vector<RGB> &palette)
     }
     const int height = image.height();
     const int width = image.width();
-#pragma omp parallel for collapse(2) schedule(dynamic)
-    for (int y = 0; y < height; ++y)
+#pragma omp parallel
     {
-        for (int x = 0; x < width; ++x)
-        {
-            float closestDE = 250.0f;
-            RGB closestColor;
-            Lab currentPixel = image.get(x, y).toLab();
-            std::vector<float> results(palette.size());
-            Lab::deltaE(currentPixel, constants_lab.data(), results.data(),
-                        palette.size());
+        std::unordered_map<RGB, RGB> cache;
 
-            for (size_t i{}; i < palette.size(); ++i)
+#pragma omp for collapse(2) schedule(dynamic)
+        for (int y = 0; y < height; ++y)
+        {
+            for (int x = 0; x < width; ++x)
             {
-                if (results[i] < closestDE)
+                RGB currentPixel = image.get(x, y);
+                RGB closestColor;
+
+                auto it = cache.find(currentPixel);
+                if (it != cache.end())
                 {
-                    closestDE = results[i];
-                    closestColor = palette[i];
+                    closestColor = it->second;
                 }
+                else
+                {
+                    float closestDE = 250.0f;
+                    std::vector<float> results(palette.size());
+                    Lab::deltaE(currentPixel.toLab(), constants_lab.data(),
+                                results.data(), palette.size());
+                    for (size_t i{}; i < palette.size(); ++i)
+                    {
+                        if (results[i] < closestDE)
+                        {
+                            closestDE = results[i];
+                            closestColor = palette[i];
+                        }
+                    }
+                    cache[currentPixel] = closestColor;
+                }
+                result.set(x, y, closestColor);
             }
-            result.set(x, y, closestColor);
         }
     }
     return result;
 }
 
-bool Palettum::validateImageColors(Image &image, vector<RGB> &palette)
+bool Palettum::validateImageColors(Image &image, std::vector<RGB> &palette)
 {
     const int height = image.height();
     const int width = image.width();

@@ -128,7 +128,7 @@ static inline void compute_T_C(float *hBarPrime, float *T, int len)
 
 void Lab::deltaE(const Lab &ref, const Lab *comp, float *results, int len)
 {
-    const size_t totalFloats = len * 49;
+    const size_t totalFloats = len * 50;
 
     std::vector<float> workspace(totalFloats);
 

@@ -24,14 +24,11 @@ on:
       - 'apps/core/**.h'
       - 'apps/core/**.py'
 
-env:
-  OPENCV_VERSION: 4.8.0
-
 jobs:
   test:
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-latest, windows-latest ]
+        os: [ ubuntu-latest, macos-13, windows-2019 ]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -42,70 +39,25 @@ jobs:
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
       - name: Install dependencies from requirements.txt
         run: pip install -r requirements.txt
 
-      - name: Cache OpenCV
-        id: cache-opencv
-        uses: actions/cache@v3
-        with:
-          path: |
-            apps/core/opencv_build
-          key: opencv-${{ env.OPENCV_VERSION }}-${{ runner.os }}
-
-      - name: Build OpenCV
-        if: runner.os != 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
+      - name: Install OpenMP
+        if: runner.os == 'macOS'
         run: |
-          mkdir -p opencv_build/x86_64 && cd opencv_build/x86_64
-          cmake -D CMAKE_BUILD_TYPE=RELEASE \
-                  -D CMAKE_INSTALL_PREFIX=$(pwd) \
-                  -D BUILD_LIST=core,imgcodecs \
-                  -D BUILD_EXAMPLES=OFF \
-                  -D BUILD_TESTS=OFF \
-                  -D BUILD_PERF_TESTS=OFF \
-                  -D WITH_IPP=OFF \
-                  -D WITH_OPENEXR=OFF \
-                  ../../external/opencv
-          make -j$(nproc)
-
-      - name: Build OpenCV (Windows)
-        if: runner.os == 'Windows' && steps.cache-opencv.outputs.cache-hit != 'true'
-        run: |
-          New-Item -Type Directory -Path opencv_build\AMD64
-          cd opencv_build\AMD64
-          cmake -D CMAKE_BUILD_TYPE=RELEASE `
-                -D CMAKE_INSTALL_PREFIX=$PWD.Path `
-                -D BUILD_LIST=core,imgcodecs `
-                -D BUILD_EXAMPLES=OFF `
-                -D BUILD_TESTS=OFF `
-                -D BUILD_PERF_TESTS=OFF `
-                -D WITH_IPP=OFF `
-                -D WITH_OPENEXR=OFF `
-                ..\..\external\opencv
-          cmake --build . --config Release --parallel
+          brew install libomp
 
       - name: Build and Install palettum
-        if: runner.os != 'Windows'
+        shell: bash
         run: |
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            export OpenMP_ROOT=$(brew --prefix)/opt/libomp
+          fi
           pip install .
-
-      - name: Build and Install palettum (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          pip install wheel delvewheel
-          
-          python setup.py install bdist_wheel
-          
-          $wheel = Get-ChildItem -Path dist -Filter "*win_amd64.whl" | Select-Object -First 1
-          delvewheel repair $wheel.FullName --add-path opencv_build\AMD64\bin\Release
-          
-          $wheel = Get-ChildItem -Path wheelhouse -Filter "*win_amd64.whl" | Select-Object -First 1
-          pip install $wheel.FullName --force-reinstall
-
 
       - name: Run Python tests
         run: pytest tests/python/

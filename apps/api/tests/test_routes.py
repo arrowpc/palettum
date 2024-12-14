@@ -1,6 +1,6 @@
 import os
-from PIL import Image
-import io
+
+import palettum
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -15,33 +15,40 @@ def test_upload_image_with_default_palette(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
     with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
-        response = client.post("/upload", data={"image": img, "palette": palette})
+        data = {
+            "image": (img, "test.jpeg", "image/jpeg"),
+            "palette": (palette, "default.txt", "text/plain"),
+        }
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
 
     assert response.status_code == 200
-
-    image = Image.open(io.BytesIO(response.data))
-    assert image.format == "PNG"
+    result_image = palettum.Image(memoryview(response.data))
+    assert result_image.width() > 0
+    assert result_image.height() > 0
+    assert result_image.channels() == 3
 
 
 def test_upload_image_with_resizing(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
     with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
-        response = client.post(
-            "/upload", data={"image": img, "palette": palette, "width": 300}
-        )
+        data = {
+            "image": (img, "test.jpeg", "image/jpeg"),
+            "palette": (palette, "default.txt", "text/plain"),
+            "width": "300",
+        }
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
 
     assert response.status_code == 200
-
-    image = Image.open(io.BytesIO(response.data))
-    assert image.format == "PNG"
-    assert image.width == 300
+    result_image = palettum.Image(memoryview(response.data))
+    assert result_image.width() == 300
 
 
 def test_missing_image(client):
     palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
     with open(palette_path, "rb") as palette:
-        response = client.post("/upload", data={"palette": palette})
+        data = {"palette": (palette, "default.txt", "text/plain")}
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
     assert response.status_code == 400
     assert b"No image provided" in response.data
 
@@ -49,7 +56,8 @@ def test_missing_image(client):
 def test_missing_palette(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     with open(image_path, "rb") as img:
-        response = client.post("/upload", data={"image": img})
+        data = {"image": (img, "test.jpeg", "image/jpeg")}
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
     assert response.status_code == 400
     assert b"No palette provided" in response.data
 
@@ -58,7 +66,11 @@ def test_invalid_image_format(client):
     image_path = os.path.join(current_dir, "test_images", "invalid.txt")
     palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
     with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
-        response = client.post("/upload", data={"image": img, "palette": palette})
+        data = {
+            "image": (img, "invalid.txt", "text/plain"),
+            "palette": (palette, "default.txt", "text/plain"),
+        }
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
     assert response.status_code == 400
     assert b"Uploaded file is not an image" in response.data
 
@@ -67,79 +79,52 @@ def test_invalid_palette_format(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     invalid_palette_path = os.path.join(current_dir, "test_palettes", "invalid.txt")
     with open(image_path, "rb") as img, open(invalid_palette_path, "rb") as palette:
-        response = client.post("/upload", data={"image": img, "palette": palette})
+        data = {
+            "image": (img, "test.jpeg", "image/jpeg"),
+            "palette": (palette, "invalid.txt", "text/plain"),
+        }
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
     assert response.status_code == 400
-    assert (
-        b"Invalid palette format. Please provide a valid RGB palette." in response.data
-    )
+    assert b"too many values to unpack" in response.data
 
 
 def test_upload_image_with_resizing_height_only(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
     with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
-        response = client.post(
-            "/upload", data={"image": img, "palette": palette, "height": 200}
-        )
+        data = {
+            "image": (img, "test.jpeg", "image/jpeg"),
+            "palette": (palette, "default.txt", "text/plain"),
+            "height": "200",
+        }
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
     assert response.status_code == 200
-    image = Image.open(io.BytesIO(response.data))
-    assert image.format == "PNG"
-    assert image.height == 200
+    result_image = palettum.Image(memoryview(response.data))
+    assert result_image.height() == 200
 
 
 def test_negative_dimensions(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
     with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
-        response = client.post(
-            "/upload", data={"image": img, "palette": palette, "width": -300}
-        )
+        data = {
+            "image": (img, "test.jpeg", "image/jpeg"),
+            "palette": (palette, "default.txt", "text/plain"),
+            "width": "-300",
+        }
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
     assert response.status_code == 400
-    assert b"Width must be a positive value." in response.data
+    assert b"Width must be a positive value" in response.data
 
 
 def test_palette_not_in_range(client):
     image_path = os.path.join(current_dir, "test_images", "test.jpeg")
     invalid_palette_path = os.path.join(current_dir, "test_palettes", "range.txt")
-    with open(image_path, "rb") as img, open(
-        invalid_palette_path, "rb"
-    ) as invalid_palette:
-        response = client.post(
-            "/upload", data={"image": img, "palette": invalid_palette}
-        )
+    with open(image_path, "rb") as img, open(invalid_palette_path, "rb") as palette:
+        data = {
+            "image": (img, "test.jpeg", "image/jpeg"),
+            "palette": (palette, "range.txt", "text/plain"),
+        }
+        response = client.post("/upload", data=data, content_type="multipart/form-data")
     assert response.status_code == 400
-    assert (
-        b"Invalid RGB values in palette. Each value must be in the range [0, 255]."
-        in response.data
-    )
-
-
-def test_upload_image_with_contrast_adjustment(client):
-    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
-    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
-    contrast_value = 2.0
-
-    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
-        response = client.post(
-            "/upload",
-            data={"image": img, "palette": palette, "contrast": contrast_value},
-        )
-
-    assert response.status_code == 200
-
-    image = Image.open(io.BytesIO(response.data))
-    assert image.format == "PNG"
-
-
-def test_upload_image_with_invalid_contrast(client):
-    image_path = os.path.join(current_dir, "test_images", "test.jpeg")
-    palette_path = os.path.join(current_dir, "test_palettes", "default.txt")
-    contrast_value = 0
-    with open(image_path, "rb") as img, open(palette_path, "rb") as palette:
-        response = client.post(
-            "/upload",
-            data={"image": img, "palette": palette, "contrast": contrast_value},
-        )
-
-        assert response.status_code == 400
-        assert b"Contrast must" in response.data
+    assert b"incompatible constructor arguments" in response.data

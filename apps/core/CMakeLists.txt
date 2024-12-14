@@ -3,28 +3,26 @@ cmake_minimum_required(VERSION 3.22)
 project(Palettum_Core)
 
 set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(CMAKE_OSX_ARCHITECTURES)
-    set(ARCH_DIR ${CMAKE_OSX_ARCHITECTURES})
-elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm64")
-    set(ARCH_DIR "arm64")
-elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "x86_64")
-    set(ARCH_DIR "x86_64")
-elseif(CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "AMD64" OR CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "amd64")
-    set(ARCH_DIR "AMD64")
-else()
-    message(FATAL_ERROR "Unsupported architecture")
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /openmp:experimental")
+    else()
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+    endif()
 endif()
 
+include_directories(
+  ${CMAKE_SOURCE_DIR}/external/simd_utils
+  ${CMAKE_SOURCE_DIR}/external/stb
+)
 
-if(EXISTS "${CMAKE_SOURCE_DIR}/opencv_build/${ARCH_DIR}")
-    set(OpenCV_DIR "${CMAKE_SOURCE_DIR}/opencv_build/${ARCH_DIR}")
-else()
-    set(OpenCV_DIR "$ENV{OpenCV_DIR_${ARCH_DIR}}")
-endif()
-
-
-find_package(OpenCV REQUIRED)
+find_package(OpenMP REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
 add_subdirectory(external/pybind11)
 add_subdirectory(src)

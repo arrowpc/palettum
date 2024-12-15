@@ -54,10 +54,17 @@ jobs:
         run: |
           mkdir build-test
 
-      - name: Install OpenMP
-        if: runner.os == 'macOS'
+      - name: Install Dependencies
+        shell: bash
         run: |
-          brew install libomp
+          if [ "$RUNNER_OS" == "macOS" ]; then
+            brew install libomp giflib
+          elif [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y libgif-dev
+          elif [ "$RUNNER_OS" == "Windows" ]; then
+            choco install giflib
+          fi
 
       - name: Configure CMake
         working-directory: apps/core/build-test

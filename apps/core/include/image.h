@@ -5,6 +5,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <gif_lib.h>
+#include <memory>
 #include <vector>
 #include "color.h"
 

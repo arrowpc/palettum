@@ -25,9 +25,6 @@ on:
       - 'apps/core/**'
       - '.github/workflows/core_publish.yml'
 
-env:
-  OPENCV_VERSION: 4.8.0
-
 jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}

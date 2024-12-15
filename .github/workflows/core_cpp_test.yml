@@ -22,9 +22,6 @@ on:
       - 'apps/core/**.cpp'
       - 'apps/core/**.h'
 
-env:
-  OPENCV_VERSION: 4.8.0
-
 jobs:
   test:
     strategy:

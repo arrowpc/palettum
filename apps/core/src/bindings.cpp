@@ -10,7 +10,12 @@ PYBIND11_MODULE(palettum, m)
     m.doc() = "Core functionality for the Palettum project.";
 
     py::class_<Palettum>(m, "Palettum")
-        .def_static("convertToPalette", &Palettum::convertToPalette)
+        .def_static("convertToPalette",
+                    py::overload_cast<Image &, std::vector<RGB> &>(
+                        &Palettum::convertToPalette))
+        .def_static("convertToPalette",
+                    py::overload_cast<GIF &, std::vector<RGB> &>(
+                        &Palettum::convertToPalette))
         .def_static("validateImageColors", &Palettum::validateImageColors);
 
     py::class_<RGB>(m, "RGB")

@@ -83,7 +83,7 @@ jobs:
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
           CIBW_BEFORE_BUILD_LINUX: |
-            yum install -y perl-IPC-Cmd zip linux-headers make
+            yum install -y perl-IPC-Cmd zip kernel-headers kernel-devel make
           CIBW_ENVIRONMENT_MACOS: >
             OpenMP_ROOT=$(brew --prefix)/opt/libomp
             MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}

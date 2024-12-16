@@ -70,6 +70,7 @@ public:
     explicit GIF(const std::string &filename);
     explicit GIF(const char *filename);
     explicit GIF(int width, int height);
+    explicit GIF(const unsigned char *buffer, int length);
     ~GIF() = default;
 
     GIF &operator=(const GIF &other);
@@ -79,11 +80,15 @@ public:
     void setPalette(size_t frameIndex, const std::vector<RGB> &palette);
     void setPixel(size_t frameIndex, int x, int y, const RGB &color);
     [[nodiscard]] size_t frameCount() const;
+
     void addFrame(const Image &image, int delay_cs = 10);
     [[nodiscard]] const Frame &getFrame(size_t index) const;
     Frame &getFrame(size_t index);
+
     bool write(const char *filename) const;
     [[nodiscard]] bool write(const std::string &filename) const;
+    std::vector<unsigned char> write() const;
+
     [[nodiscard]] int width() const noexcept;
     [[nodiscard]] int height() const noexcept;
 
@@ -99,6 +104,13 @@ private:
     bool m_has_global_color_map;
 
     static void readExtensions(SavedImage *saved_image, Frame &frame);
+    static int readFromMemory(GifFileType *gif, GifByteType *buf, int size);
+};
+
+struct MemoryBuffer {
+    const unsigned char *data;
+    int length;
+    int position;
 };
 
 #endif  //IMAGE_H

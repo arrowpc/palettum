@@ -4,10 +4,7 @@
   "dependencies": [
     "giflib",
     "gtest",
-    {
-      "name": "pybind11",
-      "default-features": false
-    },
+    "pybind11",
     "stb"
   ],
   "builtin-baseline": "b545373a9a536dc559dac8583467a21497a0e897"

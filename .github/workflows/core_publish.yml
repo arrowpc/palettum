@@ -60,16 +60,10 @@ jobs:
         run: |
           move apps\core\* .
 
-      - name: Install dependencies
-        shell: bash
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y autoconf automake autoconf-archive build-essential
-            pip install pybind11
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            brew install autoconf automake autoconf-archive libomp ninja pybind11
-          fi
+          brew install libomp ninja
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11

@@ -35,15 +35,10 @@ jobs:
       - name: Install python dependencies
         run: pip install -r requirements.txt
 
-      - name: Install dependencies
-        shell: bash
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
         run: |
-          if [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y autoconf automake autoconf-archive build-essential
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            brew install autoconf automake autoconf-archive libomp
-          fi
+          brew install libomp ninja
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
@@ -58,6 +53,7 @@ jobs:
           if [ "$RUNNER_OS" == "macOS" ]; then
             export OpenMP_ROOT=$(brew --prefix)/opt/libomp
           fi
+          pip install -r requirements.txt
           pip install .
 
       - name: Run Tests

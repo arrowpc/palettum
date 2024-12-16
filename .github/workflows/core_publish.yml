@@ -71,7 +71,7 @@ jobs:
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgDirectory: ${{ github.workspace }}/apps/core/external/vcpkg
+          vcpkgDirectory: ${{ github.workspace }}/external/vcpkg
           runVcpkgInstall: true
 
       - name: Use cibuildwheel

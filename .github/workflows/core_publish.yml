@@ -51,12 +51,14 @@ jobs:
 
       - name: Move core into root
         if: runner.os == 'Linux' || runner.os == 'macOS'
-        run: mv apps/core/* .
+        run: |
+          mv apps/core/* .
 
       - name: Move core into root (Windows)
         if: runner.os == 'Windows'
-        shell: cmd
-        run: move apps\core\* .
+        working-directory: .
+        run: |
+          move apps\core\* .
 
       - name: Install dependencies
         shell: bash

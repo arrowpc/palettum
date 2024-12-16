@@ -65,7 +65,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y autoconf automake autoconf-archive build-essential
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            brew install autoconf automake autoconf-archive libomp
+            brew install autoconf automake autoconf-archive libomp ninja
           fi
 
       - name: Setup vcpkg

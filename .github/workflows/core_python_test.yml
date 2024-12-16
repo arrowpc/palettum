@@ -43,15 +43,24 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install dependencies from requirements.txt
+      - name: Install python dependencies
         run: pip install -r requirements.txt
 
-      - name: Install OpenMP
-        if: runner.os == 'macOS'
+      - name: Install dependencies
+        shell: bash
         run: |
-          brew install libomp
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y autoconf automake autoconf-archive build-essential
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install autoconf automake autoconf-archive libomp
+          fi
 
-
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/apps/core/external/vcpkg
+          runVcpkgInstall: true
 
       - name: Build and Install palettum
         shell: bash

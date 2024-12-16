@@ -50,20 +50,23 @@ jobs:
           python-version: '3.x'
 
       - name: Move core into root
-        if: runner.os == 'Linux' || runner.os == 'macOS'
+        shell: bash
         run: |
-          mv apps/core/* .
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            move apps\core\* .
+          else
+            mv apps/core/* .
+          fi
 
-      - name: Move core into root (Windows)
-        if: runner.os == 'Windows'
-        working-directory: .
+      - name: Install dependencies
+        shell: bash
         run: |
-          move apps\core\* .
-
-      - name: Install OpenMP
-        if: runner.os == 'macOS'
-        run: |
-          brew install libomp
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y autoconf automake autoconf-archive build-essential
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install autoconf automake autoconf-archive libomp
+          fi
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11

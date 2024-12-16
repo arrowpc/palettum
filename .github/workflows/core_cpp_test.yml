@@ -53,16 +53,15 @@ jobs:
         run: |
           mkdir build-test
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+      - name: Install dependencies
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y autoconf automake autoconf-archive build-essential
-
-      - name: Install macOS dependencies
-        if: runner.os == 'macOS'
-        run: |
-          brew install autoconf automake autoconf-archive libomp
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y autoconf automake autoconf-archive build-essential
+          elif [ "$RUNNER_OS" == "macOS" ]; then
+            brew install autoconf automake autoconf-archive libomp
+          fi
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
@@ -80,16 +79,14 @@ jobs:
           cmake -D CMAKE_BUILD_TYPE=Release ..
 
       - name: Build project
-        if: runner.os != 'Windows'
         working-directory: apps/core/build-test
+        shell: bash
         run: |
-          make -j$(nproc)
-
-      - name: Build project (Windows)
-        if: runner.os == 'Windows'
-        working-directory: apps/core/build-test
-        run: |
-          cmake --build . --config Release --parallel
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake --build . --config Release --parallel
+          else
+            make -j$(nproc)
+          fi
 
       - name: Run tests
         working-directory: apps/core/build-test

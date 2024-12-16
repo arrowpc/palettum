@@ -35,17 +35,16 @@ jobs:
       - name: Install dependencies from requirements.txt
         run: pip install -r requirements.txt
 
-      - name: Install Dependencies
-        shell: bash
+      - name: Install OpenMP
+        if: runner.os == 'macOS'
         run: |
-          if [ "$RUNNER_OS" == "macOS" ]; then
-            brew install libomp giflib
-          elif [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y libgif-dev
-          elif [ "$RUNNER_OS" == "Windows" ]; then
-            choco install giflib
-          fi
+          brew install libomp
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/apps/core/external/vcpkg
+          runVcpkgInstall: true
 
       - name: Build and Install palettum
         working-directory: apps/core

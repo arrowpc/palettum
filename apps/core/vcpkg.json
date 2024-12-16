@@ -1,0 +1,17 @@
+{
+  "name": "palettum",
+  "version": "0.1.0",
+  "builtin-baseline": "b545373a9a536dc559dac8583467a21497a0e897",
+  "dependencies": [
+    "giflib",
+    "gtest",
+    "pybind11",
+    "stb"
+  ],
+  "overrides": [
+    {
+      "name": "pybind11",
+      "version": "2.11.1"
+    }
+  ]
+}

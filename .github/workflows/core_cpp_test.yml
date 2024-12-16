@@ -10,6 +10,7 @@ on:
       - 'apps/core/**/CMakeLists.txt'
       - 'apps/core/CMakeLists.txt'
       - 'apps/core/**/*.cmake'
+      - 'apps/core/vcpkg.json'
       - 'apps/core/**.cpp'
       - 'apps/core/**.h'
   pull_request:
@@ -18,6 +19,7 @@ on:
       - 'apps/core/tests/test_images/**'
       - 'apps/core/**/CMakeLists.txt'
       - 'apps/core/CMakeLists.txt'
+      - 'apps/core/vcpkg.json'
       - 'apps/core/**/*.cmake'
       - 'apps/core/**.cpp'
       - 'apps/core/**.h'
@@ -38,7 +40,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
@@ -51,17 +53,16 @@ jobs:
         run: |
           mkdir build-test
 
-      - name: Install Dependencies
-        shell: bash
+      - name: Install OpenMP
+        if: runner.os == 'macOS'
         run: |
-          if [ "$RUNNER_OS" == "macOS" ]; then
-            brew install libomp giflib
-          elif [ "$RUNNER_OS" == "Linux" ]; then
-            sudo apt-get update
-            sudo apt-get install -y libgif-dev
-          elif [ "$RUNNER_OS" == "Windows" ]; then
-            choco install giflib
-          fi
+          brew install libomp
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/apps/core/external/vcpkg
+          runVcpkgInstall: true
 
       - name: Configure CMake
         working-directory: apps/core/build-test

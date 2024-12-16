@@ -66,8 +66,9 @@ jobs:
           if [ "$RUNNER_OS" == "Linux" ]; then
             sudo apt-get update
             sudo apt-get install -y autoconf automake autoconf-archive build-essential
+            pip install pybind11
           elif [ "$RUNNER_OS" == "macOS" ]; then
-            brew install autoconf automake autoconf-archive libomp ninja
+            brew install autoconf automake autoconf-archive libomp ninja pybind11
           fi
 
       - name: Setup vcpkg
@@ -84,19 +85,8 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
-          CIBW_BEFORE_BUILD_LINUX: |
-            yum install -y \
-            perl-IPC-Cmd \
-            zip \
-            kernel-headers \
-            kernel-devel \
-            make \
-            autoconf \
-            automake \
-            autoconf-archive \
-            libtool \
-            gettext-devel \
-            file
+          CIBW_BEFORE_BUILD: |
+            pip install "pybind11[global]"
           CIBW_ENVIRONMENT_MACOS: >
             OpenMP_ROOT=$(brew --prefix)/opt/libomp
             MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}

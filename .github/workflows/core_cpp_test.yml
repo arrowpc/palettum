@@ -53,10 +53,16 @@ jobs:
         run: |
           mkdir build-test
 
-      - name: Install OpenMP
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake autoconf-archive build-essential
+
+      - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: |
-          brew install libomp
+          brew install autoconf automake autoconf-archive libomp
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11

@@ -50,13 +50,13 @@ jobs:
           python-version: '3.x'
 
       - name: Move core into root
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            move apps\core\* .
-          else
-            mv apps/core/* .
-          fi
+        if: runner.os == 'Linux' || runner.os == 'macOS'
+        run: mv apps/core/* .
+
+      - name: Move core into root (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: move apps\core\* .
 
       - name: Install dependencies
         shell: bash

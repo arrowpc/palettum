@@ -16,13 +16,11 @@ on:
     branches:
       - '**'
     paths:
-      - 'apps/core/**'
       - '.github/workflows/core_publish.yml'
   pull_request:
     branches:
       - '**'
     paths:
-      - 'apps/core/**'
       - '.github/workflows/core_publish.yml'
 
 jobs:

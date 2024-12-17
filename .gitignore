@@ -16,7 +16,8 @@ _generate
 *.egg-info
 *env*
 dist
-opencv_build/
+vcpkg_installed/
+
 # Palettum
 .vscode/
 

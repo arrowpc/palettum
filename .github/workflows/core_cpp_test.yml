@@ -10,6 +10,7 @@ on:
       - 'apps/core/**/CMakeLists.txt'
       - 'apps/core/CMakeLists.txt'
       - 'apps/core/**/*.cmake'
+      - 'apps/core/vcpkg.json'
       - 'apps/core/**.cpp'
       - 'apps/core/**.h'
   pull_request:
@@ -18,12 +19,10 @@ on:
       - 'apps/core/tests/test_images/**'
       - 'apps/core/**/CMakeLists.txt'
       - 'apps/core/CMakeLists.txt'
+      - 'apps/core/vcpkg.json'
       - 'apps/core/**/*.cmake'
       - 'apps/core/**.cpp'
       - 'apps/core/**.h'
-
-env:
-  OPENCV_VERSION: 4.8.0
 
 jobs:
   test:
@@ -41,7 +40,7 @@ jobs:
           submodules: recursive
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.x'
 
@@ -54,10 +53,19 @@ jobs:
         run: |
           mkdir build-test
 
-      - name: Install OpenMP
+      - name: Install python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: |
-          brew install libomp
+          brew install libomp ninja
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/apps/core/external/vcpkg
+          runVcpkgInstall: true
 
       - name: Configure CMake
         working-directory: apps/core/build-test
@@ -69,16 +77,14 @@ jobs:
           cmake -D CMAKE_BUILD_TYPE=Release ..
 
       - name: Build project
-        if: runner.os != 'Windows'
         working-directory: apps/core/build-test
+        shell: bash
         run: |
-          make -j$(nproc)
-
-      - name: Build project (Windows)
-        if: runner.os == 'Windows'
-        working-directory: apps/core/build-test
-        run: |
-          cmake --build . --config Release --parallel
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake --build . --config Release --parallel
+          else
+            make -j$(nproc)
+          fi
 
       - name: Run tests
         working-directory: apps/core/build-test

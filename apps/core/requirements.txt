@@ -1,1 +1,2 @@
 pytest==7.4.2
+pybind11[global]==2.13.6

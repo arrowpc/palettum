@@ -5,8 +5,7 @@ from flask import jsonify, request, send_file
 
 import palettum
 
-VALID_IMAGE_PREFIX = "image/"
-RGB_RANGE = range(256)
+VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg"}
 
 
 @app.errorhandler(ValueError)
@@ -25,8 +24,8 @@ def index():
 
 
 def validate_image_content_type(image):
-    if not image.content_type.startswith(VALID_IMAGE_PREFIX):
-        raise ValueError("Uploaded file is not an image")
+    if image.content_type not in VALID_IMAGE_TYPES:
+        raise ValueError(f"Unsupported image type: {image.content_type}")
 
 
 def parse_palette(palette_file):
@@ -34,29 +33,20 @@ def parse_palette(palette_file):
         content = palette_file.read()
         palette_text = content.decode("utf-8")
         palette_lines = palette_text.splitlines()
-
         palette = []
         for line in palette_lines:
             r, g, b = eval(line)
             color = palettum.RGB(r, g, b)
             palette.append(color)
-
         for color in palette:
             if not all(
-                value in RGB_RANGE
+                0 <= value <= 255
                 for value in [color.red(), color.green(), color.blue()]
             ):
-                raise ValueError(
-                    "Invalid RGB values in palette. Each value must be in the range [0, 255]."
-                )
-
+                raise ValueError("RGB values must be in range [0, 255]")
         return palette
-
-    except UnicodeDecodeError as e:
-        raise ValueError("Palette file must be a text file containing RGB values")
     except Exception as e:
-        print(f"Other error: {type(e)}, {str(e)}")
-        raise
+        raise ValueError(f"Invalid palette format: {str(e)}")
 
 
 def resize_image(img, width, height):
@@ -66,26 +56,27 @@ def resize_image(img, width, height):
     elif height and not width:
         aspect_ratio = img.width() / img.height()
         width = int(aspect_ratio * height)
-
     if width and height:
         if width <= 0 or height <= 0:
-            raise ValueError("Invalid dimensions after aspect ratio calculation.")
+            raise ValueError("Invalid dimensions after aspect ratio calculation")
         img.resize(width, height)
-
     return img
+
+
+def is_gif(data):
+    return len(data) > 3 and data[:3] == b"GIF"
 
 
 @app.route("/upload", methods=["POST"])
 def upload_image():
     try:
         if "image" not in request.files:
-            return "No image provided", 400
+            return jsonify(error="No image provided"), 400
         if "palette" not in request.files:
-            return "No palette provided", 400
+            return jsonify(error="No palette provided"), 400
 
         image = request.files["image"]
         palette_file = request.files["palette"]
-
         validate_image_content_type(image)
 
         print("Reading palette...")
@@ -93,41 +84,57 @@ def upload_image():
         print(f"Palette parsed successfully, got {len(palette)} colors")
 
         print("Reading image...")
-
         img_data = memoryview(image.read())
-
-        try:
-            img = palettum.Image(img_data)
-            print("Image loaded successfully")
-        except RuntimeError as e:
-            print(f"Image loading error: {e}")
-            return jsonify(error=str(e)), 400
 
         width = request.form.get("width", type=int)
         height = request.form.get("height", type=int)
-        print(f"Resize parameters: width={width}, height={height}")
 
         if width is not None and width <= 0:
-            return jsonify(error="Width must be a positive value."), 400
+            return (
+                jsonify(error="Width must be a positive value"),
+                400,
+            )
         if height is not None and height <= 0:
-            return jsonify(error="Height must be a positive value."), 400
+            return jsonify(error="Height must be a positive value"), 400
 
-        img = resize_image(img, width, height)
-        print("Image resized successfully")
+        try:
+            if is_gif(img_data):
+                print("Processing GIF...")
+                gif = palettum.GIF(img_data)
+                result = palettum.Palettum.convertToPalette(gif, palette)
+                gif_data = result.write()
 
-        print("Converting to palette...")
-        result = palettum.Palettum.convertToPalette(img, palette)
-        print("Conversion complete")
+                if not gif_data:
+                    raise ValueError("Failed to encode the processed GIF")
 
-        print("Writing result...")
-        png_data = result.write()
-        if not png_data:
-            raise ValueError("Failed to encode the processed image.")
+                print("Sending GIF response...")
+                return send_file(io.BytesIO(bytes(gif_data)), mimetype="image/gif")
+            else:
+                print("Processing static image...")
+                img = palettum.Image(img_data)
 
-        print("Sending response...")
-        io_buf = io.BytesIO(bytes(png_data))
-        return send_file(io_buf, mimetype="image/png")
+                if width or height:
+                    img = resize_image(img, width, height)
+
+                result = palettum.Palettum.convertToPalette(img, palette)
+                png_data = result.write()
+
+                if not png_data:
+                    raise ValueError("Failed to encode the processed image")
+
+                print("Sending PNG response...")
+                return send_file(io.BytesIO(bytes(png_data)), mimetype="image/png")
+
+        except RuntimeError as e:
+            print(f"Processing error: {e}")
+            return jsonify(error=str(e)), 400
 
     except Exception as e:
         print(f"Error in upload_image: {type(e).__name__}: {str(e)}")
         return jsonify(error=str(e)), 400
+
+
+def validate_image_content_type(image):
+    """Validate image content type"""
+    if image.content_type not in VALID_IMAGE_TYPES:
+        raise ValueError("Uploaded file is not an image")

@@ -1,3 +1,24 @@
+if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
+    set(VCPKG_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/external/vcpkg")
+    
+    if(WIN32)
+        if(NOT EXISTS "${VCPKG_ROOT}/vcpkg.exe")
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E chdir ${VCPKG_ROOT} bootstrap-vcpkg.bat -disableMetrics
+                RESULT_VARIABLE VCPKG_BOOTSTRAP_RESULT)
+        endif()
+    else()
+        if(NOT EXISTS "${VCPKG_ROOT}/vcpkg")
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E chdir ${VCPKG_ROOT} ./bootstrap-vcpkg.sh -disableMetrics
+                RESULT_VARIABLE VCPKG_BOOTSTRAP_RESULT)
+        endif()
+    endif()
+    
+    set(CMAKE_TOOLCHAIN_FILE "${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        CACHE STRING "Vcpkg toolchain file")
+endif()
+
 cmake_minimum_required(VERSION 3.22)
 
 project(Palettum_Core)
@@ -17,20 +38,22 @@ if(CMAKE_BUILD_TYPE STREQUAL "Release")
 endif()
 
 include_directories(
-  ${CMAKE_SOURCE_DIR}/external/simd_utils
-  ${CMAKE_SOURCE_DIR}/external/stb
+    ${CMAKE_SOURCE_DIR}/external/simd_utils
 )
 
 find_package(OpenMP REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
-add_subdirectory(external/pybind11)
+find_package(GIF REQUIRED)
+find_package(pybind11 CONFIG REQUIRED)
+find_package(Stb REQUIRED)
+
 add_subdirectory(src)
 
 option(BUILD_TESTS "Build the tests" ON)
 
 if (BUILD_TESTS)
-    add_subdirectory(external/googletest)
+    find_package(GTest CONFIG REQUIRED)
     if (CMAKE_PROJECT_NAME STREQUAL "Palettum_Core")
         enable_testing()
         add_subdirectory(tests/cpp)

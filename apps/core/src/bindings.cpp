@@ -10,7 +10,12 @@ PYBIND11_MODULE(palettum, m)
     m.doc() = "Core functionality for the Palettum project.";
 
     py::class_<Palettum>(m, "Palettum")
-        .def_static("convertToPalette", &Palettum::convertToPalette)
+        .def_static("convertToPalette",
+                    py::overload_cast<Image &, std::vector<RGB> &>(
+                        &Palettum::convertToPalette))
+        .def_static("convertToPalette",
+                    py::overload_cast<GIF &, std::vector<RGB> &>(
+                        &Palettum::convertToPalette))
         .def_static("validateImageColors", &Palettum::validateImageColors);
 
     py::class_<RGB>(m, "RGB")
@@ -77,4 +82,30 @@ PYBIND11_MODULE(palettum, m)
         .def("__eq__", &Image::operator==)
         .def("__ne__", &Image::operator!=)
         .def("__sub__", &Image::operator-);
+
+    py::class_<GIF>(m, "GIF")
+        .def(py::init<const std::string &>())
+        .def(py::init<const char *>())
+        .def(py::init<int, int>())
+        .def(py::init([](py::buffer buffer) {
+            py::buffer_info info = buffer.request();
+            if (info.ndim != 1)
+            {
+                throw std::runtime_error("Buffer must be 1-dimensional");
+            }
+            return std::make_unique<GIF>(
+                static_cast<const unsigned char *>(info.ptr),
+                static_cast<int>(info.size));
+        }))
+        .def("write",
+             py::overload_cast<const std::string &>(&GIF::write, py::const_))
+        .def("write", py::overload_cast<const char *>(&GIF::write, py::const_))
+        .def("write", py::overload_cast<>(&GIF::write, py::const_))
+        .def("frameCount", &GIF::frameCount)
+        .def("width", &GIF::width)
+        .def("height", &GIF::height)
+        .def("addFrame", &GIF::addFrame)
+        .def("setPixel", &GIF::setPixel)
+        .def("setPalette", &GIF::setPalette)
+        .def("getFrame", py::overload_cast<size_t>(&GIF::getFrame));
 }

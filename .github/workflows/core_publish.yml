@@ -16,17 +16,12 @@ on:
     branches:
       - '**'
     paths:
-      - 'apps/core/**'
       - '.github/workflows/core_publish.yml'
   pull_request:
     branches:
       - '**'
     paths:
-      - 'apps/core/**'
       - '.github/workflows/core_publish.yml'
-
-env:
-  OPENCV_VERSION: 4.8.0
 
 jobs:
   build_wheels:
@@ -63,10 +58,16 @@ jobs:
         run: |
           move apps\core\* .
 
-      - name: Install OpenMP
+      - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: |
-          brew install libomp
+          brew install libomp ninja
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: ${{ github.workspace }}/external/vcpkg
+          runVcpkgInstall: true
 
       - name: Use cibuildwheel
         uses: pypa/cibuildwheel@v2.19.2
@@ -76,6 +77,8 @@ jobs:
           CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
+          CIBW_BEFORE_BUILD: |
+            pip install "pybind11[global]"
           CIBW_ENVIRONMENT_MACOS: >
             OpenMP_ROOT=$(brew --prefix)/opt/libomp
             MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}

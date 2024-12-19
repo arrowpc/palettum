@@ -10,7 +10,7 @@ function ImageDimensions({ file }: ImageDimensionsProps) {
   const [height, setHeight] = useState<number | null>(null);
   const [originalWidth, setOriginalWidth] = useState<number | null>(null);
   const [originalHeight, setOriginalHeight] = useState<number | null>(null);
-  const [keepAspectRatio, setKeepAspectRatio] = useState(false);
+  const [keepAspectRatio, setKeepAspectRatio] = useState(true);
   const [originalAspectRatio, setOriginalAspectRatio] = useState<number | null>(
     null,
   );

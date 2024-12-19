@@ -1,7 +1,11 @@
 import { useState, useCallback } from "react";
 import { Image } from "lucide-react";
 
-function ImageUpload() {
+interface ImageUploadProps {
+  onFileSelect: (file: File | null) => void;
+}
+
+function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [shake, setShake] = useState(false);
@@ -38,9 +42,10 @@ function ImageUpload() {
       const file = event.target.files?.[0];
       if (file && validateFile(file)) {
         setSelectedFile(file);
+        onFileSelect(file);
       }
     },
-    [validateFile],
+    [validateFile, onFileSelect],
   );
 
   const handleDragEvents = useCallback(
@@ -67,13 +72,14 @@ function ImageUpload() {
       const file = files[0];
       if (validateFile(file)) {
         setSelectedFile(file);
+        onFileSelect(file);
       }
     },
-    [validateFile],
+    [validateFile, onFileSelect],
   );
 
   return (
-    <div className="max-w-xl mx-auto p-6">
+    <div>
       <div
         className={`mt-2 flex flex-col items-center justify-center w-full h-64 border-2 rounded-lg border-dashed transition-all duration-300 ease-in-out 
           ${isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-gray-50"}

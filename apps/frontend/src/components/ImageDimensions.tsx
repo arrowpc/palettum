@@ -111,18 +111,18 @@ function ImageDimensions({ file }: ImageDimensionsProps) {
             </div>
             <button
               onClick={() => setKeepAspectRatio(!keepAspectRatio)}
-              className={`flex items-center justify-center w-10 h-10 border rounded-lg bg-white shadow focus:outline-none ${keepAspectRatio
-                  ? "bg-blue-500 text-white"
-                  : "hover:bg-blue-500 hover:bg-opacity-20"
-                } transition-all`}
+              className={`flex items-center justify-center w-10 h-10 border rounded-lg shadow focus:outline-none transition-all ${keepAspectRatio
+                  ? "bg-blue-500 hover:bg-blue-600 border-blue-500"
+                  : "bg-white hover:bg-blue-50"
+                }`}
               aria-label={
                 keepAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
               }
             >
               {keepAspectRatio ? (
-                <Link className="text-white" />
+                <Link size={20} className="text-white" />
               ) : (
-                <Unlink className="text-gray-500" />
+                <Unlink size={20} className="text-gray-500" />
               )}
             </button>
           </div>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Edit2, Plus } from "lucide-react";
+import { ChevronDown, Edit2, Plus, Search } from "lucide-react";
 import PaletteEditor from "./PaletteEditor";
 
 interface Color {
@@ -43,6 +43,7 @@ function PaletteManager() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
   const [maxVisibleColors, setMaxVisibleColors] = useState(5);
+  const [searchTerm, setSearchTerm] = useState("");
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -114,6 +115,10 @@ function PaletteManager() {
     setEditingPalette(null);
   };
 
+  const filteredPalettes = palettes.filter((palette) =>
+    palette.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  );
+
   return (
     <div className="relative">
       <div className="relative w-full">
@@ -157,8 +162,20 @@ function PaletteManager() {
 
         {isDropdownOpen && !isEditModalOpen && (
           <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg flex flex-col">
+            <div className="p-2 border-b">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search palettes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+                <Search className="w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              </div>
+            </div>
             <div className="overflow-y-auto flex-1 max-h-[175px]">
-              {palettes.map((palette) => (
+              {filteredPalettes.map((palette) => (
                 <div
                   key={palette.id}
                   className="flex items-center justify-between p-3 hover:bg-gray-50 cursor-pointer"

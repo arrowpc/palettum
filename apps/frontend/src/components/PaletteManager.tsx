@@ -1,20 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Edit2, Plus, Search } from "lucide-react";
 import PaletteEditor from "./PaletteEditor";
-
-interface Color {
-  r: number;
-  g: number;
-  b: number;
-}
+import type { PaletteColor } from "../services/api";
 
 interface Palette {
   id: string;
   name: string;
-  colors: Color[];
+  colors: PaletteColor[];
 }
 
-function rgbToHex(color: Color): string {
+interface PaletteManagerProps {
+  onPaletteSelect: (colors: PaletteColor[]) => void;
+}
+
+function rgbToHex(color: PaletteColor): string {
   return (
     "#" +
     [color.r, color.g, color.b]
@@ -26,7 +25,7 @@ function rgbToHex(color: Color): string {
   );
 }
 
-function PaletteManager() {
+function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   const [palettes, setPalettes] = useState<Palette[]>([
     {
       id: "1",
@@ -45,6 +44,10 @@ function PaletteManager() {
   const [maxVisibleColors, setMaxVisibleColors] = useState(5);
   const [searchTerm, setSearchTerm] = useState("");
   const previewContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    onPaletteSelect(selectedPalette.colors);
+  }, [selectedPalette, onPaletteSelect]);
 
   useEffect(() => {
     const updateVisibleColors = () => {
@@ -87,7 +90,7 @@ function PaletteManager() {
     setIsDropdownOpen(false);
   };
 
-  const handleSavePalette = (updatedPalette: Palette) => {
+  const handleSavePalette = async (updatedPalette: Palette) => {
     setPalettes((currentPalettes) => {
       const existingPaletteIndex = currentPalettes.findIndex(
         (p) => p.id === updatedPalette.id,

@@ -1,69 +1,150 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link, Unlink } from "lucide-react";
 
 interface ImageDimensionsProps {
   file: File | null;
+  onChange: (width: number | null, height: number | null) => void;
 }
 
-function ImageDimensions({ file }: ImageDimensionsProps) {
-  const [width, setWidth] = useState<number | null>(null);
-  const [height, setHeight] = useState<number | null>(null);
-  const [originalWidth, setOriginalWidth] = useState<number | null>(null);
-  const [originalHeight, setOriginalHeight] = useState<number | null>(null);
+function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
+  const [dimensions, setDimensions] = useState({
+    width: "",
+    height: "",
+    originalWidth: null as number | null,
+    originalHeight: null as number | null,
+    originalAspectRatio: null as number | null,
+  });
   const [keepAspectRatio, setKeepAspectRatio] = useState(true);
-  const [originalAspectRatio, setOriginalAspectRatio] = useState<number | null>(
-    null,
-  );
 
   useEffect(() => {
-    if (file) {
-      const image = new Image();
-      const url = URL.createObjectURL(file);
-      image.src = url;
+    if (!file) {
+      setDimensions({
+        width: "",
+        height: "",
+        originalWidth: null,
+        originalHeight: null,
+        originalAspectRatio: null,
+      });
+      onChange(null, null);
+      return;
+    }
 
-      image.onload = () => {
-        setOriginalWidth(image.width);
-        setOriginalHeight(image.height);
-        setWidth(image.width);
-        setHeight(image.height);
-        setOriginalAspectRatio(image.width / image.height);
-        URL.revokeObjectURL(url);
+    const image = new Image();
+    const url = URL.createObjectURL(file);
+
+    image.onload = () => {
+      setDimensions({
+        width: String(image.width),
+        height: String(image.height),
+        originalWidth: image.width,
+        originalHeight: image.height,
+        originalAspectRatio: image.width / image.height,
+      });
+      onChange(image.width, image.height);
+      URL.revokeObjectURL(url);
+    };
+
+    image.src = url;
+
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [file, onChange]);
+
+  const handleWidthChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      const numericValue = value === "" ? null : parseInt(value, 10);
+
+      if (value === "" || (!isNaN(numericValue!) && numericValue! >= 0)) {
+        let newHeight = dimensions.height;
+        if (
+          value !== "" &&
+          keepAspectRatio &&
+          dimensions.originalAspectRatio &&
+          numericValue
+        ) {
+          const newHeightNum = Math.round(
+            numericValue / dimensions.originalAspectRatio,
+          );
+          newHeight = String(newHeightNum);
+        }
+
+        setDimensions((prev) => ({
+          ...prev,
+          width: value,
+          height: newHeight,
+        }));
+
+        if (typeof onChange === "function") {
+          const widthVal = value === "" ? null : parseInt(value, 10);
+          const heightVal = newHeight === "" ? null : parseInt(newHeight, 10);
+          onChange(widthVal, heightVal);
+        }
+      }
+    },
+    [
+      dimensions.originalAspectRatio,
+      dimensions.height,
+      keepAspectRatio,
+      onChange,
+    ],
+  );
+
+  const handleHeightChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      const numericValue = value === "" ? null : parseInt(value, 10);
+
+      if (value === "" || (!isNaN(numericValue!) && numericValue! >= 0)) {
+        let newWidth = dimensions.width;
+        if (
+          value !== "" &&
+          keepAspectRatio &&
+          dimensions.originalAspectRatio &&
+          numericValue
+        ) {
+          const newWidthNum = Math.round(
+            numericValue * dimensions.originalAspectRatio,
+          );
+          newWidth = String(newWidthNum);
+        }
+
+        setDimensions((prev) => ({
+          ...prev,
+          width: newWidth,
+          height: value,
+        }));
+
+        if (typeof onChange === "function") {
+          const widthVal = newWidth === "" ? null : parseInt(newWidth, 10);
+          const heightVal = value === "" ? null : parseInt(value, 10);
+          onChange(widthVal, heightVal);
+        }
+      }
+    },
+    [
+      dimensions.originalAspectRatio,
+      dimensions.width,
+      keepAspectRatio,
+      onChange,
+    ],
+  );
+  const resetDimensions = useCallback(() => {
+    if (dimensions.originalWidth && dimensions.originalHeight) {
+      const newDimensions = {
+        ...dimensions,
+        width: String(dimensions.originalWidth),
+        height: String(dimensions.originalHeight),
       };
-    } else {
-      setWidth(null);
-      setHeight(null);
-      setOriginalWidth(null);
-      setOriginalHeight(null);
-      setOriginalAspectRatio(null);
+      setDimensions(newDimensions);
+      onChange(dimensions.originalWidth, dimensions.originalHeight);
     }
-  }, [file]);
+  }, [dimensions, onChange]);
 
-  const handleWidthChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newWidth = parseInt(e.target.value, 10);
-    if (!isNaN(newWidth)) {
-      setWidth(newWidth);
-      if (keepAspectRatio && originalAspectRatio) {
-        setHeight(Math.round(newWidth / originalAspectRatio));
-      }
-    }
-  };
-
-  const handleHeightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newHeight = parseInt(e.target.value, 10);
-    if (!isNaN(newHeight)) {
-      setHeight(newHeight);
-      if (keepAspectRatio && originalAspectRatio) {
-        setWidth(Math.round(newHeight * originalAspectRatio));
-      }
-    }
-  };
-
-  const resetDimensions = () => {
-    setWidth(originalWidth);
-    setHeight(originalHeight);
-  };
-
-  const isReset = width === originalWidth && height === originalHeight;
+  const isReset =
+    parseInt(dimensions.width) === dimensions.originalWidth &&
+    parseInt(dimensions.height) === dimensions.originalHeight;
 
   return (
     <div>
@@ -90,9 +171,10 @@ function ImageDimensions({ file }: ImageDimensionsProps) {
               <input
                 id="width"
                 type="number"
-                value={width ?? ""}
+                value={dimensions.width}
                 onChange={handleWidthChange}
-                placeholder="W"
+                min="1"
+                placeholder="Width"
                 className="w-20 p-1 text-sm text-left focus:outline-none bg-white rounded-lg overflow-hidden text-ellipsis"
               />
             </div>
@@ -103,9 +185,10 @@ function ImageDimensions({ file }: ImageDimensionsProps) {
               <input
                 id="height"
                 type="number"
-                value={height ?? ""}
+                value={dimensions.height}
                 onChange={handleHeightChange}
-                placeholder="H"
+                min="1"
+                placeholder="Height"
                 className="w-20 p-1 text-sm text-left focus:outline-none bg-white rounded-lg overflow-hidden text-ellipsis"
               />
             </div>
@@ -138,7 +221,8 @@ function ImageDimensions({ file }: ImageDimensionsProps) {
                 id="width"
                 type="number"
                 disabled
-                placeholder=""
+                value=""
+                placeholder="Width"
                 className="w-20 p-1 text-sm text-left bg-white cursor-not-allowed rounded-lg"
               />
             </div>
@@ -150,17 +234,15 @@ function ImageDimensions({ file }: ImageDimensionsProps) {
                 id="height"
                 type="number"
                 disabled
-                placeholder=""
+                value=""
+                placeholder="Height"
                 className="w-20 p-1 text-sm text-left bg-white cursor-not-allowed rounded-lg"
               />
             </div>
             <button
-              onClick={() => setKeepAspectRatio(!keepAspectRatio)}
               className="flex items-center justify-center w-10 h-10 border rounded-lg bg-white shadow opacity-50 cursor-not-allowed"
               disabled
-              aria-label={
-                keepAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
-              }
+              aria-label="Lock aspect ratio"
             >
               <Unlink className="text-gray-500" />
             </button>

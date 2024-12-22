@@ -34,9 +34,12 @@ export async function processImage(
   if (height) formData.append("height", height.toString());
 
   try {
-    // Using the proxy path instead of direct URL
+    const API_KEY = import.meta.env.VITE_API_KEY;
     const response = await fetch("/api/upload", {
       method: "POST",
+      headers: {
+        "X-API-Key": API_KEY,
+      },
       body: formData,
     });
 

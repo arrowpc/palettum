@@ -1,4 +1,6 @@
 import io
+import os
+from functools import wraps
 
 from app import app
 from flask import jsonify, request, send_file
@@ -6,6 +8,19 @@ from flask import jsonify, request, send_file
 import palettum
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg"}
+
+
+def require_api_key(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        api_key = request.headers.get("X-API-Key")
+        if not api_key:
+            return jsonify({"error": "No API key provided"}), 401
+        if api_key != os.getenv("API_KEY"):
+            return jsonify({"error": "Invalid API key"}), 401
+        return f(*args, **kwargs)
+
+    return decorated
 
 
 @app.errorhandler(ValueError)
@@ -25,7 +40,7 @@ def index():
 
 def validate_image_content_type(image):
     if image.content_type not in VALID_IMAGE_TYPES:
-        raise ValueError(f"Unsupported image type: {image.content_type}")
+        raise ValueError("Uploaded file is not an image")
 
 
 def parse_palette(palette_file):
@@ -68,6 +83,7 @@ def is_gif(data):
 
 
 @app.route("/upload", methods=["POST"])
+@require_api_key
 def upload_image():
     try:
         if "image" not in request.files:
@@ -132,9 +148,3 @@ def upload_image():
     except Exception as e:
         print(f"Error in upload_image: {type(e).__name__}: {str(e)}")
         return jsonify(error=str(e)), 400
-
-
-def validate_image_content_type(image):
-    """Validate image content type"""
-    if image.content_type not in VALID_IMAGE_TYPES:
-        raise ValueError("Uploaded file is not an image")

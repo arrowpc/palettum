@@ -230,6 +230,10 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   const handleHexChange = (hex: string) => {
     const sanitized = hex.replace(/[^#A-Fa-f0-9]/g, "").slice(0, 7);
     setHexValue(sanitized);
+    const rgb = hexToRgb(sanitized);
+    if (rgb) {
+      setSelectedColor(rgb);
+    }
   };
 
   const validateHex = (hex: string) => {

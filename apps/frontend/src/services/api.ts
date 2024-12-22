@@ -1,3 +1,5 @@
+import { ENV } from "../config/env";
+
 export interface PaletteColor {
   r: number;
   g: number;
@@ -23,7 +25,6 @@ export async function processImage(
   const formData = new FormData();
   formData.append("image", image);
 
-  // Create a text file with the palette data
   const paletteContent = palette
     .map((color) => `(${color.r}, ${color.g}, ${color.b})`)
     .join("\n");
@@ -34,11 +35,10 @@ export async function processImage(
   if (height) formData.append("height", height.toString());
 
   try {
-    const API_KEY = import.meta.env.VITE_API_KEY;
     const response = await fetch("/api/upload", {
       method: "POST",
       headers: {
-        "X-API-Key": API_KEY,
+        "X-API-Key": ENV.API_KEY,
       },
       body: formData,
     });
@@ -54,6 +54,11 @@ export async function processImage(
     return await response.blob();
   } catch (error) {
     if (error instanceof APIError) throw error;
-    throw new APIError(500, "Failed to connect to the server");
+    throw new APIError(
+      500,
+      error instanceof Error
+        ? error.message
+        : "Failed to connect to the server",
+    );
   }
 }

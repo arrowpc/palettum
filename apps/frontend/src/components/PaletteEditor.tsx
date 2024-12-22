@@ -7,6 +7,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+const MAX_PALETTE_NAME_LENGTH = 50;
+const MIN_COLORS = 1;
+const MAX_COLORS = 256;
+const DEFAULT_COLOR: Color = { r: 0, g: 0, b: 0 };
 
 type Color = {
   r: number;
@@ -18,6 +24,11 @@ type Palette = {
   id: string;
   name: string;
   colors: Color[];
+};
+
+type ValidationError = {
+  message: string;
+  field?: string;
 };
 
 interface ColorTileProps {
@@ -34,30 +45,73 @@ interface RGBInputProps {
 interface PaletteEditorProps {
   palette: Palette;
   onClose: () => void;
-  onSave: (palette: Palette) => void;
+  onSave: (palette: Palette) => Promise<void>;
 }
 
 const rgbToHex = (color: Color): string => {
-  return (
-    "#" +
-    [color.r, color.g, color.b]
-      .map((x) => {
-        const hex = x.toString(16);
-        return hex.length === 1 ? "0" + hex : hex;
-      })
-      .join("")
-  );
+  try {
+    return (
+      "#" +
+      [color.r, color.g, color.b]
+        .map((x) => {
+          const hex = Math.max(0, Math.min(255, x)).toString(16);
+          return hex.length === 1 ? "0" + hex : hex;
+        })
+        .join("")
+    );
+  } catch (error) {
+    console.error("RGB to HEX conversion error:", error);
+    return "#000000";
+  }
 };
 
 const hexToRgb = (hex: string): Color | null => {
-  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-  return result
-    ? {
-      r: parseInt(result[1], 16),
-      g: parseInt(result[2], 16),
-      b: parseInt(result[3], 16),
-    }
-    : null;
+  try {
+    const normalized = hex.charAt(0) === "#" ? hex : `#${hex}`;
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(normalized);
+    if (!result) return null;
+
+    const [, r, g, b] = result;
+    return {
+      r: parseInt(r, 16),
+      g: parseInt(g, 16),
+      b: parseInt(b, 16),
+    };
+  } catch (error) {
+    console.error("HEX to RGB conversion error:", error);
+    return null;
+  }
+};
+
+const validatePalette = (palette: Palette): ValidationError[] => {
+  const errors: ValidationError[] = [];
+
+  if (!palette.name.trim()) {
+    errors.push({ message: "Palette name is required", field: "name" });
+  }
+
+  if (palette.name.length > MAX_PALETTE_NAME_LENGTH) {
+    errors.push({
+      message: `Name must be ${MAX_PALETTE_NAME_LENGTH} characters or less`,
+      field: "name",
+    });
+  }
+
+  if (palette.colors.length < MIN_COLORS) {
+    errors.push({
+      message: `Palette must have at least ${MIN_COLORS} color`,
+      field: "colors",
+    });
+  }
+
+  if (palette.colors.length > MAX_COLORS) {
+    errors.push({
+      message: `Palette cannot have more than ${MAX_COLORS} colors`,
+      field: "colors",
+    });
+  }
+
+  return errors;
 };
 
 const ColorTile: React.FC<ColorTileProps> = ({ color, onRemove }) => (
@@ -114,37 +168,101 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   onSave,
 }) => {
   const [palette, setPalette] = useState<Palette>(initialPalette);
-  const [selectedColor, setSelectedColor] = useState<Color>({
-    r: 0,
-    g: 0,
-    b: 0,
-  });
+  const [selectedColor, setSelectedColor] = useState<Color>(DEFAULT_COLOR);
   const [hexValue, setHexValue] = useState<string>("#000000");
   const [isEyeDropperSupported, setIsEyeDropperSupported] =
     useState<boolean>(false);
   const [isPickerActive, setIsPickerActive] = useState<boolean>(false);
+  const [errors, setErrors] = useState<ValidationError[]>([]);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+
+  useEffect(() => {
+    const hasChanges =
+      JSON.stringify(palette) !== JSON.stringify(initialPalette);
+    setHasUnsavedChanges(hasChanges);
+  }, [palette, initialPalette]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   useEffect(() => {
     setIsEyeDropperSupported("EyeDropper" in window);
   }, []);
 
   useEffect(() => {
-    setHexValue(rgbToHex(selectedColor));
+    try {
+      setHexValue(rgbToHex(selectedColor));
+    } catch (error) {
+      console.error("Error updating hex value:", error);
+      setHexValue("#000000");
+    }
   }, [selectedColor]);
 
+  const handleClose = () => {
+    if (hasUnsavedChanges) {
+      if (
+        window.confirm(
+          "You have unsaved changes. Are you sure you want to close?",
+        )
+      ) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
+  const isValidHex = (hex: string): boolean => {
+    const normalized = hex.charAt(0) === "#" ? hex : `#${hex}`;
+    return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(normalized);
+  };
+
   const handleHexChange = (hex: string) => {
-    setHexValue(hex);
+    const sanitized = hex.replace(/[^#A-Fa-f0-9]/g, "").slice(0, 7);
+    setHexValue(sanitized);
+  };
+
+  const validateHex = (hex: string) => {
+    if (!isValidHex(hex)) {
+      setErrors([{ message: "Invalid hex color code" }]);
+
+      setHexValue(rgbToHex(selectedColor));
+      return;
+    }
+
     const rgb = hexToRgb(hex);
-    if (rgb) setSelectedColor(rgb);
+    if (rgb) {
+      setSelectedColor(rgb);
+      setErrors([]);
+    } else {
+      setErrors([{ message: "Invalid hex color code" }]);
+      setHexValue(rgbToHex(selectedColor));
+    }
   };
 
   const handleRGBChange = (component: keyof Color, value: string) => {
-    const numValue = parseInt(value) || 0;
-    const clampedValue = Math.max(0, Math.min(255, numValue));
-    setSelectedColor((prev) => ({ ...prev, [component]: clampedValue }));
+    try {
+      const numValue = parseInt(value) || 0;
+      const clampedValue = Math.max(0, Math.min(255, numValue));
+      setSelectedColor((prev) => ({ ...prev, [component]: clampedValue }));
+    } catch (error) {
+      console.error("Error updating RGB value:", error);
+    }
   };
 
   const handleEyeDropper = async () => {
+    if (!isEyeDropperSupported) return;
+
     try {
       setIsPickerActive(true);
       // @ts-ignore
@@ -153,32 +271,102 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
       handleHexChange(result.sRGBHex);
     } catch (error) {
       console.error("EyeDropper error:", error);
+      setErrors((prev) => [
+        ...prev,
+        {
+          message: "Failed to access color picker. Please try again.",
+        },
+      ]);
     } finally {
       setIsPickerActive(false);
     }
   };
 
   const addColor = () => {
+    setErrors([]);
+
+    if (palette.colors.length >= MAX_COLORS) {
+      setErrors([
+        {
+          message: `Cannot add more than ${MAX_COLORS} colors`,
+          field: "colors",
+        },
+      ]);
+      return;
+    }
+
+    const isDuplicate = palette.colors.some(
+      (color) =>
+        color.r === selectedColor.r &&
+        color.g === selectedColor.g &&
+        color.b === selectedColor.b,
+    );
+
+    if (isDuplicate) {
+      setErrors([
+        {
+          message: "This color is already in the palette",
+          field: "colors",
+        },
+      ]);
+      return;
+    }
+
     setPalette((prev) => ({
       ...prev,
       colors: [...prev.colors, selectedColor],
     }));
+    setHasUnsavedChanges(true);
   };
 
   const removeColor = (index: number) => {
+    setErrors([]);
+
+    if (palette.colors.length <= MIN_COLORS) {
+      setErrors([
+        {
+          message: `Cannot remove the last color`,
+          field: "colors",
+        },
+      ]);
+      return;
+    }
+
     setPalette((prev) => ({
       ...prev,
       colors: prev.colors.filter((_, i) => i !== index),
     }));
+    setHasUnsavedChanges(true);
+  };
+
+  const handleSave = async () => {
+    const validationErrors = validatePalette(palette);
+    if (validationErrors.length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
+
+    setIsSaving(true);
+    setErrors([]);
+
+    try {
+      await onSave(palette);
+      setHasUnsavedChanges(false);
+    } catch (error) {
+      console.error("Error saving palette:", error);
+      setErrors([{ message: "Failed to save palette. Please try again." }]);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg p-6 flex flex-col w-[560px]">
+      <div className="bg-white rounded-lg p-6 flex flex-col w-[560px] max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold text-gray-800">Edit Palette</h2>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="text-gray-500 hover:text-gray-700 transition-colors"
           >
             <X className="w-6 h-6" />
@@ -194,12 +382,28 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
               <input
                 type="text"
                 value={palette.name}
-                onChange={(e) =>
-                  setPalette((prev) => ({ ...prev, name: e.target.value }))
-                }
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                onChange={(e) => {
+                  const newName = e.target.value;
+                  if (newName.length <= MAX_PALETTE_NAME_LENGTH) {
+                    setPalette((prev) => ({ ...prev, name: newName }));
+                    setHasUnsavedChanges(true);
+                  }
+                }}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.some((e) => e.field === "name") ? "border-red-500" : ""
+                  }`}
                 placeholder="Enter palette name"
+                maxLength={MAX_PALETTE_NAME_LENGTH}
               />
+              <div className="flex justify-between mt-1">
+                <span className="text-xs text-gray-500">
+                  {palette.name.length}/{MAX_PALETTE_NAME_LENGTH}
+                </span>
+                {errors.some((e) => e.field === "name") && (
+                  <span className="text-xs text-red-500">
+                    {errors.find((e) => e.field === "name")?.message}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="h-[300px] overflow-y-auto pr-2">
@@ -247,9 +451,16 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                           : "hover:bg-gray-50"
                         }`}
                       title="Use eyedropper"
+                      onBlur={() => validateHex(hexValue)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          validateHex(hexValue);
+                        }
+                      }}
                     >
                       <Pipette
-                        className={`w-4 h-4 ${isPickerActive ? "text-white" : "text-gray-600"}`}
+                        className={`w-4 h-4 ${isPickerActive ? "text-white" : "text-gray-600"
+                          }`}
                       />
                     </button>
                   )}
@@ -258,12 +469,8 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                     value={hexValue}
                     onChange={(e) => handleHexChange(e.target.value)}
                     className="w-24 px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center"
+                    disabled={isSaving}
                   />
-                </div>
-                <div className="w-24 ml-8">
-                  <span className="text-xs font-medium text-gray-700 block text-center">
-                    HEX
-                  </span>
                 </div>
               </div>
 
@@ -284,23 +491,38 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                   ))}
                 </div>
               </div>
+
+              <div className="mt-6">
+                {errors.map((error, index) => (
+                  <Alert key={index} variant="destructive" className="mb-2">
+                    <AlertDescription>{error.message}</AlertDescription>
+                  </Alert>
+                ))}
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 mt-8 pt-6 border-t">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onSave(palette)}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            Save Changes
-          </button>
+        <div className="flex justify-between gap-3 mt-8 pt-6 border-t">
+          <div className="text-sm text-gray-500">
+            {palette.colors.length} / {MAX_COLORS} colors
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={handleClose}
+              className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              disabled={isSaving}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={isSaving || !hasUnsavedChanges}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
+            >
+              {isSaving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

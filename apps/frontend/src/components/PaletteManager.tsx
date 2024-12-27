@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Edit2, Plus, Search } from "lucide-react";
 import PaletteEditor from "./PaletteEditor";
-import type { PaletteColor } from "../services/api";
+import type { PaletteColor } from "@/services/api";
 
 interface Palette {
   id: string;
@@ -41,8 +41,8 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
-  const [maxVisibleColors, setMaxVisibleColors] = useState(5);
   const [searchTerm, setSearchTerm] = useState("");
+  const [maxVisibleColors, setMaxVisibleColors] = useState(5);
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {

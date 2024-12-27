@@ -22,6 +22,8 @@ services:
     volumes:
       - ./apps/frontend:/app
       - /app/node_modules
+    environment:
+      - DOCKER_ENV=true
     depends_on:
       - api
 

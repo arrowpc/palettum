@@ -76,11 +76,10 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
           height: newHeight,
         }));
 
-        if (typeof onChange === "function") {
-          const widthVal = value === "" ? null : parseInt(value, 10);
-          const heightVal = newHeight === "" ? null : parseInt(newHeight, 10);
-          onChange(widthVal, heightVal);
-        }
+        onChange(
+          value === "" ? null : parseInt(value, 10),
+          newHeight === "" ? null : parseInt(newHeight, 10),
+        );
       }
     },
     [
@@ -116,11 +115,10 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
           height: value,
         }));
 
-        if (typeof onChange === "function") {
-          const widthVal = newWidth === "" ? null : parseInt(newWidth, 10);
-          const heightVal = value === "" ? null : parseInt(value, 10);
-          onChange(widthVal, heightVal);
-        }
+        onChange(
+          newWidth === "" ? null : parseInt(newWidth, 10),
+          value === "" ? null : parseInt(value, 10),
+        );
       }
     },
     [
@@ -130,17 +128,17 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       onChange,
     ],
   );
+
   const resetDimensions = useCallback(() => {
     if (dimensions.originalWidth && dimensions.originalHeight) {
-      const newDimensions = {
-        ...dimensions,
+      setDimensions((prev) => ({
+        ...prev,
         width: String(dimensions.originalWidth),
         height: String(dimensions.originalHeight),
-      };
-      setDimensions(newDimensions);
+      }));
       onChange(dimensions.originalWidth, dimensions.originalHeight);
     }
-  }, [dimensions, onChange]);
+  }, [dimensions.originalWidth, dimensions.originalHeight, onChange]);
 
   const isReset =
     parseInt(dimensions.width) === dimensions.originalWidth &&

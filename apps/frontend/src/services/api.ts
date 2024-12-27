@@ -44,11 +44,14 @@ export async function processImage(
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new APIError(
-        response.status,
-        errorData.error || "Failed to process image",
-      );
+      let errorMessage;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error;
+      } catch {
+        errorMessage = "Failed to process image";
+      }
+      throw new APIError(response.status, errorMessage);
     }
 
     return await response.blob();

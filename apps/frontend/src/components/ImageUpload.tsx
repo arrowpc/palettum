@@ -13,38 +13,45 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const [error, setError] = useState<string | null>(null);
 
   const validTypes = ["image/jpeg", "image/png", "image/gif"];
-  const maxFileSize = 100 * 1024 * 1024;
+  const maxFileSize = 100 * 1024 * 1024; // 100MB
 
-  const validateFile = useCallback((file: File | null) => {
-    if (!file) return false;
+  const validateFile = useCallback(
+    (file: File | null) => {
+      if (!file) {
+        setSelectedFile(null);
+        onFileSelect(null);
+        setError(null);
+        return;
+      }
 
-    if (!validTypes.includes(file.type)) {
-      setShake(true);
-      setError("Invalid file type. Please upload a JPEG, PNG, or GIF.");
-      setTimeout(() => setShake(false), 300);
-      return false;
-    }
+      if (!validTypes.includes(file.type)) {
+        setShake(true);
+        setError("Invalid file type. Please upload a JPEG, PNG, or GIF.");
+        setTimeout(() => setShake(false), 300);
+        return false;
+      }
 
-    if (file.size > maxFileSize) {
-      setShake(true);
-      setError(`File size exceeds 100 MB. Please upload a smaller image.`);
-      setTimeout(() => setShake(false), 300);
-      return false;
-    }
+      if (file.size > maxFileSize) {
+        setShake(true);
+        setError(`File size exceeds 100 MB. Please upload a smaller image.`);
+        setTimeout(() => setShake(false), 300);
+        return false;
+      }
 
-    setError(null);
-    return true;
-  }, []);
+      setError(null);
+      setSelectedFile(file);
+      onFileSelect(file);
+      return true;
+    },
+    [onFileSelect],
+  );
 
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
-      if (file && validateFile(file)) {
-        setSelectedFile(file);
-        onFileSelect(file);
-      }
+      validateFile(file || null);
     },
-    [validateFile, onFileSelect],
+    [validateFile],
   );
 
   const handleDragEvents = useCallback(
@@ -68,13 +75,9 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         return;
       }
 
-      const file = files[0];
-      if (validateFile(file)) {
-        setSelectedFile(file);
-        onFileSelect(file);
-      }
+      validateFile(files[0] || null);
     },
-    [validateFile, onFileSelect],
+    [validateFile],
   );
 
   return (
@@ -119,7 +122,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      {selectedFile && (
+      {selectedFile && !error && (
         <p className="text-sm text-gray-500">
           Selected file: {selectedFile.name}
         </p>

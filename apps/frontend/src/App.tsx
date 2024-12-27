@@ -1,9 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
-import ImageUpload from "./components/ImageUpload";
-import ImageDimensions from "./components/ImageDimensions";
-import PaletteManager from "./components/PaletteManager";
+import ImageUpload from "@/components/ImageUpload";
+import ImageDimensions from "@/components/ImageDimensions";
+import PaletteManager from "@/components/PaletteManager";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { processImage, APIError, PaletteColor } from "./services/api";
+import { processImage, APIError, PaletteColor } from "@/services/api";
 
 function App() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);

@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import ImageDimensions from "@/components/ImageDimensions";
 import PaletteManager from "@/components/PaletteManager";
-import ImageProcessor from "@/components/ImageProcessor";
+import PalettifyImage from "@/components/PalettifyImage";
 import type { PaletteColor } from "@/services/api";
 
 function App() {
@@ -33,7 +33,7 @@ function App() {
       <ImageUpload onFileSelect={handleFileSelect} />
       <ImageDimensions file={uploadedFile} onChange={handleDimensionsChange} />
       <PaletteManager onPaletteSelect={handlePaletteSelect} />
-      <ImageProcessor
+      <PalettifyImage
         file={uploadedFile}
         dimensions={dimensions}
         palette={selectedPalette}

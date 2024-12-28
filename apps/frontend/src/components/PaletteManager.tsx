@@ -1,47 +1,26 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Edit2, Plus, Search } from "lucide-react";
 import PaletteEditor from "./PaletteEditor";
-import type { PaletteColor } from "@/services/api";
-
-interface Palette {
-  id: string;
-  name: string;
-  colors: PaletteColor[];
-}
+import {
+  type Color,
+  type Palette,
+  defaultPalettes,
+  rgbToHex,
+} from "@/lib/palettes";
 
 interface PaletteManagerProps {
-  onPaletteSelect: (colors: PaletteColor[]) => void;
-}
-
-function rgbToHex(color: PaletteColor): string {
-  return (
-    "#" +
-    [color.r, color.g, color.b]
-      .map((x) => {
-        const hex = x.toString(16);
-        return hex.length === 1 ? "0" + hex : hex;
-      })
-      .join("")
-  );
+  onPaletteSelect: (colors: Color[]) => void;
 }
 
 function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
-  const [palettes, setPalettes] = useState<Palette[]>([
-    {
-      id: "1",
-      name: "Default Palette",
-      colors: [
-        { r: 255, g: 0, b: 0 },
-        { r: 0, g: 255, b: 0 },
-        { r: 0, g: 0, b: 255 },
-      ],
-    },
-  ]);
-  const [selectedPalette, setSelectedPalette] = useState<Palette>(palettes[0]);
+  const [selectedPalette, setSelectedPalette] = useState<Palette>(
+    defaultPalettes[0],
+  );
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [palettes, setPalettes] = useState<Palette[]>([...defaultPalettes]);
   const [maxVisibleColors, setMaxVisibleColors] = useState(5);
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
@@ -85,7 +64,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   };
 
   const handleEditPalette = (palette: Palette) => {
-    setEditingPalette({ ...palette, colors: [...palette.colors] });
+    setEditingPalette({ ...palette });
     setIsEditModalOpen(true);
     setIsDropdownOpen(false);
   };
@@ -96,15 +75,12 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
         (p) => p.id === updatedPalette.id,
       );
 
-      let newPalettes;
       if (existingPaletteIndex === -1) {
-        newPalettes = [...currentPalettes, updatedPalette];
-      } else {
-        newPalettes = currentPalettes.map((p) =>
-          p.id === updatedPalette.id ? updatedPalette : p,
-        );
+        return [...currentPalettes, updatedPalette];
       }
 
+      const newPalettes = [...currentPalettes];
+      newPalettes[existingPaletteIndex] = updatedPalette;
       return newPalettes;
     });
 
@@ -140,7 +116,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
               <div className="flex -space-x-1">
                 {selectedPalette.colors
                   .slice(0, maxVisibleColors)
-                  .map((color, i) => (
+                  .map((color: Color, i: number) => (
                     <div
                       key={i}
                       className="w-5 h-5 rounded-sm ring-1 ring-white"
@@ -163,7 +139,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
           </div>
         </button>
 
-        {isDropdownOpen && !isEditModalOpen && (
+        {isDropdownOpen && (
           <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg flex flex-col">
             <div className="p-2 border-b">
               <div className="relative">
@@ -190,13 +166,15 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                   <span className="truncate max-w-[200px]">{palette.name}</span>
                   <div className="flex items-center gap-2">
                     <div className="flex -space-x-1">
-                      {palette.colors.slice(0, 3).map((color, i) => (
-                        <div
-                          key={i}
-                          className="w-5 h-5 rounded-sm ring-1 ring-white"
-                          style={{ backgroundColor: rgbToHex(color) }}
-                        />
-                      ))}
+                      {palette.colors
+                        .slice(0, 3)
+                        .map((color: Color, i: number) => (
+                          <div
+                            key={i}
+                            className="w-5 h-5 rounded-sm ring-1 ring-white"
+                            style={{ backgroundColor: rgbToHex(color) }}
+                          />
+                        ))}
                     </div>
                     <button
                       onClick={(e) => {

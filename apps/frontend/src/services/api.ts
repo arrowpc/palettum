@@ -1,10 +1,5 @@
 import { ENV } from "@/config/env";
-
-export interface PaletteColor {
-  r: number;
-  g: number;
-  b: number;
-}
+import type { Color } from "@/lib/palettes/types";
 
 export class APIError extends Error {
   constructor(
@@ -18,14 +13,14 @@ export class APIError extends Error {
 
 export async function processImage(
   image: File,
-  palette: PaletteColor[],
+  colors: Color[],
   width?: number,
   height?: number,
 ): Promise<Blob> {
   const formData = new FormData();
   formData.append("image", image);
 
-  const paletteContent = palette
+  const paletteContent = colors
     .map((color) => `(${color.r}, ${color.g}, ${color.b})`)
     .join("\n");
   const paletteFile = new Blob([paletteContent], { type: "text/plain" });

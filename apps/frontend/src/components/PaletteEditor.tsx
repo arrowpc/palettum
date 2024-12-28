@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Trash2, Pipette, X, Plus } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
+import { cn } from "@/lib/utils";
 import {
   type Color,
   type Palette,
@@ -109,7 +110,6 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
         e.preventDefault();
-        e.returnValue = "";
       }
     };
 
@@ -253,13 +253,15 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg p-6 flex flex-col w-[560px] max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-modal-overlay flex items-center justify-center p-4 z-50">
+      <div className="bg-modal-background rounded-lg p-6 flex flex-col w-[560px] max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-gray-800">Edit Palette</h2>
+          <h2 className="text-2xl font-semibold text-modal-title">
+            Edit Palette
+          </h2>
           <button
             onClick={handleClose}
-            className="text-gray-500 hover:text-gray-700 transition-colors"
+            className="text-modal-close hover:text-modal-close-hover transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -280,8 +282,12 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                     setPalette((prev) => ({ ...prev, name: newName }));
                   }
                 }}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.some((e) => e.includes("name")) ? "border-red-500" : ""
-                  }`}
+                className={cn(
+                  "w-full px-4 py-2 border rounded-lg",
+                  "focus:ring-2 focus:ring-primary focus:border-primary",
+                  errors.some((e) => e.includes("name")) &&
+                    "border-destructive",
+                )}
                 placeholder="Enter palette name"
                 maxLength={LIMITS.MAX_NAME_LENGTH}
               />
@@ -292,7 +298,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
               </div>
             </div>
 
-            <div className="h-[300px] overflow-y-auto pr-2">
+            <div className="h-[300px] overflow-y-auto pr-2 scrollbar-thin">
               <div className="grid grid-cols-4 gap-2 auto-rows-[1fr] pb-8">
                 {palette.colors.map((color, index) => (
                   <ColorTile
@@ -303,14 +309,25 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                 ))}
                 <div className="relative">
                   <div
-                    className="aspect-square rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-150 cursor-pointer group border border-gray-200"
+                    className={cn(
+                      "aspect-square rounded-lg overflow-hidden cursor-pointer group",
+                      "border border-picker-tile-border",
+                      "shadow-picker-tile shadow-sm hover:shadow-picker-tile-hover",
+                      "transition-all duration-150",
+                    )}
                     onClick={addColor}
                   >
                     <div
                       className="w-full h-full"
                       style={{ backgroundColor: hexValue }}
                     />
-                    <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/20 transition-all duration-150 flex items-center justify-center">
+                    <div
+                      className={cn(
+                        "absolute inset-0 rounded-lg flex items-center justify-center",
+                        "bg-picker-tile-overlay group-hover:bg-picker-tile-overlay-hover",
+                        "transition-all duration-150",
+                      )}
+                    >
                       <div className="w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center transform group-hover:scale-110 transition-all duration-150">
                         <Plus className="w-4 h-4 text-gray-600" />
                       </div>
@@ -332,10 +349,12 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                   {isEyeDropperSupported && (
                     <button
                       onClick={handleEyeDropper}
-                      className={`p-1.5 border rounded-lg flex items-center justify-center transition-colors ${isPickerActive
-                          ? "bg-gray-900 hover:bg-gray-800"
-                          : "hover:bg-gray-50"
-                        }`}
+                      className={cn(
+                        "p-1.5 border rounded-lg flex items-center justify-center transition-colors",
+                        isPickerActive
+                          ? "bg-picker-tool-active-background hover:bg-picker-tool-active-hover border-picker-tool-active-border"
+                          : "bg-picker-tool-inactive-background hover:bg-picker-tool-inactive-hover border-picker-tool-inactive-border",
+                      )}
                       title="Use eyedropper"
                       onBlur={() => validateHex(hexValue)}
                       onKeyDown={(e) => {
@@ -345,8 +364,12 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                       }}
                     >
                       <Pipette
-                        className={`w-4 h-4 ${isPickerActive ? "text-white" : "text-gray-600"
-                          }`}
+                        className={cn(
+                          "w-4 h-4",
+                          isPickerActive
+                            ? "text-picker-tool-active-text"
+                            : "text-picker-tool-inactive-text",
+                        )}
                       />
                     </button>
                   )}
@@ -354,7 +377,11 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                     type="text"
                     value={hexValue}
                     onChange={(e) => handleHexChange(e.target.value)}
-                    className="w-24 px-2 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center"
+                    className={cn(
+                      "w-24 px-2 py-1 text-sm text-center",
+                      "bg-control border border-control-border rounded-lg",
+                      "focus:ring-2 focus:ring-control-focus focus:border-control-focus",
+                    )}
                     disabled={isSaving}
                   />
                 </div>
@@ -384,14 +411,17 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-between gap-3 mt-8 pt-6 border-t">
+        <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-modal-border">
           <div className="text-sm text-gray-500">
             {palette.colors.length} / {LIMITS.MAX_COLORS} colors
           </div>
           <div className="flex gap-3">
             <button
               onClick={handleClose}
-              className="px-4 py-2 border rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className={cn(
+                "px-4 py-2 border rounded-lg transition-colors",
+                "hover:bg-gray-50 disabled:opacity-50",
+              )}
               disabled={isSaving}
             >
               Cancel
@@ -399,7 +429,12 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
             <button
               onClick={handleSave}
               disabled={isSaving || !hasUnsavedChanges}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors disabled:bg-blue-300 disabled:cursor-not-allowed"
+              className={cn(
+                "px-4 py-2 rounded-lg transition-colors",
+                "bg-primary text-white",
+                "hover:bg-primary-600",
+                "disabled:bg-primary-300 disabled:cursor-not-allowed",
+              )}
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </button>

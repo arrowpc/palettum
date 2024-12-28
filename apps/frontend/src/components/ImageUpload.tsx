@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
 import { Image } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface ImageUploadProps {
   onFileSelect: (file: File | null) => void;
@@ -83,21 +85,34 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   return (
     <div className="space-y-2">
       <div
-        className={`mt-2 flex flex-col items-center justify-center w-full h-64 border-2 rounded-lg border-dashed transition-all duration-300 ease-in-out 
-          ${isDragging ? "border-blue-500 bg-blue-50" : "border-gray-300 bg-gray-50"}
-          ${shake ? "animate-shake" : ""}`}
+        className={cn(
+          // Base styles
+          "flex flex-col items-center justify-center w-full h-64",
+          "border-2 border-dashed rounded-lg",
+          "transition-all duration-300",
+          // Only show active styles when dragging
+          isDragging
+            ? "border-upload-active-border bg-upload-active-bg"
+            : "border-upload-300 bg-upload-50",
+          shake && "animate-shake",
+        )}
         onDragOver={(e) => handleDragEvents(e, true)}
         onDragLeave={(e) => handleDragEvents(e, false)}
         onDrop={handleDrop}
       >
         <Image
-          className={`w-16 h-16 mb-4 transition-all duration-300 ease-in-out
-          ${isDragging ? "text-blue-500 scale-110" : "text-gray-500"}`}
+          className={cn(
+            "w-16 h-16 mb-4",
+            "transition-all duration-300",
+            isDragging
+              ? "text-upload-active-text scale-110"
+              : "text-upload-400",
+          )}
         />
-        <p className="mb-4 text-sm text-gray-500">
+        <p className="mb-4 text-sm text-upload-400">
           Drag and drop an image to palettify
         </p>
-        <p className="mb-2 text-sm text-gray-500">or</p>
+        <p className="mb-2 text-sm text-upload-400">or</p>
         <input
           type="file"
           id="file-upload"
@@ -105,17 +120,17 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           accept={validTypes.join(",")}
           onChange={handleFileChange}
         />
-        <button
+        <Button
           onClick={() => document.getElementById("file-upload")?.click()}
           disabled={isDragging}
-          className={`px-4 py-2 text-sm font-medium text-white rounded-md transition-all duration-300 ease-in-out 
-            ${isDragging
-              ? "bg-neutral-400 cursor-not-allowed scale-90"
-              : "bg-neutral-600 hover:bg-neutral-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-neutral-500"
-            }`}
+          className={cn(
+            "bg-neutral-600 hover:bg-neutral-700 text-white",
+            "transition-all duration-300",
+            isDragging && "opacity-50 scale-95 cursor-not-allowed",
+          )}
         >
           Browse images
-        </button>
+        </Button>
       </div>
       {error && (
         <Alert variant="destructive">
@@ -123,7 +138,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         </Alert>
       )}
       {selectedFile && !error && (
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-upload-400">
           Selected file: {selectedFile.name}
         </p>
       )}

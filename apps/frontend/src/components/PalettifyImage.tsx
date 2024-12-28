@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { Palette, ImagePlus, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { processImage, APIError } from "@/services/api";
-import type { PaletteColor } from "@/services/api";
+import type { Color } from "@/lib/palettes";
 import ImageViewer from "@/components/ImageViewer";
+import { cn } from "@/lib/utils";
 
 interface PalettifyImageProps {
   file: File | null;
@@ -11,7 +12,7 @@ interface PalettifyImageProps {
     width: number | null;
     height: number | null;
   };
-  palette: PaletteColor[];
+  palette: Color[];
 }
 
 function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
@@ -97,7 +98,11 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
         <Button
           onClick={handleProcessImage}
           disabled={!file || palette.length === 0 || isProcessing}
-          className="flex items-center space-x-2"
+          className={cn(
+            "bg-neutral-600 hover:bg-neutral-700 text-white",
+            "transition-colors",
+            "disabled:opacity-50 disabled:cursor-not-allowed",
+          )}
         >
           {isProcessing ? (
             <>Processing...</>
@@ -111,35 +116,41 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
       </div>
 
       {error && (
-        <div className="text-red-500 text-sm flex items-center space-x-2">
-          <ImagePlus className="h-4 w-4" />
-          <span>{error}</span>
+        <div className="flex items-center space-x-2">
+          <ImagePlus className="h-4 w-4 text-destructive" />
+          <span className="text-sm text-destructive">{error}</span>
         </div>
       )}
 
       {processedImageUrl && (
         <div className="mt-4 space-y-2">
           <div
-            className="border rounded-lg overflow-hidden shadow-sm relative group cursor-pointer"
+            className="rounded-lg overflow-hidden cursor-pointer"
             onClick={() => setIsPreviewOpen(true)}
           >
             <img
               src={processedImageUrl}
               alt="Palettified"
-              className="w-full object-contain max-h-96 
-                 [image-rendering:-webkit-optimize-contrast]
-                 [image-rendering:crisp-edges]
-                 [image-rendering:pixelated]
-                 transition-transform duration-150 
-                  group-hover:scale-105"
+              className={cn(
+                "w-full object-contain max-h-96",
+                "[image-rendering:-webkit-optimize-contrast]",
+                "[image-rendering:crisp-edges]",
+                "[image-rendering:pixelated]",
+                "transition-transform duration-150",
+                "hover:scale-105",
+              )}
             />
           </div>
+
           <div className="flex justify-start">
             <Button
-              variant="outline"
-              size="sm"
               onClick={handleDownload}
-              className="flex items-center space-x-1"
+              className={cn(
+                "bg-neutral-600 hover:bg-neutral-700 text-white",
+                "transition-colors",
+                "flex items-center space-x-1",
+              )}
+              size="sm"
             >
               <Download className="h-4 w-4" />
               <span>Save Image</span>

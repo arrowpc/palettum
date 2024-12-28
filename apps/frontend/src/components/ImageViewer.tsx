@@ -24,7 +24,6 @@ function useContinuousTap(
 
   return useCallback(
     (e: React.MouseEvent) => {
-      e.preventDefault();
       continuousClick.current += 1;
       debounceTap(e);
 
@@ -195,7 +194,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   );
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
   }, []);
@@ -261,7 +259,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
-      e.preventDefault();
       handleZoom(e.deltaY < 0, e.clientX, e.clientY);
     },
     [handleZoom],

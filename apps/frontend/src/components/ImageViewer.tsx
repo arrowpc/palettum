@@ -117,6 +117,12 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     return Math.min(widthRatio, heightRatio) * 0.95;
   }, []);
 
+  const isDefaultView = useCallback(() => {
+    const fitZoom = calculateFitToViewZoom();
+    const zoomDiff = Math.abs(zoomLevel - fitZoom);
+    return zoomDiff <= fitZoom * 0.01 && position.x === 0 && position.y === 0;
+  }, [calculateFitToViewZoom, zoomLevel, position]);
+
   const resetView = useCallback(() => {
     const newZoom = calculateFitToViewZoom();
     setZoomLevel(newZoom);
@@ -235,15 +241,14 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
 
   const handleDoubleClick = useCallback(
     (e: React.MouseEvent) => {
-      const fitZoom = calculateFitToViewZoom();
-      if (Math.abs(zoomLevel - fitZoom) > fitZoom * 0.01) {
+      if (!isDefaultView()) {
         resetView();
       } else {
         const targetZoom = zoomLevel * 2.5;
         handleZoom(true, e.clientX, e.clientY, targetZoom);
       }
     },
-    [zoomLevel, calculateFitToViewZoom, resetView, handleZoom],
+    [zoomLevel, isDefaultView, resetView, handleZoom],
   );
 
   const handleSingleTap = useCallback(() => { }, []);
@@ -271,15 +276,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
       }
     };
   }, []);
-
-  const isDefaultView = useCallback(() => {
-    const fitZoom = calculateFitToViewZoom();
-    return (
-      Math.abs(zoomLevel - fitZoom) < 0.001 &&
-      position.x === 0 &&
-      position.y === 0
-    );
-  }, [calculateFitToViewZoom, zoomLevel, position]);
 
   return (
     <Dialog open onOpenChange={onClose}>

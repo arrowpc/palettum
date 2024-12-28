@@ -272,6 +272,15 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     };
   }, []);
 
+  const isDefaultView = useCallback(() => {
+    const fitZoom = calculateFitToViewZoom();
+    return (
+      Math.abs(zoomLevel - fitZoom) < 0.001 &&
+      position.x === 0 &&
+      position.y === 0
+    );
+  }, [calculateFitToViewZoom, zoomLevel, position]);
+
   return (
     <Dialog open onOpenChange={onClose}>
       <DialogContent className="max-w-5xl w-full p-0 overflow-hidden">
@@ -301,7 +310,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="icon" onClick={resetView}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={resetView}
+            disabled={isDefaultView()}
+            className={isDefaultView() ? "opacity-50 cursor-not-allowed" : ""}
+          >
             <RotateCcw className="h-4 w-4" />
           </Button>
           <DialogClose asChild>

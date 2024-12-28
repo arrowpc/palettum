@@ -141,8 +141,9 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
   }, [dimensions.originalWidth, dimensions.originalHeight, onChange]);
 
   const isReset =
-    parseInt(dimensions.width) === dimensions.originalWidth &&
-    parseInt(dimensions.height) === dimensions.originalHeight;
+    !file ||
+    (parseInt(dimensions.width) === dimensions.originalWidth &&
+      parseInt(dimensions.height) === dimensions.originalHeight);
 
   return (
     <div>

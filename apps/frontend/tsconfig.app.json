@@ -37,6 +37,9 @@
       ],
       "@/services/*": [
         "./src/services/*"
+      ],
+      "@/config/*": [
+        "./src/config/*"
       ]
     }
   },

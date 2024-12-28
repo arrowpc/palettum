@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Palette, ImagePlus, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { processImage, APIError } from "@/services/api";
 import type { PaletteColor } from "@/services/api";
+import ImageViewer from "@/components/ImageViewer";
 
 interface PalettifyImageProps {
   file: File | null;
@@ -19,6 +20,7 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(
     null,
   );
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -52,9 +54,15 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
 
       const newProcessedUrl = URL.createObjectURL(processedBlob);
       setProcessedImageUrl(newProcessedUrl);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMessage =
-        err instanceof APIError ? err.message : "Image processing failed";
+        err instanceof APIError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : typeof err === "string"
+              ? err
+              : "Image processing failed";
       setError(errorMessage);
     } finally {
       setIsProcessing(false);
@@ -64,15 +72,23 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
   const handleDownload = () => {
     if (!processedImageUrl || !file) return;
 
-    const link = document.createElement("a");
-    link.href = processedImageUrl;
+    try {
+      const link = document.createElement("a");
+      link.href = processedImageUrl;
 
-    const baseFileName = file.name.replace(/\.[^/.]+$/, "");
-    link.download = `palettified-${baseFileName}.png`;
+      const baseFileName = file.name.replace(/\.[^/.]+$/, "");
+      link.download = `palettified-${baseFileName}.png`;
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err: unknown) {
+      console.error(
+        "Download error:",
+        err instanceof Error ? err.message : String(err),
+      );
+      setError("Failed to download image");
+    }
   };
 
   return (
@@ -103,11 +119,19 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
 
       {processedImageUrl && (
         <div className="mt-4 space-y-2">
-          <div className="border rounded-lg overflow-hidden shadow-sm">
+          <div
+            className="border rounded-lg overflow-hidden shadow-sm relative group cursor-pointer"
+            onClick={() => setIsPreviewOpen(true)}
+          >
             <img
               src={processedImageUrl}
               alt="Palettified"
-              className="w-full object-contain max-h-[400px]"
+              className="w-full object-contain max-h-96 
+                 [image-rendering:-webkit-optimize-contrast]
+                 [image-rendering:crisp-edges]
+                 [image-rendering:pixelated]
+                 transition-transform duration-150 
+                  group-hover:scale-105"
             />
           </div>
           <div className="flex justify-start">
@@ -122,6 +146,13 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
             </Button>
           </div>
         </div>
+      )}
+
+      {processedImageUrl && isPreviewOpen && (
+        <ImageViewer
+          imageUrl={processedImageUrl}
+          onClose={() => setIsPreviewOpen(false)}
+        />
       )}
     </div>
   );

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import { ZoomIn, ZoomOut, RotateCcw, X } from "lucide-react";
 import { useDebounceCallback } from "usehooks-ts";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogOverlay,
 } from "@/components/ui/dialog";
 
 function useContinuousTap(
@@ -251,7 +253,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     [zoomLevel, isDefaultView, resetView, handleZoom],
   );
 
-  const handleSingleTap = useCallback(() => { }, []);
+  const handleSingleTap = useCallback(() => {}, []);
 
   const handleTap = useContinuousTap(handleSingleTap, handleDoubleClick);
 
@@ -279,6 +281,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
 
   return (
     <Dialog open onOpenChange={onClose}>
+      <DialogOverlay className="bg-overlay-background" />
       <DialogContent className="max-w-5xl w-full p-0 overflow-hidden">
         <DialogHeader className="sr-only">
           <DialogTitle>Image Preview</DialogTitle>
@@ -286,52 +289,64 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
             Image viewer with zoom and pan controls
           </DialogDescription>
         </DialogHeader>
-
         <div className="absolute top-2 right-2 z-50 flex items-center gap-2">
           <Button
-            variant="outline"
-            size="icon"
             onClick={() => handleZoom(false)}
             disabled={isMinZoom}
-            className={isMinZoom ? "opacity-50 cursor-not-allowed" : ""}
+            className={cn(
+              "bg-neutral-600 hover:bg-neutral-700 text-white w-8 h-8 p-0",
+              "transition-colors",
+              isMinZoom && "opacity-50 cursor-not-allowed",
+            )}
           >
             <ZoomOut className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
-            size="icon"
             onClick={() => handleZoom(true)}
             disabled={isMaxZoom}
-            className={isMaxZoom ? "opacity-50 cursor-not-allowed" : ""}
+            className={cn(
+              "bg-neutral-600 hover:bg-neutral-700 text-white w-8 h-8 p-0",
+              "transition-colors",
+              isMaxZoom && "opacity-50 cursor-not-allowed",
+            )}
           >
             <ZoomIn className="h-4 w-4" />
           </Button>
           <Button
-            variant="outline"
-            size="icon"
             onClick={resetView}
             disabled={isDefaultView()}
-            className={isDefaultView() ? "opacity-50 cursor-not-allowed" : ""}
+            className={cn(
+              "bg-neutral-600 hover:bg-neutral-700 text-white w-8 h-8 p-0",
+              "transition-colors",
+              isDefaultView() && "opacity-50 cursor-not-allowed",
+            )}
           >
             <RotateCcw className="h-4 w-4" />
           </Button>
           <DialogClose asChild>
-            <Button variant="destructive" size="icon">
+            <Button
+              className={cn(
+                "bg-destructive hover:bg-destructive/90 text-destructive-foreground w-8 h-8 p-0",
+                "transition-colors",
+              )}
+            >
               <X className="h-4 w-4" />
             </Button>
           </DialogClose>
         </div>
-
         <div
           ref={viewportRef}
-          className="w-full h-[calc(90vh-4rem)] min-h-[400px] overflow-hidden relative bg-neutral-950/5 dark:bg-white/5"
+          className={cn(
+            "w-full h-[calc(90vh-4rem)] min-h-[400px] overflow-hidden relative",
+            "bg-gray-100",
+            isDragging ? "cursor-grabbing" : "cursor-grab",
+          )}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
           onWheel={handleWheel}
           onClick={handleTap}
-          style={{ cursor: isDragging ? "grabbing" : "grab" }}
         >
           <div className="absolute inset-0 flex items-center justify-center">
             <img

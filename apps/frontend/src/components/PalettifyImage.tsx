@@ -22,6 +22,19 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
     null,
   );
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [currentProcessedFile, setCurrentProcessedFile] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    if (file && currentProcessedFile !== file.name) {
+      if (processedImageUrl) {
+        URL.revokeObjectURL(processedImageUrl);
+      }
+      setProcessedImageUrl(null);
+      setCurrentProcessedFile(null);
+    }
+  }, [file, currentProcessedFile, processedImageUrl]);
 
   useEffect(() => {
     return () => {
@@ -55,6 +68,7 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
 
       const newProcessedUrl = URL.createObjectURL(processedBlob);
       setProcessedImageUrl(newProcessedUrl);
+      setCurrentProcessedFile(file.name);
     } catch (err: unknown) {
       const errorMessage =
         err instanceof APIError
@@ -71,9 +85,14 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
   };
 
   const handleDownload = () => {
-    if (!processedImageUrl || !file) return;
+    if (!processedImageUrl || !file || !currentProcessedFile) return;
 
     try {
+      if (file.name !== currentProcessedFile) {
+        setError("Please process the current image before downloading");
+        return;
+      }
+
       const link = document.createElement("a");
       link.href = processedImageUrl;
 

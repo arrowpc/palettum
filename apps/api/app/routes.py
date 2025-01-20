@@ -8,6 +8,7 @@ from flask import jsonify, request, send_file
 import palettum
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg"}
+MAX_DIMENSION = 7680
 
 
 def require_api_key(f):
@@ -48,6 +49,23 @@ def validate_image_content_type(image):
         raise ValueError("Uploaded file is not an image")
 
 
+def validate_dimensions(width: int | None, height: int | None) -> None:
+    if width is None and height is None:
+        raise ValueError("At least one dimension must be provided")
+
+    if width is not None:
+        if width <= 0:
+            raise ValueError("Width must be positive")
+        if width > MAX_DIMENSION:
+            raise ValueError(f"Width cannot exceed {MAX_DIMENSION} pixels")
+
+    if height is not None:
+        if height <= 0:
+            raise ValueError("Height must be positive")
+        if height > MAX_DIMENSION:
+            raise ValueError(f"Height cannot exceed {MAX_DIMENSION} pixels")
+
+
 def parse_palette(palette_file):
     try:
         content = palette_file.read()
@@ -70,29 +88,31 @@ def parse_palette(palette_file):
 
 
 def resize_image(img, width, height):
+    validate_dimensions(width, height)
+
     if width and not height:
         aspect_ratio = img.height() / img.width()
         height = int(aspect_ratio * width)
     elif height and not width:
         aspect_ratio = img.width() / img.height()
         width = int(aspect_ratio * height)
+
     if width and height:
-        if width <= 0 or height <= 0:
-            raise ValueError("Invalid dimensions after aspect ratio calculation")
         img.resize(width, height)
     return img
 
 
 def resize_gif(gif, width, height):
+    validate_dimensions(width, height)
+
     if width and not height:
         aspect_ratio = gif.height() / gif.width()
         height = int(aspect_ratio * width)
     elif height and not width:
         aspect_ratio = gif.width() / gif.height()
         width = int(aspect_ratio * height)
+
     if width and height:
-        if width <= 0 or height <= 0:
-            raise ValueError("Invalid dimensions after aspect ratio calculation")
         gif.resize(width, height)
     return gif
 
@@ -123,11 +143,6 @@ def upload_image():
 
         width = request.form.get("width", type=int)
         height = request.form.get("height", type=int)
-
-        if width is not None and width <= 0:
-            return jsonify(error="Width must be a positive value"), 400
-        if height is not None and height <= 0:
-            return jsonify(error="Height must be a positive value"), 400
 
         try:
             if is_gif(img_data):

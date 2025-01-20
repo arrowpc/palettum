@@ -114,7 +114,7 @@ def test_negative_dimensions(client):
         }
         response = client.post("/upload", data=data, content_type="multipart/form-data")
     assert response.status_code == 400
-    assert b"Width must be a positive value" in response.data
+    assert b"Width must be positive" in response.data
 
 
 def test_palette_not_in_range(client):

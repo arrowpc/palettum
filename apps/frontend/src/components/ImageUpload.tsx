@@ -1,8 +1,10 @@
 import { useState, useCallback } from "react";
-import { Image } from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const MAX_DIMENSION = 7680;
 
 interface ImageUploadProps {
   onFileSelect: (file: File | null) => void;
@@ -40,10 +42,38 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         return false;
       }
 
-      setError(null);
-      setSelectedFile(file);
-      onFileSelect(file);
-      return true;
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+
+        if (img.width > MAX_DIMENSION || img.height > MAX_DIMENSION) {
+          setShake(true);
+          setError(
+            `Image dimensions cannot exceed ${MAX_DIMENSION}px. Please upload a smaller image.`,
+          );
+          setTimeout(() => setShake(false), 300);
+          setSelectedFile(null);
+          onFileSelect(null);
+          return;
+        }
+
+        setError(null);
+        setSelectedFile(file);
+        onFileSelect(file);
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        setShake(true);
+        setError("Failed to load image. Please try another file.");
+        setTimeout(() => setShake(false), 300);
+        setSelectedFile(null);
+        onFileSelect(null);
+      };
+
+      img.src = url;
     },
     [onFileSelect],
   );
@@ -86,11 +116,9 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
     <div className="space-y-2">
       <div
         className={cn(
-          // Base styles
           "flex flex-col items-center justify-center w-full h-64",
           "border-2 border-dashed rounded-lg",
           "transition-all duration-300",
-          // Only show active styles when dragging
           isDragging
             ? "border-upload-active-border bg-upload-active-bg"
             : "border-upload-300 bg-upload-50",
@@ -100,7 +128,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         onDragLeave={(e) => handleDragEvents(e, false)}
         onDrop={handleDrop}
       >
-        <Image
+        <ImageIcon
           className={cn(
             "w-16 h-16 mb-4",
             "transition-all duration-300",

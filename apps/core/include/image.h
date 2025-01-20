@@ -17,6 +17,11 @@ public:
     explicit Image(const std::string &filename);
     explicit Image(const char *filename);
     explicit Image(int width, int height);
+    explicit Image(int width, int height, bool withAlpha);
+    [[nodiscard]] bool hasAlpha() const noexcept
+    {
+        return m_channels == 4;
+    }
     Image(const Image &) = default;
     Image &operator=(const Image &) = default;
     int operator-(const Image &other) const;

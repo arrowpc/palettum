@@ -83,6 +83,20 @@ def resize_image(img, width, height):
     return img
 
 
+def resize_gif(gif, width, height):
+    if width and not height:
+        aspect_ratio = gif.height() / gif.width()
+        height = int(aspect_ratio * width)
+    elif height and not width:
+        aspect_ratio = gif.width() / gif.height()
+        width = int(aspect_ratio * height)
+    if width and height:
+        if width <= 0 or height <= 0:
+            raise ValueError("Invalid dimensions after aspect ratio calculation")
+        gif.resize(width, height)
+    return gif
+
+
 def is_gif(data):
     return len(data) > 3 and data[:3] == b"GIF"
 
@@ -111,10 +125,7 @@ def upload_image():
         height = request.form.get("height", type=int)
 
         if width is not None and width <= 0:
-            return (
-                jsonify(error="Width must be a positive value"),
-                400,
-            )
+            return jsonify(error="Width must be a positive value"), 400
         if height is not None and height <= 0:
             return jsonify(error="Height must be a positive value"), 400
 
@@ -122,6 +133,10 @@ def upload_image():
             if is_gif(img_data):
                 print("Processing GIF...")
                 gif = palettum.GIF(img_data)
+
+                if width or height:
+                    gif = resize_gif(gif, width, height)
+
                 result = palettum.Palettum.convertToPalette(gif, palette)
                 gif_data = result.write()
 

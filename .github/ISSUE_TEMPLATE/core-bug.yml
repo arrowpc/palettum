@@ -1,0 +1,66 @@
+name: Core bug report
+description: Report a problem with the core palettum library
+labels: [bug, core]
+body:
+  - type: checkboxes
+    id: acknowledgments
+    attributes:
+      label: Checklist
+      description:
+      options:
+        - label: I'm reporting a problem with palettum
+          required: true
+        - label: I've verified that I'm on the default branch
+          required: true
+        - label: I've searched the [issues and pull requests](https://github.com/arrowpc/palettum/issues?q=) for similar reports
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+      description: Describe what isn't working
+      placeholder: |
+        For example:
+        - GIFs break during resize
+        - Saving image with X property isn't working properly
+        - Segfault on processing images with Y property
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Steps to trigger the problem
+      placeholder: |
+        1. Load image X
+        2. Try to Y
+        3. See error Z
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: OS/arch, Python, & compiler versions
+      placeholder: macOS 14.1 (ARM64), Python 3.13.1, Clang 16.0.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Screenshots showing the problem
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Any other relevant information
+      placeholder: Image details, system setup, attempted solutions, etc.
+    validations:
+      required: false

@@ -40,7 +40,7 @@ body:
     validations:
       required: true
 
-  - type: input
+  - type: input 
     id: versions
     attributes:
       label: OS/arch, browser, & runtime versions

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Link, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const MAX_DIMENSION = 7680;
+
 interface ImageDimensionsProps {
   file: File | null;
   onChange: (width: number | null, height: number | null) => void;
@@ -52,33 +54,48 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
     };
   }, [file, onChange]);
 
+  const clampDimension = (value: number): number => {
+    return Math.min(Math.max(1, value), MAX_DIMENSION);
+  };
+
   const handleWidthChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value;
       const numericValue = value === "" ? null : parseInt(value, 10);
 
       if (value === "" || (!isNaN(numericValue!) && numericValue! >= 0)) {
+        let newWidth = value;
         let newHeight = dimensions.height;
-        if (
-          value !== "" &&
-          keepAspectRatio &&
-          dimensions.originalAspectRatio &&
-          numericValue
-        ) {
-          const newHeightNum = Math.round(
-            numericValue / dimensions.originalAspectRatio,
-          );
-          newHeight = String(newHeightNum);
+
+        if (numericValue !== null) {
+          const clampedWidth = clampDimension(numericValue);
+          newWidth = String(clampedWidth);
+
+          if (keepAspectRatio && dimensions.originalAspectRatio) {
+            const calculatedHeight = Math.round(
+              clampedWidth / dimensions.originalAspectRatio,
+            );
+            const clampedHeight = clampDimension(calculatedHeight);
+
+            if (calculatedHeight !== clampedHeight) {
+              const recalculatedWidth = Math.round(
+                clampedHeight * dimensions.originalAspectRatio,
+              );
+              newWidth = String(clampDimension(recalculatedWidth));
+            }
+
+            newHeight = String(clampedHeight);
+          }
         }
 
         setDimensions((prev) => ({
           ...prev,
-          width: value,
+          width: newWidth,
           height: newHeight,
         }));
 
         onChange(
-          value === "" ? null : parseInt(value, 10),
+          newWidth === "" ? null : parseInt(newWidth, 10),
           newHeight === "" ? null : parseInt(newHeight, 10),
         );
       }
@@ -98,27 +115,38 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
 
       if (value === "" || (!isNaN(numericValue!) && numericValue! >= 0)) {
         let newWidth = dimensions.width;
-        if (
-          value !== "" &&
-          keepAspectRatio &&
-          dimensions.originalAspectRatio &&
-          numericValue
-        ) {
-          const newWidthNum = Math.round(
-            numericValue * dimensions.originalAspectRatio,
-          );
-          newWidth = String(newWidthNum);
+        let newHeight = value;
+
+        if (numericValue !== null) {
+          const clampedHeight = clampDimension(numericValue);
+          newHeight = String(clampedHeight);
+
+          if (keepAspectRatio && dimensions.originalAspectRatio) {
+            const calculatedWidth = Math.round(
+              clampedHeight * dimensions.originalAspectRatio,
+            );
+            const clampedWidth = clampDimension(calculatedWidth);
+
+            if (calculatedWidth !== clampedWidth) {
+              const recalculatedHeight = Math.round(
+                clampedWidth / dimensions.originalAspectRatio,
+              );
+              newHeight = String(clampDimension(recalculatedHeight));
+            }
+
+            newWidth = String(clampedWidth);
+          }
         }
 
         setDimensions((prev) => ({
           ...prev,
           width: newWidth,
-          height: value,
+          height: newHeight,
         }));
 
         onChange(
           newWidth === "" ? null : parseInt(newWidth, 10),
-          value === "" ? null : parseInt(value, 10),
+          newHeight === "" ? null : parseInt(newHeight, 10),
         );
       }
     },
@@ -145,6 +173,26 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
     !file ||
     (parseInt(dimensions.width) === dimensions.originalWidth &&
       parseInt(dimensions.height) === dimensions.originalHeight);
+
+  const handleBlur = useCallback(
+    (e: React.FocusEvent<HTMLInputElement>) => {
+      const value = e.target.value;
+      const numericValue = value === "" ? null : parseInt(value, 10);
+
+      if (numericValue !== null) {
+        if (e.target.id === "width") {
+          handleWidthChange({
+            target: { value: String(numericValue) },
+          } as React.ChangeEvent<HTMLInputElement>);
+        } else {
+          handleHeightChange({
+            target: { value: String(numericValue) },
+          } as React.ChangeEvent<HTMLInputElement>);
+        }
+      }
+    },
+    [handleWidthChange, handleHeightChange],
+  );
 
   return (
     <div>
@@ -178,7 +226,9 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 type="number"
                 value={dimensions.width}
                 onChange={handleWidthChange}
+                onBlur={handleBlur}
                 min="1"
+                max={MAX_DIMENSION}
                 placeholder="Width"
                 className="w-20 p-1 text-sm text-left focus:outline-none bg-control rounded-lg overflow-hidden text-ellipsis"
               />
@@ -192,7 +242,9 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 type="number"
                 value={dimensions.height}
                 onChange={handleHeightChange}
+                onBlur={handleBlur}
                 min="1"
+                max={MAX_DIMENSION}
                 placeholder="Height"
                 className="w-20 p-1 text-sm text-left focus:outline-none bg-control rounded-lg overflow-hidden text-ellipsis"
               />

@@ -77,8 +77,11 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
       const link = document.createElement("a");
       link.href = processedImageUrl;
 
+      const originalExtension = file.name.split(".").pop()?.toLowerCase() || "";
       const baseFileName = file.name.replace(/\.[^/.]+$/, "");
-      link.download = `palettified-${baseFileName}.png`;
+
+      const outputExtension = originalExtension === "gif" ? "gif" : "png";
+      link.download = `palettified-${baseFileName}.${outputExtension}`;
 
       document.body.appendChild(link);
       link.click();

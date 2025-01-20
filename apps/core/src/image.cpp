@@ -106,14 +106,19 @@ bool Image::write(const char *filename) const
 
 bool Image::resize(int width, int height)
 {
-    bool res =
-        stbir_resize_uint8_linear(m_data.data(), m_width, m_height, 0,
-                                  m_data.data(), width, height, 0, STBIR_RGB);
+    std::vector<uint8_t> new_data(width * height * m_channels);
+
+    bool res = stbir_resize_uint8_linear(
+        m_data.data(), m_width, m_height, m_width * m_channels, new_data.data(),
+        width, height, width * m_channels, STBIR_RGB);
+
     if (res)
     {
+        m_data = std::move(new_data);
         m_width = width;
         m_height = height;
     }
+
     return res;
 }
 

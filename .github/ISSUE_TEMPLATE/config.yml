@@ -1,0 +1,20 @@
+blank_issues_enabled: true
+
+new_issue_template_picker:
+  enabled: true
+  templates:
+    - name: Frontend bug report
+      filepath: frontend-bug.yml
+      about: Report bugs related to the frontend
+
+    - name: Core bug report
+      filepath: core-bug.yml
+      about: Report bugs related to the core library
+
+    - name: API bug report
+      filepath: api-bug.yml
+      about: Report bugs related to the API
+
+    - name: Bug report
+      filepath: bug-report.yml
+      about: Report general bugs that don't fit other categories (mainly useful for bugs related to the interaction/combination of apps)

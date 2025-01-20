@@ -1,0 +1,66 @@
+name: API bug report
+description: Report a problem with the palettum API
+labels: [bug, api]
+body:
+  - type: checkboxes
+    id: acknowledgments
+    attributes:
+      label: Checklist
+      description:
+      options:
+        - label: I'm reporting a problem with palettum
+          required: true
+        - label: I've verified that I'm on the default branch
+          required: true
+        - label: I've searched the [issues and pull requests](https://github.com/arrowpc/palettum/issues?q=) for similar reports
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem description
+      description: Describe what isn't working
+      placeholder: |
+        For example:
+        - Endpoint returns wrong data
+        - Request times out
+        - Authentication fails
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Steps to trigger the problem. If you can, include headers, payload, etc.
+      placeholder: |
+        1. Send request to endpoint X
+        2. With payload Y
+        3. See error Z
+    validations:
+      required: true
+
+  - type: input
+    id: versions
+    attributes:
+      label: OS/arch & Python versions
+      placeholder: macOS 14.1 (ARM64), Python 3.13.1
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Screenshots showing the problem
+    validations:
+      required: false
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Any other relevant information
+      placeholder: System setup, attempted solutions, etc.
+    validations:
+      required: false

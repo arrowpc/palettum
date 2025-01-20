@@ -45,7 +45,7 @@ body:
     attributes:
       label: OS/arch, browser, & runtime versions
       placeholder: macOS 14.1 (ARM64), Chromium Engine Version 132.0.6834.84, Bun 1.0.21
-     validations:
+    validations:
       required: true
 
   - type: textarea

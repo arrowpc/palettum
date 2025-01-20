@@ -108,18 +108,31 @@ bool Image::resize(int width, int height)
 {
     std::vector<uint8_t> new_data(width * height * m_channels);
 
-    bool res = stbir_resize_uint8_linear(
-        m_data.data(), m_width, m_height, m_width * m_channels, new_data.data(),
-        width, height, width * m_channels, STBIR_RGB);
+    double x_ratio = static_cast<double>(m_width) / width;
+    double y_ratio = static_cast<double>(m_height) / height;
 
-    if (res)
+    for (int y = 0; y < height; y++)
     {
-        m_data = std::move(new_data);
-        m_width = width;
-        m_height = height;
+        for (int x = 0; x < width; x++)
+        {
+            int src_x = static_cast<int>(x * x_ratio);
+            int src_y = static_cast<int>(y * y_ratio);
+
+            int src_pos = (src_y * m_width + src_x) * m_channels;
+            int dst_pos = (y * width + x) * m_channels;
+
+            for (int c = 0; c < m_channels; c++)
+            {
+                new_data[dst_pos + c] = m_data[src_pos + c];
+            }
+        }
     }
 
-    return res;
+    m_data = std::move(new_data);
+    m_width = width;
+    m_height = height;
+
+    return true;
 }
 
 RGB Image::get(int x, int y) const
@@ -786,78 +799,6 @@ GIF::Frame &GIF::getFrame(size_t index)
     return m_frames[index];
 }
 
-GifByteType GIF::Frame::findOrAddColor(const RGB &color)
-{
-    std::cout << "Attempting to add color RGB(" << (int)color.red() << ","
-              << (int)color.green() << "," << (int)color.blue() << ")\n";
-
-    if (!colorMap)
-    {
-        std::cout << "No colormap exists, creating new one\n";
-        ColorMapObject *newMap = GifMakeMapObject(256, nullptr);
-        if (!newMap)
-        {
-            throw std::runtime_error("Failed to create color map");
-        }
-        colorMap.reset(newMap);
-        newMap->Colors[0].Red = color.red();
-        newMap->Colors[0].Green = color.green();
-        newMap->Colors[0].Blue = color.blue();
-        newMap->ColorCount = 1;
-        std::cout << "Added as first color at index 0\n";
-        return 0;
-    }
-
-    std::cout << "Existing colormap found with " << colorMap->ColorCount
-              << " colors\n";
-
-    for (int i = 0; i < colorMap->ColorCount; i++)
-    {
-        if (colorMap->Colors[i].Red == color.red() &&
-            colorMap->Colors[i].Green == color.green() &&
-            colorMap->Colors[i].Blue == color.blue())
-        {
-            std::cout << "Found exact match at index " << i << "\n";
-            return i;
-        }
-    }
-
-    if (colorMap->ColorCount < 256)
-    {
-        int newIndex = colorMap->ColorCount;
-        colorMap->Colors[newIndex].Red = color.red();
-        colorMap->Colors[newIndex].Green = color.green();
-        colorMap->Colors[newIndex].Blue = color.blue();
-        colorMap->ColorCount++;
-        std::cout << "Added new color at index " << newIndex << "\n";
-        return newIndex;
-    }
-
-    int bestIndex = 0;
-    int bestDiff = INT_MAX;
-
-    for (int i = 0; i < colorMap->ColorCount; i++)
-    {
-        int redDiff = abs(colorMap->Colors[i].Red - color.red());
-        int greenDiff = abs(colorMap->Colors[i].Green - color.green());
-        int blueDiff = abs(colorMap->Colors[i].Blue - color.blue());
-        int totalDiff = redDiff + greenDiff + blueDiff;
-
-        if (totalDiff < bestDiff)
-        {
-            bestDiff = totalDiff;
-            bestIndex = i;
-        }
-    }
-
-    std::cout << "Palette full, using closest color at index " << bestIndex
-              << " RGB(" << (int)colorMap->Colors[bestIndex].Red << ","
-              << (int)colorMap->Colors[bestIndex].Green << ","
-              << (int)colorMap->Colors[bestIndex].Blue << ")\n";
-
-    return bestIndex;
-}
-
 void GIF::setPalette(size_t frameIndex, const std::vector<RGB> &palette)
 {
     if (frameIndex >= m_frames.size())
@@ -1193,4 +1134,42 @@ std::vector<unsigned char> GIF::write() const
     }
 
     return result;
+}
+
+bool GIF::resize(int width, int height)
+{
+    if (width <= 0 || height <= 0)
+    {
+        return false;
+    }
+
+    double x_ratio = static_cast<double>(m_width) / width;
+    double y_ratio = static_cast<double>(m_height) / height;
+
+    for (Frame &frame : m_frames)
+    {
+        if (!frame.image.resize(width, height))
+        {
+            return false;
+        }
+
+        std::vector<GifByteType> new_indices(width * height);
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int src_x = static_cast<int>(x * x_ratio);
+                int src_y = static_cast<int>(y * y_ratio);
+                new_indices[y * width + x] =
+                    frame.indices[src_y * m_width + src_x];
+            }
+        }
+
+        frame.indices = std::move(new_indices);
+    }
+
+    m_width = width;
+    m_height = height;
+    return true;
 }

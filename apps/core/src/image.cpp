@@ -6,8 +6,8 @@
 Image::Image(const unsigned char *buffer, int length)
 {
     int width, height, channels;
-    uint8_t *data = stbi_load_from_memory(buffer, length, &width, &height,
-                                          &channels, STBI_rgb);
+    uint8_t *data =
+        stbi_load_from_memory(buffer, length, &width, &height, &channels, 0);
     if (!data)
     {
         throw std::runtime_error(
@@ -16,8 +16,8 @@ Image::Image(const unsigned char *buffer, int length)
     }
     m_width = width;
     m_height = height;
-    m_channels = 3;
-    m_data.assign(data, data + (width * height * m_channels));
+    m_channels = channels;
+    m_data.assign(data, data + (width * height * channels));
     stbi_image_free(data);
 }
 
@@ -29,7 +29,7 @@ Image::Image(const std::string &filename)
 Image::Image(const char *filename)
 {
     unsigned char *data =
-        stbi_load(filename, &m_width, &m_height, &m_channels, 3);
+        stbi_load(filename, &m_width, &m_height, &m_channels, 0);
     if (!data)
     {
         throw std::runtime_error("Failed to load image: " +
@@ -43,6 +43,14 @@ Image::Image(int width, int height)
     : m_width(width)
     , m_height(height)
     , m_data(size())
+{
+}
+
+Image::Image(int width, int height, bool withAlpha)
+    : m_width(width)
+    , m_height(height)
+    , m_channels(withAlpha ? 4 : 3)
+    , m_data(width * height * (withAlpha ? 4 : 3))
 {
 }
 
@@ -139,16 +147,32 @@ RGB Image::get(int x, int y) const
 {
     validateCoordinates(x, y);
     size_t pos = (y * m_width + x) * m_channels;
+    if (m_channels == 4)
+    {
+        return RGBA(m_data[pos], m_data[pos + 1], m_data[pos + 2],
+                    m_data[pos + 3]);
+    }
     return RGB(m_data[pos], m_data[pos + 1], m_data[pos + 2]);
 }
 
-void Image::set(int x, int y, const RGB &RGB)
+void Image::set(int x, int y, const RGB &color)
 {
     validateCoordinates(x, y);
     size_t pos = (y * m_width + x) * m_channels;
-    m_data[pos] = RGB.red();
-    m_data[pos + 1] = RGB.green();
-    m_data[pos + 2] = RGB.blue();
+    m_data[pos] = color.red();
+    m_data[pos + 1] = color.green();
+    m_data[pos + 2] = color.blue();
+    if (m_channels == 4)
+    {
+        if (const RGBA *rgba = dynamic_cast<const RGBA *>(&color))
+        {
+            m_data[pos + 3] = rgba->alpha();
+        }
+        else
+        {
+            m_data[pos + 3] = 255;
+        }
+    }
 }
 
 int Image::width() const noexcept

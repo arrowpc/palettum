@@ -64,7 +64,6 @@ public:
 
         void setPixel(int x, int y, const RGB &color, GifByteType index);
         [[nodiscard]] GifByteType getIndex(int x, int y) const;
-        GifByteType findOrAddColor(const RGB &color);
     };
 
     explicit GIF(const std::string &filename);
@@ -88,6 +87,8 @@ public:
     bool write(const char *filename) const;
     [[nodiscard]] bool write(const std::string &filename) const;
     std::vector<unsigned char> write() const;
+
+    bool resize(int width, int height);
 
     [[nodiscard]] int width() const noexcept;
     [[nodiscard]] int height() const noexcept;

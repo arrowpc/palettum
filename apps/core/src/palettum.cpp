@@ -128,10 +128,13 @@ bool Palettum::validateImageColors(Image &image, std::vector<RGB> &palette)
     {
         for (int x = 0; x < width; ++x)
         {
+            const RGBA currentPixel = image.get(x, y);
             bool foundMatch = false;
             for (const auto &color : palette)
             {
-                if (image.get(x, y) == color)
+                if (currentPixel.red() == color.red() &&
+                    currentPixel.green() == color.green() &&
+                    currentPixel.blue() == color.blue())
                     foundMatch = true;
             }
             if (!foundMatch)

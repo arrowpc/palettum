@@ -16,7 +16,8 @@ public:
     Palettum() = default;
     static Image convertToPalette(Image &image, std::vector<RGB> &palette,
                                   int transparent_threshold = 128);
-    static GIF convertToPalette(GIF &gif, std::vector<RGB> &palette);
+    static GIF convertToPalette(GIF &gif, std::vector<RGB> &palette,
+                                int transparent_threshold = 128);
 
     static bool validateImageColors(Image &image, std::vector<RGB> &palette);
 };

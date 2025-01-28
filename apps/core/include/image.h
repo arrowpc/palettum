@@ -31,8 +31,9 @@ public:
     bool write(const char *filename) const;
 
     bool resize(int width, int height);
-    [[nodiscard]] RGB get(int x, int y) const;
-    void set(int x, int y, const RGB &RGB);
+    [[nodiscard]] RGBA get(int x, int y) const;
+    void set(int x, int y, const RGBA &color);
+    void set(int x, int y, const RGB &color);
     [[nodiscard]] int width() const noexcept;
     [[nodiscard]] int height() const noexcept;
     [[nodiscard]] int channels() const noexcept;
@@ -67,6 +68,7 @@ public:
         Frame(const Frame &other);
         Frame(Frame &&) noexcept = default;
 
+        void setPixel(int x, int y, const RGBA &color, GifByteType index);
         void setPixel(int x, int y, const RGB &color, GifByteType index);
         [[nodiscard]] GifByteType getIndex(int x, int y) const;
     };
@@ -82,6 +84,7 @@ public:
     GIF(GIF &&) noexcept = default;
 
     void setPalette(size_t frameIndex, const std::vector<RGB> &palette);
+    void setPixel(size_t frameIndex, int x, int y, const RGBA &color);
     void setPixel(size_t frameIndex, int x, int y, const RGB &color);
     [[nodiscard]] size_t frameCount() const;
 

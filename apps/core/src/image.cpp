@@ -592,7 +592,7 @@ GIF::GIF(const unsigned char *buffer, int length)
     {
         SavedImage *savedImage = &gif->SavedImages[i];
 
-        Image frameImage(m_width, m_height);
+        Image frameImage(m_width, m_height, true);
         Frame frame(frameImage);
 
         frame.x_offset = savedImage->ImageDesc.Left;
@@ -681,32 +681,20 @@ GIF::GIF(const unsigned char *buffer, int length)
                         idx != frame.transparent_index)
                     {
                         GifColorType &color = colorMap->Colors[idx];
-                        RGB pixelColor(color.Red, color.Green, color.Blue);
-                        int pos = (y * m_width + x) * 3;
-                        compositeBuffer[pos] = color.Red;
-                        compositeBuffer[pos + 1] = color.Green;
-                        compositeBuffer[pos + 2] = color.Blue;
-                        compositeIndices[y * m_width + x] = idx;
-                        frame.setPixel(x, y, pixelColor, idx);
+                        frame.setPixel(
+                            x, y, RGBA(color.Red, color.Green, color.Blue, 255),
+                            idx);
                     }
                     else
                     {
-                        int pos = (y * m_width + x) * 3;
-                        RGB pixelColor(compositeBuffer[pos],
-                                       compositeBuffer[pos + 1],
-                                       compositeBuffer[pos + 2]);
-                        frame.setPixel(x, y, pixelColor,
-                                       compositeIndices[y * m_width + x]);
+                        frame.setPixel(x, y, RGBA(0, 0, 0, 0),
+                                       frame.transparent_index);
                     }
                 }
                 else
                 {
-                    int pos = (y * m_width + x) * 3;
-                    RGB pixelColor(compositeBuffer[pos],
-                                   compositeBuffer[pos + 1],
-                                   compositeBuffer[pos + 2]);
-                    frame.setPixel(x, y, pixelColor,
-                                   compositeIndices[y * m_width + x]);
+                    frame.setPixel(x, y, RGBA(0, 0, 0, 0),
+                                   frame.transparent_index);
                 }
             }
         }

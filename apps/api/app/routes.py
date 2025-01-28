@@ -152,7 +152,15 @@ def upload_image():
                 if width or height:
                     gif = resize_gif(gif, width, height)
 
-                result = palettum.Palettum.convertToPalette(gif, palette)
+                if "transparent_threshold" not in request.files:
+                    result = palettum.Palettum.convertToPalette(gif, palette)
+                else:
+                    result = palettum.Palettum.convertToPalette(
+                        gif,
+                        palette,
+                        request.form.get("transparent_threshold", type=int),
+                    )
+
                 gif_data = result.write()
 
                 if not gif_data:
@@ -167,7 +175,14 @@ def upload_image():
                 if width or height:
                     img = resize_image(img, width, height)
 
-                result = palettum.Palettum.convertToPalette(img, palette)
+                if "transparent_threshold" not in request.files:
+                    result = palettum.Palettum.convertToPalette(img, palette)
+                else:
+                    result = palettum.Palettum.convertToPalette(
+                        img,
+                        palette,
+                        request.form.get("transparent_threshold", type=int),
+                    )
                 png_data = result.write()
 
                 if not png_data:

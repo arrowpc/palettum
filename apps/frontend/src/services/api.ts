@@ -16,6 +16,7 @@ export async function processImage(
   colors: Color[],
   width?: number,
   height?: number,
+  transparentThreshold?: number,
 ): Promise<Blob> {
   const formData = new FormData();
   formData.append("image", image);
@@ -28,6 +29,8 @@ export async function processImage(
 
   if (width) formData.append("width", width.toString());
   if (height) formData.append("height", height.toString());
+  if (transparentThreshold !== undefined)
+    formData.append("transparent_threshold", transparentThreshold.toString());
 
   try {
     const response = await fetch("/api/upload", {

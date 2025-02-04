@@ -4,6 +4,7 @@ import ImageDimensions from "@/components/ImageDimensions";
 import PaletteManager from "@/components/PaletteManager";
 import PalettifyImage from "@/components/PalettifyImage";
 import type { PaletteColor } from "@/services/api";
+import TransparencyThreshold from "@/components/TransparencyThreshold";
 
 function App() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -12,6 +13,7 @@ function App() {
     height: null as number | null,
   });
   const [selectedPalette, setSelectedPalette] = useState<PaletteColor[]>([]);
+  const [transparentThreshold, setTransparentThreshold] = useState<number>(0);
 
   const handleFileSelect = useCallback((file: File | null) => {
     setUploadedFile(file);
@@ -24,6 +26,9 @@ function App() {
     [],
   );
 
+  const handleThresholdChange = useCallback((newThreshold: number) => {
+    setTransparentThreshold(newThreshold);
+  }, []);
   const handlePaletteSelect = useCallback((colors: PaletteColor[]) => {
     setSelectedPalette(colors);
   }, []);
@@ -32,10 +37,12 @@ function App() {
     <div className="max-w-xl mx-auto p-6 space-y-6">
       <ImageUpload onFileSelect={handleFileSelect} />
       <ImageDimensions file={uploadedFile} onChange={handleDimensionsChange} />
+      <TransparencyThreshold onChange={handleThresholdChange} />
       <PaletteManager onPaletteSelect={handlePaletteSelect} />
       <PalettifyImage
         file={uploadedFile}
         dimensions={dimensions}
+        transparentThreshold={transparentThreshold}
         palette={selectedPalette}
       />
     </div>

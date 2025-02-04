@@ -14,12 +14,12 @@ PYBIND11_MODULE(palettum, m)
                     py::overload_cast<Image &, std::vector<RGB> &, int>(
                         &Palettum::convertToPalette),
                     py::arg("image"), py::arg("palette"),
-                    py::arg("transparent_threshold") = 128)
+                    py::arg("transparent_threshold") = 0)
         .def_static("convertToPalette",
                     py::overload_cast<GIF &, std::vector<RGB> &, int>(
                         &Palettum::convertToPalette),
                     py::arg("gif"), py::arg("palette"),
-                    py::arg("transparent_threshold") = 128)
+                    py::arg("transparent_threshold") = 0)
         .def_static("validateImageColors", &Palettum::validateImageColors);
 
     py::class_<RGB>(m, "RGB")

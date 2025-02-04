@@ -23,7 +23,7 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
         {
             RGBA currentPixel = image.get(x, y);
 
-            if (currentPixel.alpha() <= transparent_threshold)
+            if (currentPixel.alpha() < transparent_threshold)
             {
                 result.set(x, y, RGBA(0, 0, 0, 0));
                 continue;
@@ -88,7 +88,7 @@ GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette,
             {
                 RGBA currentPixel = sourceFrame.image.get(x, y);
 
-                if (currentPixel.alpha() <= transparent_threshold)
+                if (currentPixel.alpha() < transparent_threshold)
                 {
                     result.setPixel(frameIndex, x, y, RGBA(0, 0, 0, 0));
                     continue;

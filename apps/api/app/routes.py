@@ -9,6 +9,7 @@ import palettum
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg"}
 MAX_DIMENSION = 7680
+MAX_THRESHOLD = 255
 
 
 def require_api_key(f):
@@ -64,6 +65,13 @@ def validate_dimensions(width: int | None, height: int | None) -> None:
             raise ValueError("Height must be positive")
         if height > MAX_DIMENSION:
             raise ValueError(f"Height cannot exceed {MAX_DIMENSION} pixels")
+
+
+def validate_threshold(transparent_threshold: int) -> None:
+    if transparent_threshold < 0:
+        raise ValueError("Transparency threshold must be positive")
+    if transparent_threshold > MAX_THRESHOLD:
+        raise ValueError(f"Transparency threshold cannot exceed {MAX_THRESHOLD}")
 
 
 def parse_palette(palette_file):
@@ -144,22 +152,24 @@ def upload_image():
         width = request.form.get("width", type=int)
         height = request.form.get("height", type=int)
 
+        transparent_threshold = request.form.get("transparent_threshold", type=int)
+        if transparent_threshold:
+            validate_threshold(transparent_threshold)
+        else:
+            transparent_threshold = 0
+
         try:
             if is_gif(img_data):
                 print("Processing GIF...")
                 gif = palettum.GIF(img_data)
 
                 if width or height:
+                    # TODO: Dimension validation should happen before processing/loading
                     gif = resize_gif(gif, width, height)
 
-                if "transparent_threshold" not in request.files:
-                    result = palettum.Palettum.convertToPalette(gif, palette)
-                else:
-                    result = palettum.Palettum.convertToPalette(
-                        gif,
-                        palette,
-                        request.form.get("transparent_threshold", type=int),
-                    )
+                result = palettum.Palettum.convertToPalette(
+                    gif, palette, transparent_threshold
+                )
 
                 gif_data = result.write()
 
@@ -175,14 +185,9 @@ def upload_image():
                 if width or height:
                     img = resize_image(img, width, height)
 
-                if "transparent_threshold" not in request.files:
-                    result = palettum.Palettum.convertToPalette(img, palette)
-                else:
-                    result = palettum.Palettum.convertToPalette(
-                        img,
-                        palette,
-                        request.form.get("transparent_threshold", type=int),
-                    )
+                result = palettum.Palettum.convertToPalette(
+                    img, palette, transparent_threshold
+                )
                 png_data = result.write()
 
                 if not png_data:

@@ -1,6 +1,6 @@
 {
-  "name": "Palettum",
-  "short_name": "Palettum",
+  "name": "MyWebSite",
+  "short_name": "MySite",
   "icons": [
     {
       "src": "/web-app-manifest-192x192.png",
@@ -15,7 +15,7 @@
       "purpose": "maskable"
     }
   ],
-  "theme_color": "#1e1e2e",
-  "background_color": "#1e1e2e",
+  "theme_color": "#ffffff",
+  "background_color": "#ffffff",
   "display": "standalone"
 }

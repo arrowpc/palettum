@@ -4,7 +4,7 @@ import ImageDimensions from "@/components/ImageDimensions";
 import PaletteManager from "@/components/PaletteManager";
 import PalettifyImage from "@/components/PalettifyImage";
 import type { PaletteColor } from "@/services/api";
-import TransparencyThreshold from "@/components/TransparencyThreshold";
+import ImageTransparency from "@/components/ImageTransparency";
 
 function App() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -37,7 +37,10 @@ function App() {
     <div className="max-w-xl mx-auto p-6 space-y-6">
       <ImageUpload onFileSelect={handleFileSelect} />
       <ImageDimensions file={uploadedFile} onChange={handleDimensionsChange} />
-      <TransparencyThreshold onChange={handleThresholdChange} />
+      <ImageTransparency
+        file={uploadedFile}
+        transThreshold={handleThresholdChange}
+      />
       <PaletteManager onPaletteSelect={handlePaletteSelect} />
       <PalettifyImage
         file={uploadedFile}

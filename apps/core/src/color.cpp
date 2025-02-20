@@ -389,3 +389,10 @@ std::ostream &operator<<(std::ostream &os, const RGB &RGB)
               << static_cast<int>(RGB.m_g) << ", " << static_cast<int>(RGB.m_b)
               << ")";
 }
+
+RGBA::RGBA(unsigned char r, unsigned char g, unsigned char b,
+           unsigned char a) noexcept
+    : RGB(r, g, b)
+    , m_a(a)
+{
+}

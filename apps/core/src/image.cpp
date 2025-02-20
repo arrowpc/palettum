@@ -6,8 +6,8 @@
 Image::Image(const unsigned char *buffer, int length)
 {
     int width, height, channels;
-    uint8_t *data = stbi_load_from_memory(buffer, length, &width, &height,
-                                          &channels, STBI_rgb);
+    uint8_t *data =
+        stbi_load_from_memory(buffer, length, &width, &height, &channels, 0);
     if (!data)
     {
         throw std::runtime_error(
@@ -16,8 +16,8 @@ Image::Image(const unsigned char *buffer, int length)
     }
     m_width = width;
     m_height = height;
-    m_channels = 3;
-    m_data.assign(data, data + (width * height * m_channels));
+    m_channels = channels;
+    m_data.assign(data, data + (width * height * channels));
     stbi_image_free(data);
 }
 
@@ -29,7 +29,7 @@ Image::Image(const std::string &filename)
 Image::Image(const char *filename)
 {
     unsigned char *data =
-        stbi_load(filename, &m_width, &m_height, &m_channels, 3);
+        stbi_load(filename, &m_width, &m_height, &m_channels, 0);
     if (!data)
     {
         throw std::runtime_error("Failed to load image: " +
@@ -43,6 +43,14 @@ Image::Image(int width, int height)
     : m_width(width)
     , m_height(height)
     , m_data(size())
+{
+}
+
+Image::Image(int width, int height, bool withAlpha)
+    : m_width(width)
+    , m_height(height)
+    , m_channels(withAlpha ? 4 : 3)
+    , m_data(width * height * (withAlpha ? 4 : 3))
 {
 }
 
@@ -135,20 +143,41 @@ bool Image::resize(int width, int height)
     return true;
 }
 
-RGB Image::get(int x, int y) const
+RGBA Image::get(int x, int y) const
 {
     validateCoordinates(x, y);
     size_t pos = (y * m_width + x) * m_channels;
-    return RGB(m_data[pos], m_data[pos + 1], m_data[pos + 2]);
+    if (m_channels == 4)
+    {
+        return RGBA(m_data[pos], m_data[pos + 1], m_data[pos + 2],
+                    m_data[pos + 3]);
+    }
+    return RGBA(m_data[pos], m_data[pos + 1], m_data[pos + 2], 255);
 }
 
-void Image::set(int x, int y, const RGB &RGB)
+void Image::set(int x, int y, const RGBA &color)
+{
+    if (m_channels != 4)
+        throw std::logic_error(
+            "Image does not have an alpha channel. Use Image::set instead.");
+
+    validateCoordinates(x, y);
+    size_t pos = (y * m_width + x) * m_channels;
+    m_data[pos] = color.red();
+    m_data[pos + 1] = color.green();
+    m_data[pos + 2] = color.blue();
+    m_data[pos + 3] = color.alpha();
+}
+
+void Image::set(int x, int y, const RGB &color)
 {
     validateCoordinates(x, y);
     size_t pos = (y * m_width + x) * m_channels;
-    m_data[pos] = RGB.red();
-    m_data[pos + 1] = RGB.green();
-    m_data[pos + 2] = RGB.blue();
+    m_data[pos] = color.red();
+    m_data[pos + 1] = color.green();
+    m_data[pos + 2] = color.blue();
+    if (m_channels == 4)
+        m_data[pos + 3] = 255;
 }
 
 int Image::width() const noexcept
@@ -199,6 +228,12 @@ GIF::Frame::Frame(const Image &img)
     : image(img)
     , colorMap(nullptr, GifFreeMapObject)
     , delay_cs(10)
+    , disposal_method(0)
+    , transparent_index(0)
+    , has_transparency(img.hasAlpha())
+    , x_offset(0)
+    , y_offset(0)
+    , is_interlaced(false)
 {
     indices.resize(img.width() * img.height());
 }
@@ -232,6 +267,12 @@ GIF::Frame::Frame(const Frame &other)
 
         colorMap.reset(newMap);
     }
+}
+
+void GIF::Frame::setPixel(int x, int y, const RGBA &color, GifByteType index)
+{
+    image.set(x, y, color);
+    indices[y * image.width() + x] = index;
 }
 
 void GIF::Frame::setPixel(int x, int y, const RGB &color, GifByteType index)
@@ -329,7 +370,7 @@ GIF::GIF(const char *filename)
     {
         SavedImage *savedImage = &gif->SavedImages[i];
 
-        Image frameImage(m_width, m_height);
+        Image frameImage(m_width, m_height, true);
         Frame frame(frameImage);
 
         frame.x_offset = savedImage->ImageDesc.Left;
@@ -418,32 +459,20 @@ GIF::GIF(const char *filename)
                         idx != frame.transparent_index)
                     {
                         GifColorType &color = colorMap->Colors[idx];
-                        RGB pixelColor(color.Red, color.Green, color.Blue);
-                        int pos = (y * m_width + x) * 3;
-                        compositeBuffer[pos] = color.Red;
-                        compositeBuffer[pos + 1] = color.Green;
-                        compositeBuffer[pos + 2] = color.Blue;
-                        compositeIndices[y * m_width + x] = idx;
-                        frame.setPixel(x, y, pixelColor, idx);
+                        frame.setPixel(
+                            x, y, RGBA(color.Red, color.Green, color.Blue, 255),
+                            idx);
                     }
                     else
                     {
-                        int pos = (y * m_width + x) * 3;
-                        RGB pixelColor(compositeBuffer[pos],
-                                       compositeBuffer[pos + 1],
-                                       compositeBuffer[pos + 2]);
-                        frame.setPixel(x, y, pixelColor,
-                                       compositeIndices[y * m_width + x]);
+                        frame.setPixel(x, y, RGBA(0, 0, 0, 0),
+                                       frame.transparent_index);
                     }
                 }
                 else
                 {
-                    int pos = (y * m_width + x) * 3;
-                    RGB pixelColor(compositeBuffer[pos],
-                                   compositeBuffer[pos + 1],
-                                   compositeBuffer[pos + 2]);
-                    frame.setPixel(x, y, pixelColor,
-                                   compositeIndices[y * m_width + x]);
+                    frame.setPixel(x, y, RGBA(0, 0, 0, 0),
+                                   frame.transparent_index);
                 }
             }
         }
@@ -563,7 +592,7 @@ GIF::GIF(const unsigned char *buffer, int length)
     {
         SavedImage *savedImage = &gif->SavedImages[i];
 
-        Image frameImage(m_width, m_height);
+        Image frameImage(m_width, m_height, true);
         Frame frame(frameImage);
 
         frame.x_offset = savedImage->ImageDesc.Left;
@@ -652,32 +681,20 @@ GIF::GIF(const unsigned char *buffer, int length)
                         idx != frame.transparent_index)
                     {
                         GifColorType &color = colorMap->Colors[idx];
-                        RGB pixelColor(color.Red, color.Green, color.Blue);
-                        int pos = (y * m_width + x) * 3;
-                        compositeBuffer[pos] = color.Red;
-                        compositeBuffer[pos + 1] = color.Green;
-                        compositeBuffer[pos + 2] = color.Blue;
-                        compositeIndices[y * m_width + x] = idx;
-                        frame.setPixel(x, y, pixelColor, idx);
+                        frame.setPixel(
+                            x, y, RGBA(color.Red, color.Green, color.Blue, 255),
+                            idx);
                     }
                     else
                     {
-                        int pos = (y * m_width + x) * 3;
-                        RGB pixelColor(compositeBuffer[pos],
-                                       compositeBuffer[pos + 1],
-                                       compositeBuffer[pos + 2]);
-                        frame.setPixel(x, y, pixelColor,
-                                       compositeIndices[y * m_width + x]);
+                        frame.setPixel(x, y, RGBA(0, 0, 0, 0),
+                                       frame.transparent_index);
                     }
                 }
                 else
                 {
-                    int pos = (y * m_width + x) * 3;
-                    RGB pixelColor(compositeBuffer[pos],
-                                   compositeBuffer[pos + 1],
-                                   compositeBuffer[pos + 2]);
-                    frame.setPixel(x, y, pixelColor,
-                                   compositeIndices[y * m_width + x]);
+                    frame.setPixel(x, y, RGBA(0, 0, 0, 0),
+                                   frame.transparent_index);
                 }
             }
         }
@@ -747,7 +764,7 @@ void GIF::readExtensions(SavedImage *saved_image, Frame &frame)
         {
             frame.disposal_method = (ext->Bytes[0] >> 2) & 0x07;
             frame.has_transparency = (ext->Bytes[0] & 0x01) == 1;
-            frame.delay_cs = (ext->Bytes[2] << 8) | ext->Bytes[1];
+            frame.delay_cs = ext->Bytes[1] | (ext->Bytes[2] << 8);
             frame.transparent_index =
                 frame.has_transparency ? ext->Bytes[3] : -1;
         }
@@ -834,6 +851,41 @@ void GIF::setPalette(size_t frameIndex, const std::vector<RGB> &palette)
     frame.colorMap.reset(newMap);
 }
 
+void GIF::setPixel(size_t frameIndex, int x, int y, const RGBA &color)
+{
+    if (frameIndex >= m_frames.size())
+    {
+        throw std::out_of_range("Frame index out of bounds");
+    }
+
+    Frame &frame = m_frames[frameIndex];
+    ColorMapObject *colorMap =
+        frame.colorMap ? frame.colorMap.get() : m_globalColorMap.get();
+    if (!colorMap)
+    {
+        throw std::runtime_error("No color map available");
+    }
+
+    if (color.alpha() == 0)
+    {
+        frame.setPixel(x, y, color, frame.transparent_index);
+        return;
+    }
+
+    for (int i = 0; i < colorMap->ColorCount; i++)
+    {
+        if (colorMap->Colors[i].Red == color.red() &&
+            colorMap->Colors[i].Green == color.green() &&
+            colorMap->Colors[i].Blue == color.blue())
+        {
+            frame.setPixel(x, y, color, i);
+            return;
+        }
+    }
+
+    throw std::runtime_error("Color not found in palette");
+}
+
 void GIF::setPixel(size_t frameIndex, int x, int y, const RGB &color)
 {
     if (frameIndex >= m_frames.size())
@@ -862,6 +914,7 @@ void GIF::setPixel(size_t frameIndex, int x, int y, const RGB &color)
 
     throw std::runtime_error("Color not found in palette");
 }
+
 bool GIF::write(const std::string &filename) const
 {
     return write(filename.c_str());
@@ -892,65 +945,56 @@ bool GIF::write(const char *filename) const
         return false;
     }
 
-    std::vector<GifByteType> currentIndices(m_width * m_height,
-                                            m_background_color_index);
-
     for (const auto &frame : m_frames)
     {
-        std::vector<GifByteType> nextIndices = currentIndices;
+        unsigned char extension[4];
+        extension[0] = 0x01;
+        if (frame.has_transparency)
+        {
+            extension[0] |= 0x01;
+        }
+        extension[0] |= (frame.disposal_method & 0x07)
+                        << 2;  // Set disposal method
+        extension[1] = frame.delay_cs & 0xFF;
+        extension[2] = (frame.delay_cs >> 8) & 0xFF;
+        extension[3] = frame.transparent_index;
+
+        if (EGifPutExtension(gif, GRAPHICS_EXT_FUNC_CODE, 4, extension) !=
+            GIF_OK)
+        {
+            EGifCloseFile(gif, &error);
+            return false;
+        }
 
         int minX = m_width, minY = m_height, maxX = 0, maxY = 0;
-        bool hasChanges = false;
+        bool hasVisiblePixels = false;
 
-        for (int y = 0; y < m_height; y++)
+        for (int y = 0; y < frame.image.height(); y++)
         {
-            for (int x = 0; x < m_width; x++)
+            for (int x = 0; x < frame.image.width(); x++)
             {
-                GifByteType newIndex = frame.indices[y * m_width + x];
-                if (newIndex != currentIndices[y * m_width + x])
+                if (!frame.has_transparency ||
+                    frame.indices[y * frame.image.width() + x] !=
+                        frame.transparent_index)
                 {
-                    hasChanges = true;
                     minX = std::min(minX, x);
                     minY = std::min(minY, y);
                     maxX = std::max(maxX, x);
                     maxY = std::max(maxY, y);
-                    nextIndices[y * m_width + x] = newIndex;
+                    hasVisiblePixels = true;
                 }
             }
         }
 
-        if (!hasChanges)
+        if (!hasVisiblePixels)
         {
             minX = minY = 0;
             maxX = maxY = 1;
         }
 
-        minX = std::max(0, minX - 1);
-        minY = std::max(0, minY - 1);
-        maxX = std::min(m_width - 1, maxX + 1);
-        maxY = std::min(m_height - 1, maxY + 1);
-
         int frameWidth = maxX - minX + 1;
         int frameHeight = maxY - minY + 1;
 
-        unsigned char extension[4];
-        unsigned char packed = frame.disposal_method << 2;
-        if (frame.has_transparency)
-        {
-            packed |= 0x01;
-        }
-
-        extension[0] = packed;
-        extension[1] = frame.delay_cs & 0xFF;
-        extension[2] = (frame.delay_cs >> 8) & 0xFF;
-        extension[3] = frame.has_transparency ? frame.transparent_index : 0;
-
-        if (EGifPutExtension(gif, GRAPHICS_EXT_FUNC_CODE, sizeof(extension),
-                             extension) != GIF_OK)
-        {
-            EGifCloseFile(gif, &error);
-            return false;
-        }
         if (EGifPutImageDesc(gif, minX, minY, frameWidth, frameHeight,
                              frame.is_interlaced,
                              frame.colorMap.get()) != GIF_OK)
@@ -959,32 +1003,19 @@ bool GIF::write(const char *filename) const
             return false;
         }
 
-        std::vector<GifByteType> rasterBits(frameWidth);
+        std::vector<GifByteType> line(frameWidth);
         for (int y = 0; y < frameHeight; y++)
         {
             for (int x = 0; x < frameWidth; x++)
             {
-                rasterBits[x] = nextIndices[(y + minY) * m_width + (x + minX)];
+                line[x] =
+                    frame
+                        .indices[(y + minY) * frame.image.width() + (x + minX)];
             }
-            if (EGifPutLine(gif, rasterBits.data(), frameWidth) != GIF_OK)
+            if (EGifPutLine(gif, line.data(), frameWidth) != GIF_OK)
             {
                 EGifCloseFile(gif, &error);
                 return false;
-            }
-        }
-
-        if (frame.disposal_method == DISPOSE_DO_NOT)
-        {
-            currentIndices = nextIndices;
-        }
-        else if (frame.disposal_method == DISPOSE_BACKGROUND)
-        {
-            for (int y = minY; y <= maxY; y++)
-            {
-                for (int x = minX; x <= maxX; x++)
-                {
-                    currentIndices[y * m_width + x] = m_background_color_index;
-                }
             }
         }
     }

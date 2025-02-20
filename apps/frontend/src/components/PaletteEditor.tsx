@@ -286,7 +286,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                   "w-full px-4 py-2 border rounded-lg",
                   "focus:ring-2 focus:ring-primary focus:border-primary",
                   errors.some((e) => e.includes("name")) &&
-                    "border-destructive",
+                  "border-destructive",
                 )}
                 placeholder="Enter palette name"
                 maxLength={LIMITS.MAX_NAME_LENGTH}

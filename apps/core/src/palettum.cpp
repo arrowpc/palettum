@@ -1,23 +1,34 @@
 #include "palettum.h"
 
-Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette)
+Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
+                                 int transparent_threshold)
 {
-    Image result(image.width(), image.height());
+    Image result(image.width(), image.height(), image.hasAlpha());
     std::vector<Lab> constants_lab(palette.size());
     RGBCache cache;
+
 #pragma omp parallel for
     for (int i = 0; i < palette.size(); ++i)
     {
         constants_lab[i] = palette[i].toLab();
     }
+
     const int height = image.height();
     const int width = image.width();
+
 #pragma omp parallel for collapse(2) schedule(dynamic)
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
-            RGB currentPixel = image.get(x, y);
+            RGBA currentPixel = image.get(x, y);
+
+            if (currentPixel.alpha() < transparent_threshold)
+            {
+                result.set(x, y, RGBA(0, 0, 0, 0));
+                continue;
+            }
+
             auto closestColor = cache.get(currentPixel);
 
             if (!closestColor)
@@ -37,13 +48,15 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette)
                 }
                 cache.set(currentPixel, *closestColor);
             }
+
             result.set(x, y, *closestColor);
         }
     }
     return result;
 }
 
-GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette)
+GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette,
+                               int transparent_threshold)
 {
     std::vector<Lab> constants_lab(palette.size());
     RGBCache cache;
@@ -73,7 +86,14 @@ GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette)
         {
             for (int x = 0; x < width; ++x)
             {
-                RGB currentPixel = sourceFrame.image.get(x, y);
+                RGBA currentPixel = sourceFrame.image.get(x, y);
+
+                if (currentPixel.alpha() < transparent_threshold)
+                {
+                    result.setPixel(frameIndex, x, y, RGBA(0, 0, 0, 0));
+                    continue;
+                }
+
                 auto closestColor = cache.get(currentPixel);
                 if (!closestColor)
                 {
@@ -108,10 +128,13 @@ bool Palettum::validateImageColors(Image &image, std::vector<RGB> &palette)
     {
         for (int x = 0; x < width; ++x)
         {
+            const RGBA currentPixel = image.get(x, y);
             bool foundMatch = false;
             for (const auto &color : palette)
             {
-                if (image.get(x, y) == color)
+                if (currentPixel.red() == color.red() &&
+                    currentPixel.green() == color.green() &&
+                    currentPixel.blue() == color.blue())
                     foundMatch = true;
             }
             if (!foundMatch)

@@ -82,6 +82,7 @@ public:
     {
         return m_b;
     }
+    virtual ~RGB() = default;
     bool operator!=(const RGB &rhs) const noexcept;
     friend std::ostream &operator<<(std::ostream &os, const RGB &RGB);
 
@@ -142,6 +143,20 @@ private:
     {
         return (rgb.red() << R_SHIFT) | (rgb.green() << G_SHIFT) | rgb.blue();
     }
+};
+
+class RGBA : public RGB
+{
+public:
+    explicit RGBA(unsigned char r = 0, unsigned char g = 0, unsigned char b = 0,
+                  unsigned char a = 255) noexcept;
+    [[nodiscard]] unsigned char alpha() const noexcept
+    {
+        return m_a;
+    }
+
+private:
+    unsigned char m_a;
 };
 
 #endif  //COLOR_H

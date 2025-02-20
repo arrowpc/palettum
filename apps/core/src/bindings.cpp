@@ -11,11 +11,15 @@ PYBIND11_MODULE(palettum, m)
 
     py::class_<Palettum>(m, "Palettum")
         .def_static("convertToPalette",
-                    py::overload_cast<Image &, std::vector<RGB> &>(
-                        &Palettum::convertToPalette))
+                    py::overload_cast<Image &, std::vector<RGB> &, int>(
+                        &Palettum::convertToPalette),
+                    py::arg("image"), py::arg("palette"),
+                    py::arg("transparent_threshold") = 0)
         .def_static("convertToPalette",
-                    py::overload_cast<GIF &, std::vector<RGB> &>(
-                        &Palettum::convertToPalette))
+                    py::overload_cast<GIF &, std::vector<RGB> &, int>(
+                        &Palettum::convertToPalette),
+                    py::arg("gif"), py::arg("palette"),
+                    py::arg("transparent_threshold") = 0)
         .def_static("validateImageColors", &Palettum::validateImageColors);
 
     py::class_<RGB>(m, "RGB")
@@ -49,7 +53,9 @@ PYBIND11_MODULE(palettum, m)
     py::class_<Image>(m, "Image")
         .def(py::init<>())
         .def(py::init<const std::string &>())
+        .def(py::init<const char *>())
         .def(py::init<int, int>())
+        .def(py::init<int, int, bool>())
         .def(py::init([](py::buffer buffer) {
             py::buffer_info info = buffer.request();
             if (info.ndim != 1)
@@ -63,12 +69,16 @@ PYBIND11_MODULE(palettum, m)
         .def("write", py::overload_cast<>(&Image::write, py::const_))
         .def("write",
              py::overload_cast<const std::string &>(&Image::write, py::const_))
+        .def("write",
+             py::overload_cast<const char *>(&Image::write, py::const_))
         .def("resize", &Image::resize)
         .def("get", &Image::get)
-        .def("set", &Image::set)
+        .def("set", py::overload_cast<int, int, const RGBA &>(&Image::set))
+        .def("set", py::overload_cast<int, int, const RGB &>(&Image::set))
         .def("width", &Image::width)
         .def("height", &Image::height)
         .def("channels", &Image::channels)
+        .def("hasAlpha", &Image::hasAlpha)
         .def("data",
              [](const Image &img) {
                  return py::array_t<uint8_t>(
@@ -106,7 +116,10 @@ PYBIND11_MODULE(palettum, m)
         .def("width", &GIF::width)
         .def("height", &GIF::height)
         .def("addFrame", &GIF::addFrame)
-        .def("setPixel", &GIF::setPixel)
+        .def("setPixel",
+             py::overload_cast<size_t, int, int, const RGBA &>(&GIF::setPixel))
+        .def("setPixel",
+             py::overload_cast<size_t, int, int, const RGB &>(&GIF::setPixel))
         .def("setPalette", &GIF::setPalette)
-        .def("getFrame", py::overload_cast<size_t>(&GIF::getFrame));
+        .def("getFrame", py::overload_cast<size_t>(&GIF::getFrame, py::const_));
 }

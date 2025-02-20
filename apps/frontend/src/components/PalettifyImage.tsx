@@ -13,9 +13,15 @@ interface PalettifyImageProps {
     height: number | null;
   };
   palette: Color[];
+  transparentThreshold: number;
 }
 
-function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
+function PalettifyImage({
+  file,
+  dimensions,
+  palette,
+  transparentThreshold,
+}: PalettifyImageProps) {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(
@@ -64,6 +70,7 @@ function PalettifyImage({ file, dimensions, palette }: PalettifyImageProps) {
         palette,
         dimensions.width || undefined,
         dimensions.height || undefined,
+        transparentThreshold,
       );
 
       const newProcessedUrl = URL.createObjectURL(processedBlob);

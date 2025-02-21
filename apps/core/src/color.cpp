@@ -98,148 +98,6 @@ static inline void hypotf_C(float *a, float *b, float *dst, int len)
     }
 };
 
-inline simde_float32x4_t atan_approx(simde_float32x4_t x)
-{
-    const simde_float32x4_t a1 = simde_vdupq_n_f32(0.99997726f);
-    const simde_float32x4_t a3 = simde_vdupq_n_f32(-0.33262347f);
-    const simde_float32x4_t a5 = simde_vdupq_n_f32(0.19354346f);
-    const simde_float32x4_t a7 = simde_vdupq_n_f32(-0.11643287f);
-    const simde_float32x4_t a9 = simde_vdupq_n_f32(0.05265332f);
-    const simde_float32x4_t a11 = simde_vdupq_n_f32(-0.01172120f);
-
-    const simde_float32x4_t xSq = simde_vmulq_f32(x, x);
-
-    simde_float32x4_t res = a11;
-    res = simde_vmlsq_f32(a9, xSq, res);
-    res = simde_vmlsq_f32(a7, xSq, res);
-    res = simde_vmlsq_f32(a5, xSq, res);
-    res = simde_vmlsq_f32(a3, xSq, res);
-    res = simde_vmlsq_f32(a1, xSq, res);
-    res = simde_vmulq_f32(x, res);
-
-    return res;
-}
-
-// Heavily inspired from {https://mazzo.li/posts/vectorized-atan2.html,
-// https://gist.github.com/bitonic/d0f5a0a44e37d4f0be03d34d47acb6cf}
-// Great read !
-inline simde_float32x4_t atan2_approx(simde_float32x4_t y, simde_float32x4_t x)
-{
-    const simde_float32x4_t pi = simde_vdupq_n_f32(M_PI);
-    const simde_float32x4_t pi_2 = simde_vdupq_n_f32(M_PI_2);
-    const simde_float32x4_t epsilon = simde_vdupq_n_f32(1e-6f);
-    const simde_float32x4_t zero = simde_vdupq_n_f32(0.0f);
-
-    // Create masks for absolute value and sign bit
-    const simde_uint32x4_t abs_mask = simde_vdupq_n_u32(0x7FFFFFFF);
-    const simde_uint32x4_t sign_mask = simde_vdupq_n_u32(0x80000000);
-
-    // Get absolute values
-    simde_uint32x4_t y_bits = simde_vreinterpretq_u32_f32(y);
-    simde_uint32x4_t x_bits = simde_vreinterpretq_u32_f32(x);
-    simde_uint32x4_t abs_y_bits = simde_vandq_u32(y_bits, abs_mask);
-    simde_uint32x4_t abs_x_bits = simde_vandq_u32(x_bits, abs_mask);
-    simde_float32x4_t abs_y = simde_vreinterpretq_f32_u32(abs_y_bits);
-    simde_float32x4_t abs_x = simde_vreinterpretq_f32_u32(abs_x_bits);
-
-    // Check for zero or near-zero cases
-    simde_uint32x4_t x_near_zero = simde_vcltq_f32(abs_x, epsilon);
-    simde_uint32x4_t y_near_zero = simde_vcltq_f32(abs_y, epsilon);
-
-    // Handle special cases
-    simde_uint32x4_t both_near_zero = simde_vandq_u32(x_near_zero, y_near_zero);
-    simde_uint32x4_t x_zero_mask =
-        simde_vandq_u32(x_near_zero, simde_vmvnq_u32(y_near_zero));
-
-    // Compute regular atan2 for non-special cases
-    simde_uint32x4_t swap_mask = simde_vcgtq_f32(abs_y, abs_x);
-    simde_float32x4_t num = simde_vbslq_f32(swap_mask, x, y);
-    simde_float32x4_t den = simde_vbslq_f32(swap_mask, y, x);
-
-    // Add epsilon to denominator to avoid division by zero
-    den = simde_vaddq_f32(
-        den, simde_vreinterpretq_f32_u32(simde_vandq_u32(
-                 simde_vreinterpretq_u32_f32(epsilon), x_near_zero)));
-
-    simde_float32x4_t atan_input = simde_vdivq_f32(num, den);
-    simde_float32x4_t result = atan_approx(atan_input);
-
-    // Adjust result if we swapped inputs
-    simde_uint32x4_t atan_input_bits = simde_vreinterpretq_u32_f32(atan_input);
-    simde_uint32x4_t pi_2_sign_bits =
-        simde_vandq_u32(atan_input_bits, sign_mask);
-    simde_float32x4_t pi_2_adj = simde_vreinterpretq_f32_u32(
-        simde_vorrq_u32(simde_vreinterpretq_u32_f32(pi_2), pi_2_sign_bits));
-
-    simde_float32x4_t swap_result = simde_vsubq_f32(pi_2_adj, result);
-    result = simde_vbslq_f32(swap_mask, swap_result, result);
-
-    // Handle x = 0 cases
-    simde_float32x4_t y_sign =
-        simde_vreinterpretq_f32_u32(simde_vandq_u32(y_bits, sign_mask));
-    simde_float32x4_t x_zero_result = simde_vbslq_f32(
-        simde_vreinterpretq_u32_f32(y_sign), simde_vnegq_f32(pi_2), pi_2);
-
-    // Adjust for quadrant based on signs of x and y
-    simde_uint32x4_t x_sign_mask = simde_vcltq_f32(x, zero);
-    simde_uint32x4_t y_sign_bits =
-        simde_vandq_u32(simde_vreinterpretq_u32_f32(y), sign_mask);
-    simde_float32x4_t pi_adj = simde_vreinterpretq_f32_u32(
-        simde_veorq_u32(simde_vreinterpretq_u32_f32(pi), y_sign_bits));
-    simde_float32x4_t quad_adj = simde_vreinterpretq_f32_u32(
-        simde_vandq_u32(simde_vreinterpretq_u32_f32(pi_adj), x_sign_mask));
-
-    result = simde_vaddq_f32(quad_adj, result);
-
-    // Select between special cases and regular result
-    result = simde_vbslq_f32(x_zero_mask, x_zero_result, result);
-    result = simde_vbslq_f32(both_near_zero, zero, result);
-
-    return result;
-}
-
-inline simde_float32x4_t cos_approx(simde_float32x4_t x)
-{
-    const simde_float32x4_t tp = simde_vdupq_n_f32(1.0f / (2.0f * M_PI));
-    const simde_float32x4_t quarter = simde_vdupq_n_f32(0.25f);
-    const simde_float32x4_t sixteen = simde_vdupq_n_f32(16.0f);
-    const simde_float32x4_t half = simde_vdupq_n_f32(0.5f);
-
-    x = simde_vmulq_f32(x, tp);
-    simde_float32x4_t x_plus_quarter = simde_vaddq_f32(x, quarter);
-    simde_float32x4_t floor_val = vrndmq_f32(x_plus_quarter);
-    x = simde_vsubq_f32(x, simde_vaddq_f32(quarter, floor_val));
-    simde_float32x4_t abs_x = simde_vabsq_f32(x);
-    simde_float32x4_t abs_x_minus_half = simde_vsubq_f32(abs_x, half);
-    simde_float32x4_t factor = simde_vmulq_f32(sixteen, abs_x_minus_half);
-
-    return simde_vmulq_f32(x, factor);
-}
-
-inline simde_float32x4_t sin_approx(simde_float32x4_t x)
-{
-    const simde_float32x4_t B = simde_vdupq_n_f32(4.0f / M_PI);
-    const simde_float32x4_t C = simde_vdupq_n_f32(-4.0f / (M_PI * M_PI));
-
-    simde_float32x4_t y = simde_vmulq_f32(B, x);
-    simde_float32x4_t ax = simde_vabsq_f32(x);
-    simde_float32x4_t term = simde_vmulq_f32(C, simde_vmulq_f32(x, ax));
-    y = simde_vaddq_f32(y, term);
-
-    return y;
-}
-
-inline simde_float32x4_t exp_approx(simde_float32x4_t x)
-{
-    simde_float32x4_t a = simde_vdupq_n_f32(12102203.0f);  // (1 << 23) / log(2)
-    simde_int32x4_t b = simde_vdupq_n_s32(127 * (1 << 23) - 298765);
-
-    simde_int32x4_t t =
-        simde_vaddq_s32(simde_vcvtq_s32_f32(simde_vmulq_f32(a, x)), b);
-
-    return simde_vreinterpretq_f32_s32(t);
-}
-
 void Lab::deltaE_NEON(const Lab &ref, const Lab *comp, float32_t *results)
 {
     simde_float32x4_t ref_L = simde_vdupq_n_f32(ref.L());
@@ -302,35 +160,13 @@ void Lab::deltaE_NEON(const Lab &ref, const Lab *comp, float32_t *results)
     simde_float32x4_t deg_factor = simde_vdupq_n_f32(180.0f / M_PI);
     simde_float32x4_t two_pi = simde_vdupq_n_f32(2.0f * M_PI);
 
-    simde_float32x4_t angle_h1 = atan2_approx(ref_b, a1Prime);
+    simde_float32x4_t angle_h1 = math<>::atan2(ref_b, a1Prime);
     simde_float32x4_t h1Prime = simde_vaddq_f32(angle_h1, two_pi);
     h1Prime = simde_vmulq_f32(h1Prime, deg_factor);
 
-    simde_float32x4_t angle_h2 = atan2_approx(comp_b, a2Prime);
+    simde_float32x4_t angle_h2 = math<>::atan2(comp_b, a2Prime);
     simde_float32x4_t h2Prime = simde_vaddq_f32(angle_h2, two_pi);
     h2Prime = simde_vmulq_f32(h2Prime, deg_factor);
-
-    // float tmp1[4], tmp2[4];
-    // simde_vst1q_f32(tmp1, ref_b);
-    // simde_vst1q_f32(tmp2, a1Prime);
-    // for (int i = 0; i < 4; ++i)
-    // {
-    //     tmp1[i] = std::atan2f(tmp1[i], tmp2[i]);
-    // }
-    // simde_float32x4_t angle_h1 = simde_vld1q_f32(tmp1);
-    // simde_float32x4_t h1Prime =
-    //     simde_vmulq_f32(simde_vaddq_f32(angle_h1, two_pi), deg_factor);
-    //
-    // // Do the same for comp_b and a2Prime:
-    // simde_vst1q_f32(tmp1, comp_b);
-    // simde_vst1q_f32(tmp2, a2Prime);
-    // for (int i = 0; i < 4; ++i)
-    // {
-    //     tmp1[i] = std::atan2f(tmp1[i], tmp2[i]);
-    // }
-    // simde_float32x4_t angle_h2 = simde_vld1q_f32(tmp1);
-    // simde_float32x4_t h2Prime =
-    //     simde_vmulq_f32(simde_vaddq_f32(angle_h2, two_pi), deg_factor);
 
     simde_float32x4_t deltaLPrime = simde_vsubq_f32(comp_L, ref_L);
     simde_float32x4_t deltaCPrime = simde_vsubq_f32(c2Prime, c1Prime);
@@ -364,7 +200,7 @@ void Lab::deltaE_NEON(const Lab &ref, const Lab *comp, float32_t *results)
     simde_float32x4_t angle = simde_vmulq_f32(deltahPrime, scale);
 
     // Approximate the sine of the angle
-    simde_float32x4_t sin_angle = sin_approx(angle);
+    simde_float32x4_t sin_angle = math<>::sin(angle);
 
     // Compute c1Prime * c2Prime and then take the square root
     simde_float32x4_t prod_c1c2 = simde_vmulq_f32(c1Prime, c2Prime);
@@ -437,10 +273,10 @@ void Lab::deltaE_NEON(const Lab &ref, const Lab *comp, float32_t *results)
     simde_float32x4_t rad4 = simde_vmulq_f32(
         simde_vsubq_f32(hBarPrime4, simde_vdupq_n_f32(63.0f)), deg_to_rad);
 
-    simde_float32x4_t cos1 = cos_approx(rad1);
-    simde_float32x4_t cos2 = cos_approx(rad2);
-    simde_float32x4_t cos3 = cos_approx(rad3);
-    simde_float32x4_t cos4 = cos_approx(rad4);
+    simde_float32x4_t cos1 = math<>::cos(rad1);
+    simde_float32x4_t cos2 = math<>::cos(rad2);
+    simde_float32x4_t cos3 = math<>::cos(rad3);
+    simde_float32x4_t cos4 = math<>::cos(rad4);
 
     simde_float32x4_t t = simde_vdupq_n_f32(1.0f);
     t = simde_vmlsq_n_f32(t, cos1, 0.17f);  // t = 1 - 0.17 * cos1
@@ -472,13 +308,13 @@ void Lab::deltaE_NEON(const Lab &ref, const Lab *comp, float32_t *results)
     simde_float32x4_t neg_h_squared = simde_vnegq_f32(h_squared);
 
     // exp(-((hBarPrime - 275)/25)^2)
-    simde_float32x4_t exp_result = exp_approx(neg_h_squared);
+    simde_float32x4_t exp_result = math<>::exp(neg_h_squared);
 
     // 60 * exp_result * π/180
     angle =
         simde_vmulq_n_f32(simde_vmulq_n_f32(exp_result, 60.0f), M_PI / 180.0f);
 
-    simde_float32x4_t sin_result = sin_approx(angle);
+    simde_float32x4_t sin_result = math<>::sin(angle);
 
     simde_float32x4_t rT =
         simde_vmulq_n_f32(simde_vmulq_f32(rt_sqrt, sin_result), -2.0f);

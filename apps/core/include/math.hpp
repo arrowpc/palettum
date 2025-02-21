@@ -88,11 +88,11 @@ struct math {
                 return simde_vld1q_f32(vals);
             }
             case precision::low: {
+                static const float inv_6 = 0.166666667f;
                 simde_float32x4_t x2 = simde_vmulq_f32(x, x);
-                simde_float32x4_t term = simde_vmulq_n_f32(x2, 1.0f / 6.0f);
-                simde_float32x4_t factor =
-                    simde_vsubq_f32(simde_vdupq_n_f32(1.0f), term);
-                return simde_vmulq_f32(x, factor);
+                return simde_vmulq_f32(
+                    x, simde_vsubq_f32(simde_vdupq_n_f32(1.0f),
+                                       simde_vmulq_n_f32(x2, inv_6)));
             }
             default:
                 return simde_vdupq_n_f32(0.0f);
@@ -178,24 +178,26 @@ struct math {
                 return simde_vld1q_f32(vals);
             }
             case precision::low: {
-                const simde_float32x4_t a1 = simde_vdupq_n_f32(0.99997726f);
-                const simde_float32x4_t a3 = simde_vdupq_n_f32(-0.33262347f);
-                const simde_float32x4_t a5 = simde_vdupq_n_f32(0.19354346f);
-                const simde_float32x4_t a7 = simde_vdupq_n_f32(-0.11643287f);
-                const simde_float32x4_t a9 = simde_vdupq_n_f32(0.05265332f);
-                const simde_float32x4_t a11 = simde_vdupq_n_f32(-0.01172120f);
+                const simde_float32x4_t pi_4 = simde_vdupq_n_f32(M_PI_4);
+                const simde_float32x4_t c1 = simde_vdupq_n_f32(0.2447f);
+                const simde_float32x4_t c2 = simde_vdupq_n_f32(0.0663f);
+                const simde_float32x4_t one = simde_vdupq_n_f32(1.0f);
 
-                const simde_float32x4_t xSq = simde_vmulq_f32(x, x);
+                simde_float32x4_t abs_x = simde_vabsq_f32(x);        // |x|
+                simde_float32x4_t term1 = simde_vmulq_f32(pi_4, x);  // π/4 * x
+                simde_float32x4_t term2 =
+                    simde_vsubq_f32(abs_x, one);  // |x| - 1
+                simde_float32x4_t term3 = simde_vaddq_f32(
+                    c1, simde_vmulq_f32(c2, abs_x));  // 0.2447 + 0.0663 * |x|
+                simde_float32x4_t result = simde_vsubq_f32(
+                    term1,
+                    simde_vmulq_f32(
+                        x,
+                        simde_vmulq_f32(
+                            term2,
+                            term3)));  // π/4 * x - x * (|x| - 1) * (0.2447 + 0.0663 * |x|)
 
-                simde_float32x4_t res = a11;
-                res = simde_vmlsq_f32(a9, xSq, res);
-                res = simde_vmlsq_f32(a7, xSq, res);
-                res = simde_vmlsq_f32(a5, xSq, res);
-                res = simde_vmlsq_f32(a3, xSq, res);
-                res = simde_vmlsq_f32(a1, xSq, res);
-                res = simde_vmulq_f32(x, res);
-
-                return res;
+                return result;
             }
             default:
                 return simde_vdupq_n_f32(0.0f);

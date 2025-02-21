@@ -88,16 +88,11 @@ struct math {
                 return simde_vld1q_f32(vals);
             }
             case precision::low: {
-                const simde_float32x4_t B = simde_vdupq_n_f32(4.0f / M_PI);
-                const simde_float32x4_t C =
-                    simde_vdupq_n_f32(-4.0f / (M_PI * M_PI));
-
-                simde_float32x4_t y = simde_vmulq_f32(B, x);
-                simde_float32x4_t ax = simde_vabsq_f32(x);
-                simde_float32x4_t term =
-                    simde_vmulq_f32(C, simde_vmulq_f32(x, ax));
-                y = simde_vaddq_f32(y, term);
-                return y;
+                simde_float32x4_t x2 = simde_vmulq_f32(x, x);
+                simde_float32x4_t term = simde_vmulq_n_f32(x2, 1.0f / 6.0f);
+                simde_float32x4_t factor =
+                    simde_vsubq_f32(simde_vdupq_n_f32(1.0f), term);
+                return simde_vmulq_f32(x, factor);
             }
             default:
                 return simde_vdupq_n_f32(0.0f);

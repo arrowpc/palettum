@@ -12,6 +12,9 @@
 #pragma pop_macro("min")
 #pragma pop_macro("max")
 
+#include <math.h>
+#include <simde/arm/neon.h>
+#include <simde/arm/neon/rsubhn.h>
 #include <algorithm>
 #include <iostream>
 #include <optional>
@@ -47,6 +50,9 @@ public:
     [[nodiscard]] float L() const noexcept;
     [[nodiscard]] float a() const noexcept;
     [[nodiscard]] float b() const noexcept;
+
+    static void deltaE_NEON(const Lab &ref, const Lab *comp,
+                            float32_t *results);
     static void deltaE(const Lab &ref, const Lab *comp, float *results,
                        int len);
     [[nodiscard]] float deltaE(const Lab &other) const noexcept;

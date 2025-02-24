@@ -3,6 +3,7 @@
 #include <simde/arm/neon.h>
 #include <simde/arm/neon/reinterpret.h>
 #include <simde/arm/neon/types.h>
+#include <simde/x86/avx2.h>
 #include <cmath>
 
 enum class precision { high, low };
@@ -560,6 +561,230 @@ struct math {
             }
             default:
                 return simde_vdupq_n_f16(0.0f);
+        }
+    }
+
+    static inline simde__m256 sin(simde__m256 x)
+    {
+        switch (P)
+        {
+            case precision::high: {
+                float vals[8];
+                simde_mm256_storeu_ps(vals, x);
+                for (int i = 0; i < 8; ++i)
+                {
+                    vals[i] = math<P>::sin(vals[i]);
+                }
+                return simde_mm256_loadu_ps(vals);
+            }
+            case precision::low: {
+                static const float inv_6 = 0.1667f;
+                simde__m256 x2 = simde_mm256_mul_ps(x, x);
+                simde__m256 term =
+                    simde_mm256_mul_ps(x2, simde_mm256_set1_ps(inv_6));
+                return simde_mm256_mul_ps(
+                    x, simde_mm256_sub_ps(simde_mm256_set1_ps(1.0f), term));
+            }
+            default:
+                return simde_mm256_setzero_ps();
+        }
+    }
+
+    static inline simde__m256 cos(simde__m256 x)
+    {
+        switch (P)
+        {
+            case precision::high: {
+                float vals[8];
+                simde_mm256_storeu_ps(vals, x);
+                for (int i = 0; i < 8; ++i)
+                {
+                    vals[i] = math<P>::cos(vals[i]);
+                }
+                return simde_mm256_loadu_ps(vals);
+            }
+            case precision::low: {
+                const simde__m256 tp =
+                    simde_mm256_set1_ps(0.1592f);  // 1/(2*PI) in fp32
+                const simde__m256 quarter = simde_mm256_set1_ps(0.25f);
+                const simde__m256 sixteen = simde_mm256_set1_ps(16.0f);
+                const simde__m256 half = simde_mm256_set1_ps(0.5f);
+
+                simde__m256 x_mul = simde_mm256_mul_ps(x, tp);
+                simde__m256 x_plus_quarter = simde_mm256_add_ps(x_mul, quarter);
+                simde__m256 floor_val = simde_mm256_floor_ps(x_plus_quarter);
+                simde__m256 temp = simde_mm256_add_ps(quarter, floor_val);
+                x = simde_mm256_sub_ps(x_mul, temp);
+                simde__m256 abs_x =
+                    simde_mm256_andnot_ps(simde_mm256_set1_ps(-0.0f), x);
+                simde__m256 abs_x_minus_half = simde_mm256_sub_ps(abs_x, half);
+                simde__m256 factor =
+                    simde_mm256_mul_ps(sixteen, abs_x_minus_half);
+
+                return simde_mm256_mul_ps(x, factor);
+            }
+            default:
+                return simde_mm256_setzero_ps();
+        }
+    }
+
+    static inline simde__m256 exp(simde__m256 x)
+    {
+        switch (P)
+        {
+            case precision::high: {
+                float vals[8];
+                simde_mm256_storeu_ps(vals, x);
+                for (int i = 0; i < 8; ++i)
+                {
+                    vals[i] = math<P>::exp(vals[i]);
+                }
+                return simde_mm256_loadu_ps(vals);
+            }
+            case precision::low: {
+                simde__m256 a = simde_mm256_set1_ps(12102203.0f);
+                simde__m256i b =
+                    simde_mm256_set1_epi32(127 * (1 << 23) - 298765);
+
+                simde__m256 ax = simde_mm256_mul_ps(a, x);
+                simde__m256i t =
+                    simde_mm256_add_epi32(simde_mm256_cvtps_epi32(ax), b);
+
+                return simde_mm256_castsi256_ps(t);
+            }
+            default:
+                return simde_mm256_setzero_ps();
+        }
+    }
+
+    static inline simde__m256 atan(simde__m256 x)
+    {
+        switch (P)
+        {
+            case precision::high: {
+                float vals[8];
+                simde_mm256_storeu_ps(vals, x);
+                for (int i = 0; i < 8; ++i)
+                {
+                    vals[i] = math<P>::atan(vals[i]);
+                }
+                return simde_mm256_loadu_ps(vals);
+            }
+            case precision::low: {
+                const simde__m256 pi_4 =
+                    simde_mm256_set1_ps(0.7854f);  // π/4 in fp32
+                const simde__m256 c1 = simde_mm256_set1_ps(0.2447f);
+                const simde__m256 c2 = simde_mm256_set1_ps(0.0663f);
+                const simde__m256 one = simde_mm256_set1_ps(1.0f);
+
+                simde__m256 abs_x = simde_mm256_andnot_ps(
+                    simde_mm256_set1_ps(-0.0f), x);                  // |x|
+                simde__m256 term1 = simde_mm256_mul_ps(pi_4, x);     // π/4 * x
+                simde__m256 term2 = simde_mm256_sub_ps(abs_x, one);  // |x| - 1
+                simde__m256 term3 = simde_mm256_add_ps(
+                    c1,
+                    simde_mm256_mul_ps(c2, abs_x));  // 0.2447 + 0.0663 * |x|
+                simde__m256 temp = simde_mm256_mul_ps(term2, term3);
+                simde__m256 result = simde_mm256_sub_ps(
+                    term1,
+                    simde_mm256_mul_ps(
+                        x,
+                        temp));  // π/4 * x - x * (|x| - 1) * (0.2447 + 0.0663 * |x|)
+
+                return result;
+            }
+            default:
+                return simde_mm256_setzero_ps();
+        }
+    }
+
+    static inline simde__m256 atan2(simde__m256 y, simde__m256 x)
+    {
+        switch (P)
+        {
+            case precision::high: {
+                float y_vals[8], x_vals[8];
+                simde_mm256_storeu_ps(y_vals, y);
+                simde_mm256_storeu_ps(x_vals, x);
+                for (int i = 0; i < 8; ++i)
+                {
+                    y_vals[i] = math<P>::atan2(y_vals[i], x_vals[i]);
+                }
+                return simde_mm256_loadu_ps(y_vals);
+            }
+            case precision::low: {
+                const simde__m256 pi = simde_mm256_set1_ps(3.1416f);
+                const simde__m256 pi_2 = simde_mm256_set1_ps(1.5708f);
+                const simde__m256 epsilon = simde_mm256_set1_ps(0.0001f);
+                const simde__m256 zero = simde_mm256_setzero_ps();
+
+                // Get absolute values
+                simde__m256 abs_y =
+                    simde_mm256_andnot_ps(simde_mm256_set1_ps(-0.0f), y);
+                simde__m256 abs_x =
+                    simde_mm256_andnot_ps(simde_mm256_set1_ps(-0.0f), x);
+
+                // Check for zero or near-zero cases
+                simde__m256 x_near_zero =
+                    simde_mm256_cmp_ps(abs_x, epsilon, SIMDE_CMP_LT_OQ);
+                simde__m256 y_near_zero =
+                    simde_mm256_cmp_ps(abs_y, epsilon, SIMDE_CMP_LT_OQ);
+
+                // Handle special cases
+                simde__m256 both_near_zero =
+                    simde_mm256_and_ps(x_near_zero, y_near_zero);
+                simde__m256 x_zero_mask =
+                    simde_mm256_andnot_ps(y_near_zero, x_near_zero);
+
+                // Compute regular atan2 for non-special cases
+                simde__m256 swap_mask =
+                    simde_mm256_cmp_ps(abs_y, abs_x, SIMDE_CMP_GT_OQ);
+                simde__m256 num = simde_mm256_blendv_ps(y, x, swap_mask);
+                simde__m256 den = simde_mm256_blendv_ps(x, y, swap_mask);
+
+                // Add epsilon to denominator to avoid division by zero
+                simde__m256 epsilon_term =
+                    simde_mm256_and_ps(epsilon, x_near_zero);
+                den = simde_mm256_add_ps(den, epsilon_term);
+
+                simde__m256 atan_input = simde_mm256_div_ps(num, den);
+                simde__m256 result = math<P>::atan(atan_input);
+
+                // Adjust result if we swapped inputs
+                simde__m256 sign_mask =
+                    simde_mm256_and_ps(atan_input, simde_mm256_set1_ps(-0.0f));
+                simde__m256 pi_2_adj = simde_mm256_or_ps(pi_2, sign_mask);
+                simde__m256 swap_result = simde_mm256_sub_ps(pi_2_adj, result);
+                result = simde_mm256_blendv_ps(result, swap_result, swap_mask);
+
+                // Handle x = 0 cases
+                simde__m256 y_sign =
+                    simde_mm256_and_ps(y, simde_mm256_set1_ps(-0.0f));
+                simde__m256 neg_pi_2 =
+                    simde_mm256_xor_ps(pi_2, simde_mm256_set1_ps(-0.0f));
+                simde__m256 x_zero_result = simde_mm256_blendv_ps(
+                    pi_2, neg_pi_2,
+                    simde_mm256_cmp_ps(y, zero, SIMDE_CMP_LT_OQ));
+
+                // Adjust for quadrant based on signs of x and y
+                simde__m256 x_sign_mask =
+                    simde_mm256_cmp_ps(x, zero, SIMDE_CMP_LT_OQ);
+                simde__m256 y_sign_bits =
+                    simde_mm256_and_ps(y, simde_mm256_set1_ps(-0.0f));
+                simde__m256 pi_adj = simde_mm256_xor_ps(pi, y_sign_bits);
+                simde__m256 quad_adj = simde_mm256_and_ps(pi_adj, x_sign_mask);
+
+                result = simde_mm256_add_ps(quad_adj, result);
+
+                // Select between special cases and regular result
+                result =
+                    simde_mm256_blendv_ps(result, x_zero_result, x_zero_mask);
+                result = simde_mm256_blendv_ps(result, zero, both_near_zero);
+
+                return result;
+            }
+            default:
+                return simde_mm256_setzero_ps();
         }
     }
 };

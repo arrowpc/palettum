@@ -46,21 +46,22 @@ struct XYZ {
 class Lab
 {
 public:
-    explicit Lab(float L = 0, float a = 0, float b = 0) noexcept;
+    explicit Lab(simde_float16_t L = 0, simde_float16_t a = 0,
+                 simde_float16_t b = 0) noexcept;
     [[nodiscard]] RGB toRGB() const noexcept;
-    [[nodiscard]] float L() const noexcept;
-    [[nodiscard]] float a() const noexcept;
-    [[nodiscard]] float b() const noexcept;
+    [[nodiscard]] simde_float16_t L() const noexcept;
+    [[nodiscard]] simde_float16_t a() const noexcept;
+    [[nodiscard]] simde_float16_t b() const noexcept;
 
     static void deltaE_NEON(const Lab &ref, const Lab *comp,
-                            float32_t *results);
-    static void deltaE(const Lab &ref, const Lab *comp, float *results,
-                       int len);
-    [[nodiscard]] float deltaE(const Lab &other) const noexcept;
+                            simde_float16_t *results);
+    static void deltaE(const Lab &ref, const Lab *comp,
+                       simde_float16_t *results, int len);
+    [[nodiscard]] simde_float16_t deltaE(const Lab &other) const noexcept;
     friend std::ostream &operator<<(std::ostream &os, const Lab &lab);
 
 private:
-    float m_L, m_a, m_b;
+    simde_float16_t m_L, m_a, m_b;
 };
 
 class RGB

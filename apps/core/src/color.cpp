@@ -1,7 +1,8 @@
 #include "color.h"
+#include <simde/arm/neon/types.h>
 #include "simd_utils.h"
 
-Lab::Lab(float L, float a, float b) noexcept
+Lab::Lab(simde_float16_t L, simde_float16_t a, simde_float16_t b) noexcept
     : m_L(L)
     , m_a(a)
     , m_b(b)
@@ -47,15 +48,15 @@ RGB Lab::toRGB() const noexcept
                static_cast<unsigned char>(std::round(b)));
 }
 
-float Lab::L() const noexcept
+simde_float16_t Lab::L() const noexcept
 {
     return m_L;
 }
-float Lab::a() const noexcept
+simde_float16_t Lab::a() const noexcept
 {
     return m_a;
 }
-float Lab::b() const noexcept
+simde_float16_t Lab::b() const noexcept
 {
     return m_b;
 }
@@ -98,252 +99,260 @@ static inline void hypotf_C(float *a, float *b, float *dst, int len)
     }
 };
 
-void Lab::deltaE_NEON(const Lab &ref, const Lab *comp, float32_t *results)
+void Lab::deltaE_NEON(const Lab &ref, const Lab *comp, simde_float16_t *results)
 {
-    simde_float32x4_t ref_L = simde_vdupq_n_f32(ref.L());
-    simde_float32x4_t ref_a = simde_vdupq_n_f32(ref.a());
-    simde_float32x4_t ref_b = simde_vdupq_n_f32(ref.b());
+    const simde_float16_t half = 0.5f;
+    const simde_float16_t one = 1.0f;
+    const simde_float16_t two = 2.0f;
+    const simde_float16_t neg_one = -1.0f;
+    const simde_float16_t twenty = 20.0f;
+    const simde_float16_t twenty_five = 25.0f;
+    const simde_float16_t fifty = 50.0f;
+    const simde_float16_t hundred_eighty = 180.0f;
+    const simde_float16_t three_sixty = 360.0f;
+    const simde_float16_t one_point_five = 1.5f;
+    const simde_float16_t zero_point_zero_one_fifteen = 0.015f;
+    const simde_float16_t zero_point_zero_four_five = 0.045f;
+    const simde_float16_t thirty = 30.0f;
+    const simde_float16_t six = 6.0f;
+    const simde_float16_t sixty_three = 63.0f;
+    const simde_float16_t zero_point_one_seven = 0.17f;
+    const simde_float16_t zero_point_two_four = 0.24f;
+    const simde_float16_t zero_point_three_two = 0.32f;
+    const simde_float16_t zero_point_two = 0.2f;
+    const simde_float16_t two_seventy_five = 275.0f;
+    const simde_float16_t inv_twenty_five = 0.04f;
+    const simde_float16_t sixty = 60.0f;
+    const simde_float16_t deg_to_rad = (simde_float16_t)(M_PI / 180.0f);
+    const simde_float16_t deg_factor = (simde_float16_t)(180.0f / M_PI);
+    const simde_float16_t rad_scale = (simde_float16_t)(M_PI / 360.0f);
+    const simde_float16_t two_pi = (simde_float16_t)(2.0f * M_PI);
 
-    simde_float32x4x3_t comp_lab = simde_vld3q_f32((const float32_t *)comp);
-    simde_float32x4_t comp_L = comp_lab.val[0];
-    simde_float32x4_t comp_a = comp_lab.val[1];
-    simde_float32x4_t comp_b = comp_lab.val[2];
+    simde_float16x8_t v_half = simde_vdupq_n_f16(half);
+    simde_float16x8_t v_one = simde_vdupq_n_f16(one);
+    simde_float16x8_t v_two = simde_vdupq_n_f16(two);
+    simde_float16x8_t v_twenty = simde_vdupq_n_f16(twenty);
+    simde_float16x8_t v_twenty_five = simde_vdupq_n_f16(twenty_five);
+    simde_float16x8_t v_fifty = simde_vdupq_n_f16(fifty);
+    simde_float16x8_t v_hundred_eighty = simde_vdupq_n_f16(hundred_eighty);
+    simde_float16x8_t v_three_sixty = simde_vdupq_n_f16(three_sixty);
+    simde_float16x8_t v_one_point_five = simde_vdupq_n_f16(one_point_five);
+    simde_float16x8_t v_deg_to_rad = simde_vdupq_n_f16(deg_to_rad);
+    simde_float16x8_t v_deg_factor = simde_vdupq_n_f16(deg_factor);
+    simde_float16x8_t v_rad_scale = simde_vdupq_n_f16(rad_scale);
 
-    simde_float32x4_t lBarPrime =
-        simde_vmulq_n_f32(simde_vaddq_f32(ref_L, comp_L), 0.5f);
+    simde_float16x8_t ref_L = simde_vdupq_n_f16(ref.L());
+    simde_float16x8_t ref_a = simde_vdupq_n_f16(ref.a());
+    simde_float16x8_t ref_b = simde_vdupq_n_f16(ref.b());
 
-    simde_float32x4_t c1 = simde_vsqrtq_f32(simde_vaddq_f32(
-        simde_vmulq_f32(ref_a, ref_a), simde_vmulq_f32(ref_b, ref_b)));
+    simde_float16x8x3_t comp_lab =
+        simde_vld3q_f16((const simde_float16_t *)comp);
+    simde_float16x8_t comp_L = comp_lab.val[0];
+    simde_float16x8_t comp_a = comp_lab.val[1];
+    simde_float16x8_t comp_b = comp_lab.val[2];
 
-    simde_float32x4_t c2 = simde_vsqrtq_f32(simde_vaddq_f32(
-        simde_vmulq_f32(comp_a, comp_a), simde_vmulq_f32(comp_b, comp_b)));
+    simde_float16x8_t lBarPrime =
+        simde_vmulq_f16(simde_vaddq_f16(ref_L, comp_L), v_half);
 
-    simde_float32x4_t cBar = simde_vmulq_n_f32(simde_vaddq_f32(c1, c2), 0.5f);
+    // Compute c1 as sqrt(ref_a^2 + ref_b^2)
+    simde_float16x8_t ref_a_sq = simde_vmulq_f16(ref_a, ref_a);
+    simde_float16x8_t c1_sq = simde_vfmaq_f16(ref_a_sq, ref_b, ref_b);
+    simde_float16x8_t c1 = simde_vsqrtq_f16(c1_sq);
 
-    // Calculating cBar^7 with 4 multiplication operations
-    // instead of 7 by taking advantage of the fact that
-    // 7 = 1 + 2 + 4
-    // See for more info: https://en.wikipedia.org/wiki/Exponentiation_by_squaring
-    simde_float32x4_t cBar2 = simde_vmulq_f32(cBar, cBar);
-    simde_float32x4_t cBar4 = simde_vmulq_f32(cBar2, cBar2);
-    simde_float32x4_t cBar3 = simde_vmulq_f32(cBar, cBar2);
-    simde_float32x4_t cBar7 = simde_vmulq_f32(cBar3, cBar4);
+    simde_float16x8_t comp_a_sq = simde_vmulq_f16(comp_a, comp_a);
+    simde_float16x8_t c2_sq = simde_vfmaq_f16(comp_a_sq, comp_b, comp_b);
+    simde_float16x8_t c2 = simde_vsqrtq_f16(c2_sq);
+    simde_float16x8_t cBar = simde_vmulq_f16(simde_vaddq_f16(c1, c2), v_half);
 
-    simde_float32x4_t pow25_7 = simde_vdupq_n_f32(6103515625.0f);
+    simde_float16x8_t x = simde_vdivq_f16(cBar, v_twenty_five);
+    simde_float16x8_t x2 = simde_vmulq_f16(x, x);
+    simde_float16x8_t x3 = simde_vmulq_f16(x, x2);
+    simde_float16x8_t x4 = simde_vmulq_f16(x2, x2);
+    simde_float16x8_t x7 = simde_vmulq_f16(x3, x4);
 
-    // Computing cBar7 / (cBar7 + pow25_7) using reciprocal approximation by
-    // approximating the reciprocal of (cBar7 + pow25_7) then multiplying by cBar7
-    simde_float32x4_t denom = simde_vaddq_f32(cBar7, pow25_7);
+    // 1.5 - 0.5 * sqrt(x7/(1+x7))
+    simde_float16x8_t one_plus_x7 = simde_vaddq_f16(v_one, x7);
+    simde_float16x8_t frac = simde_vdivq_f16(x7, one_plus_x7);
+    simde_float16x8_t sqrtFrac = simde_vsqrtq_f16(frac);
+    simde_float16x8_t gPlusOne =
+        simde_vfmsq_f16(v_one_point_five, v_half, sqrtFrac);
 
-    simde_float32x4_t recip = simde_vrecpeq_f32(denom);
+    simde_float16x8_t a1Prime = simde_vmulq_f16(ref_a, gPlusOne);
+    simde_float16x8_t a2Prime = simde_vmulq_f16(comp_a, gPlusOne);
 
-    simde_float32x4_t frac = simde_vmulq_f32(cBar7, recip);
-    simde_float32x4_t sqrtFrac = simde_vsqrtq_f32(frac);
+    // a1Prime*a1Prime + (ref_b * ref_b)
+    simde_float16x8_t a1Prime_sq = simde_vmulq_f16(a1Prime, a1Prime);
+    simde_float16x8_t c1Prime =
+        simde_vsqrtq_f16(simde_vfmaq_f16(a1Prime_sq, ref_b, ref_b));
 
-    // Since 0.5(1-x) = 0.5 - 0.5 * x
-    // 1 + 0.5 - 0.5 * x = 1.5 - 0.5 * x
-    simde_float32x4_t gPlusOne =
-        simde_vmlsq_n_f32(simde_vdupq_n_f32((1.5)), sqrtFrac, 0.5f);
+    // a2Prime*a2Prime + (comp_b * comp_b)
+    simde_float16x8_t a2Prime_sq = simde_vmulq_f16(a2Prime, a2Prime);
+    simde_float16x8_t c2Prime =
+        simde_vsqrtq_f16(simde_vfmaq_f16(a2Prime_sq, comp_b, comp_b));
 
-    simde_float32x4_t a1Prime = simde_vmulq_f32(ref_a, gPlusOne);
-    simde_float32x4_t a2Prime = simde_vmulq_f32(comp_a, gPlusOne);
+    simde_float16x8_t cBarPrime =
+        simde_vmulq_f16(simde_vaddq_f16(c1Prime, c2Prime), v_half);
 
-    simde_float32x4_t c1Prime = simde_vsqrtq_f32(simde_vaddq_f32(
-        simde_vmulq_f32(a1Prime, a1Prime), simde_vmulq_f32(ref_b, ref_b)));
+    simde_float16x8_t h1Prime =
+        simde_vmulq_f16(simde_vaddq_f16(math<>::atan2(ref_b, a1Prime),
+                                        simde_vdupq_n_f16(two_pi)),
+                        v_deg_factor);
 
-    simde_float32x4_t c2Prime = simde_vsqrtq_f32(simde_vaddq_f32(
-        simde_vmulq_f32(a2Prime, a2Prime), simde_vmulq_f32(comp_b, comp_b)));
+    simde_float16x8_t h2Prime =
+        simde_vmulq_f16(simde_vaddq_f16(math<>::atan2(comp_b, a2Prime),
+                                        simde_vdupq_n_f16(two_pi)),
+                        v_deg_factor);
 
-    simde_float32x4_t cBarPrime =
-        simde_vmulq_n_f32(simde_vaddq_f32(c1Prime, c2Prime), 0.5f);
+    simde_float16x8_t deltaLPrime = simde_vsubq_f16(comp_L, ref_L);
+    simde_float16x8_t deltaCPrime = simde_vsubq_f16(c2Prime, c1Prime);
 
-    simde_float32x4_t deg_factor = simde_vdupq_n_f32(180.0f / M_PI);
-    simde_float32x4_t two_pi = simde_vdupq_n_f32(2.0f * M_PI);
+    // Handle deltaH with proper angle adjustment
+    simde_float16x8_t deltaH = simde_vsubq_f16(h2Prime, h1Prime);
+    simde_uint16x8_t adjustNeeded =
+        simde_vcgtq_f16(simde_vabsq_f16(deltaH), v_hundred_eighty);
+    simde_uint16x8_t signMask = simde_vcleq_f16(h2Prime, h1Prime);
 
-    simde_float32x4_t angle_h1 = math<>::atan2(ref_b, a1Prime);
-    simde_float32x4_t h1Prime = simde_vaddq_f32(angle_h1, two_pi);
-    h1Prime = simde_vmulq_f32(h1Prime, deg_factor);
+    // Create sign vector (1 or -1)
+    simde_float16x8_t sign =
+        simde_vbslq_f16(signMask, v_one, simde_vdupq_n_f16(neg_one));
 
-    simde_float32x4_t angle_h2 = math<>::atan2(comp_b, a2Prime);
-    simde_float32x4_t h2Prime = simde_vaddq_f32(angle_h2, two_pi);
-    h2Prime = simde_vmulq_f32(h2Prime, deg_factor);
+    // Apply offset conditionally
+    simde_float16x8_t offset = simde_vmulq_f16(sign, v_three_sixty);
+    offset = simde_vbslq_f16(adjustNeeded, offset, simde_vdupq_n_f16(0.0f));
+    simde_float16x8_t deltahPrime = simde_vaddq_f16(deltaH, offset);
 
-    simde_float32x4_t deltaLPrime = simde_vsubq_f32(comp_L, ref_L);
-    simde_float32x4_t deltaCPrime = simde_vsubq_f32(c2Prime, c1Prime);
+    simde_float16x8_t angle = simde_vmulq_f16(deltahPrime, v_rad_scale);
+    simde_float16x8_t sin_angle = math<>::sin(angle);
 
-    // Compute the raw angular difference: deltaH = h2Prime - h1Prime
-    simde_float32x4_t deltaH = simde_vsubq_f32(h2Prime, h1Prime);
+    // sqrt(c1Prime * c2Prime) * sin_angle * two
+    simde_float16x8_t c1c2_sqrt =
+        simde_vsqrtq_f16(simde_vmulq_f16(c1Prime, c2Prime));
+    simde_float16x8_t deltaHPrime =
+        simde_vmulq_f16(simde_vmulq_f16(c1c2_sqrt, sin_angle), v_two);
 
-    // Compute the absolute difference.
-    simde_float32x4_t absDelta = simde_vabsq_f32(deltaH);
+    simde_float16x8_t diff = simde_vsubq_f16(lBarPrime, v_fifty);
+    simde_float16x8_t diff_sq = simde_vmulq_f16(diff, diff);
 
-    // Create a mask for when an adjustment is needed (absolute difference > 180)
-    simde_uint32x4_t adjustNeeded =
-        simde_vcgtq_f32(absDelta, simde_vdupq_n_f32(180.0f));
+    simde_float16x8_t denom = simde_vaddq_f16(v_twenty, diff_sq);
+    simde_float16x8_t inv_sqrt = simde_vrecpeq_f16(simde_vsqrtq_f16(denom));
 
-    // Create a mask to decide the sign of the adjustment
-    // If h2Prime <= h1Prime, then we should add 360 (i.e. +1); otherwise, subtract 360 (i.e. -1)
-    simde_uint32x4_t signMask = simde_vcleq_f32(h2Prime, h1Prime);
-    simde_float32x4_t sign = simde_vbslq_f32(signMask, simde_vdupq_n_f32(1.0f),
-                                             simde_vdupq_n_f32(-1.0f));
+    simde_float16x8_t term_sL =
+        simde_vmulq_n_f16(diff_sq, zero_point_zero_one_fifteen);
+    simde_float16x8_t sL = simde_vfmaq_f16(v_one, term_sL, inv_sqrt);
 
-    // Multiply the sign by 360 to create the offset
-    simde_float32x4_t offset = simde_vmulq_f32(sign, simde_vdupq_n_f32(360.0f));
+    // Compute sC = 1 + 0.045 * cBarPrime
+    simde_float16x8_t sC =
+        simde_vfmaq_n_f16(v_one, cBarPrime, zero_point_zero_four_five);
 
-    // Only apply the offset where the adjustment is needed
-    offset = simde_vbslq_f32(adjustNeeded, offset, simde_vdupq_n_f32(0.0f));
+    simde_float16x8_t sum_h = simde_vaddq_f16(h1Prime, h2Prime);
+    simde_float16x8_t diff_h = simde_vsubq_f16(h1Prime, h2Prime);
+    simde_float16x8_t absDiff_h = simde_vabsq_f16(diff_h);
 
-    simde_float32x4_t deltahPrime = simde_vaddq_f32(deltaH, offset);
+    simde_uint16x8_t cond1 = simde_vcleq_f16(absDiff_h, v_hundred_eighty);
+    simde_uint16x8_t cond2 = simde_vcltq_f16(sum_h, v_three_sixty);
 
-    // Compute the angle in radians: deltahPrime * (M_PI / 360.0f)
-    simde_float32x4_t scale = simde_vdupq_n_f32(M_PI / 360.0f);
-    simde_float32x4_t angle = simde_vmulq_f32(deltahPrime, scale);
+    simde_float16x8_t offset_h =
+        simde_vbslq_f16(cond2, v_three_sixty, simde_vnegq_f16(v_three_sixty));
 
-    // Approximate the sine of the angle
-    simde_float32x4_t sin_angle = math<>::sin(angle);
+    offset_h = simde_vbslq_f16(cond1, simde_vdupq_n_f16(0.0f), offset_h);
+    simde_float16x8_t hBarPrime =
+        simde_vmulq_f16(simde_vaddq_f16(sum_h, offset_h), v_half);
 
-    // Compute c1Prime * c2Prime and then take the square root
-    simde_float32x4_t prod_c1c2 = simde_vmulq_f32(c1Prime, c2Prime);
-    simde_float32x4_t sqrt_c1c2 = simde_vsqrtq_f32(prod_c1c2);
+    simde_float16x8_t t = v_one;
 
-    // Multiply: 2 * sqrt(c1Prime * c2Prime) * sin(deltahPrime * M_PI/360.0f)
-    simde_float32x4_t deltaHPrime = simde_vmulq_f32(
-        simde_vdupq_n_f32(2.0f), simde_vmulq_f32(sqrt_c1c2, sin_angle));
+    // t = t - (cos((hBarPrime - 30)*deg_to_rad) * 0.17)
+    {
+        simde_float16x8_t angle = simde_vmulq_f16(
+            simde_vsubq_f16(hBarPrime, simde_vdupq_n_f16(thirty)),
+            v_deg_to_rad);
+        t = simde_vfmsq_n_f16(t, math<>::cos(angle), zero_point_one_seven);
+    }
 
-    // Compute (lBarPrime - 50)
-    simde_float32x4_t diff =
-        simde_vsubq_f32(lBarPrime, simde_vdupq_n_f32(50.0f));
+    // t = t + (cos((hBarPrime*2*deg_to_rad)) * 0.24)
+    {
+        simde_float16x8_t angle =
+            simde_vmulq_f16(simde_vmulq_f16(hBarPrime, v_two), v_deg_to_rad);
+        t = simde_vfmaq_n_f16(t, math<>::cos(angle), zero_point_two_four);
+    }
 
-    // Compute squared difference: (lBarPrime - 50)^2
-    simde_float32x4_t diffSq = simde_vmulq_f32(diff, diff);
+    // t = t + (cos(((hBarPrime*3 + 6)*deg_to_rad)) * 0.32)
+    {
+        // Use FMA: hBarPrime*3 + 6
+        simde_float16x8_t inner =
+            simde_vfmaq_n_f16(simde_vdupq_n_f16(six), hBarPrime, 3.0f);
+        simde_float16x8_t angle = simde_vmulq_f16(inner, v_deg_to_rad);
+        t = simde_vfmaq_n_f16(t, math<>::cos(angle), zero_point_three_two);
+    }
 
-    // Compute numerator: 0.015f * (lBarPrime - 50)^2
-    simde_float32x4_t numerator = simde_vmulq_n_f32(diffSq, 0.015f);
+    // t = t - (cos(((hBarPrime*4 - 63)*deg_to_rad)) * 0.2)
+    {
+        simde_float16x8_t inner = simde_vsubq_f16(
+            simde_vmulq_n_f16(hBarPrime, 4.0f), simde_vdupq_n_f16(sixty_three));
+        simde_float16x8_t angle = simde_vmulq_f16(inner, v_deg_to_rad);
+        t = simde_vfmsq_n_f16(t, math<>::cos(angle), zero_point_two);
+    }
 
-    // Compute denominator input: 20 + (lBarPrime - 50)^2
-    simde_float32x4_t denom_val =
-        simde_vaddq_f32(simde_vdupq_n_f32(20.0f), diffSq);
-    // Compute the square root of the denominator
-    simde_float32x4_t sqrt_denominator = simde_vsqrtq_f32(denom_val);
+    // sH = 1 + 0.015 * cBarPrime * t
+    simde_float16x8_t cBarPrime_t = simde_vmulq_f16(cBarPrime, t);
+    simde_float16x8_t sH =
+        simde_vfmaq_n_f16(v_one, cBarPrime_t, zero_point_zero_one_fifteen);
 
-    recip = simde_vrecpeq_f32(sqrt_denominator);
-    recip = simde_vmulq_f32(simde_vrecpsq_f32(sqrt_denominator, recip), recip);
+    simde_float16x8_t x_rt = simde_vdivq_f16(cBarPrime, v_twenty_five);
+    simde_float16x8_t x2_rt = simde_vmulq_f16(x_rt, x_rt);
+    simde_float16x8_t x3_rt = simde_vmulq_f16(x_rt, x2_rt);
+    simde_float16x8_t x4_rt = simde_vmulq_f16(x2_rt, x2_rt);
+    simde_float16x8_t x7_rt = simde_vmulq_f16(x3_rt, x4_rt);
 
-    // (0.015f * (lBarPrime - 50)^2) / sqrt(20 + (lBarPrime - 50)^2)
-    simde_float32x4_t fraction = simde_vmulq_f32(numerator, recip);
+    simde_float16x8_t rt_denom = simde_vaddq_f16(v_one, x7_rt);
+    simde_float16x8_t rt_sqrt =
+        simde_vsqrtq_f16(simde_vdivq_f16(x7_rt, rt_denom));
 
-    // sL = 1 + fraction
-    simde_float32x4_t sL = simde_vaddq_f32(simde_vdupq_n_f32(1.0f), fraction);
+    // exp(-(hBarPrime-275)²/625)
+    simde_float16x8_t h_diff =
+        simde_vsubq_f16(hBarPrime, simde_vdupq_n_f16(two_seventy_five));
 
-    simde_float32x4_t sC =
-        simde_vmlaq_n_f32(simde_vdupq_n_f32(1.0f), cBarPrime, 0.045f);
+    simde_float16x8_t h_scaled =
+        simde_vmulq_f16(h_diff, simde_vdupq_n_f16(inv_twenty_five));
 
-    simde_float32x4_t sum = simde_vaddq_f32(h1Prime, h2Prime);
-    diff = simde_vsubq_f32(h1Prime, h2Prime);
-    simde_float32x4_t absDiff = simde_vabsq_f32(diff);
+    simde_float16x8_t exp_term =
+        simde_vnegq_f16(simde_vmulq_f16(h_scaled, h_scaled));
+    simde_float16x8_t exp_result = math<precision::low>::exp(exp_term);
 
-    // Condition 1: (absDiff <= 180)
-    simde_uint32x4_t cond1 =
-        simde_vcleq_f32(absDiff, simde_vdupq_n_f32(180.0f));
-    // For diff > 180, test: (sum < 360)
-    simde_uint32x4_t cond2 = simde_vcltq_f32(sum, simde_vdupq_n_f32(360.0f));
+    // sin(60 * exp_result * deg_to_rad)
+    simde_float16x8_t exp_sixty =
+        simde_vmulq_f16(exp_result, simde_vdupq_n_f16(sixty));
+    simde_float16x8_t sin_angle_rt =
+        math<>::sin(simde_vmulq_f16(exp_sixty, v_deg_to_rad));
 
-    // If absDiff <= 180, no offset is needed; otherwise, if (sum < 360) use +360,
-    // else use -360.
-    simde_float32x4_t offsetForNotCond1 = simde_vbslq_f32(
-        cond2, simde_vdupq_n_f32(360.0f), simde_vdupq_n_f32(-360.0f));
-    offset = simde_vbslq_f32(cond1, simde_vdupq_n_f32(0.0f), offsetForNotCond1);
+    // rT = -2 * rt_sqrt * sin_angle_rt
+    simde_float16x8_t rT =
+        simde_vmulq_n_f16(simde_vmulq_f16(rt_sqrt, sin_angle_rt), -2.0f);
 
-    // Compute hBarPrime = (sum + offset) / 2
-    simde_float32x4_t hBarPrime =
-        simde_vmulq_f32(simde_vaddq_f32(sum, offset), simde_vdupq_n_f32(0.5f));
+    simde_float16x8_t lightness = simde_vdivq_f16(deltaLPrime, sL);
+    simde_float16x8_t chroma = simde_vdivq_f16(deltaCPrime, sC);
+    simde_float16x8_t hue = simde_vdivq_f16(deltaHPrime, sH);
 
-    const float DEG_TO_RAD = M_PI / 180.0f;
+    simde_float16x8_t lightness_sq = simde_vmulq_f16(lightness, lightness);
+    simde_float16x8_t chroma_sq = simde_vmulq_f16(chroma, chroma);
 
-    simde_float32x4_t deg_to_rad = simde_vdupq_n_f32(DEG_TO_RAD);
-    simde_float32x4_t hBarPrime2 = simde_vmulq_n_f32(hBarPrime, 2.0f);
-    simde_float32x4_t hBarPrime3 = simde_vmulq_n_f32(hBarPrime, 3.0f);
-    simde_float32x4_t hBarPrime4 = simde_vmulq_n_f32(hBarPrime, 4.0f);
+    simde_float16x8_t sum12 = simde_vaddq_f16(lightness_sq, chroma_sq);
 
-    simde_float32x4_t rad1 = simde_vmulq_f32(
-        simde_vsubq_f32(hBarPrime, simde_vdupq_n_f32(30.0f)), deg_to_rad);
-    simde_float32x4_t rad2 = simde_vmulq_f32(hBarPrime2, deg_to_rad);
-    simde_float32x4_t rad3 = simde_vmulq_f32(
-        simde_vaddq_f32(hBarPrime3, simde_vdupq_n_f32(6.0f)), deg_to_rad);
-    simde_float32x4_t rad4 = simde_vmulq_f32(
-        simde_vsubq_f32(hBarPrime4, simde_vdupq_n_f32(63.0f)), deg_to_rad);
+    simde_float16x8_t hue_sq = simde_vmulq_f16(hue, hue);
 
-    simde_float32x4_t cos1 = math<>::cos(rad1);
-    simde_float32x4_t cos2 = math<>::cos(rad2);
-    simde_float32x4_t cos3 = math<>::cos(rad3);
-    simde_float32x4_t cos4 = math<>::cos(rad4);
+    simde_float16x8_t rt_term =
+        simde_vmulq_f16(simde_vmulq_f16(rT, chroma), hue);
 
-    simde_float32x4_t t = simde_vdupq_n_f32(1.0f);
-    t = simde_vmlsq_n_f32(t, cos1, 0.17f);  // t = 1 - 0.17 * cos1
-    t = simde_vmlaq_n_f32(t, cos2, 0.24f);  // t += 0.24 * cos2
-    t = simde_vmlaq_n_f32(t, cos3, 0.32f);  // t += 0.32 * cos3
-    t = simde_vmlsq_n_f32(t, cos4, 0.20f);  // t -= 0.20 * cos4
+    simde_float16x8_t sum34 = simde_vaddq_f16(hue_sq, rt_term);
 
-    simde_float32x4_t sH =
-        simde_vmlaq_f32(simde_vdupq_n_f32(1.0f), simde_vmulq_f32(cBarPrime, t),
-                        simde_vdupq_n_f32(0.015f));
+    simde_float16x8_t sum = simde_vaddq_f16(sum12, sum34);
 
-    simde_float32x4_t cBarPrime2 = simde_vmulq_f32(cBarPrime, cBarPrime);
-    simde_float32x4_t cBarPrime4 = simde_vmulq_f32(cBarPrime2, cBarPrime2);
-    simde_float32x4_t cBarPrime7 =
-        simde_vmulq_f32(cBarPrime4, simde_vmulq_f32(cBarPrime2, cBarPrime));
+    simde_float16x8_t result = simde_vsqrtq_f16(sum);
 
-    simde_float32x4_t denom_rt = simde_vaddq_f32(cBarPrime7, pow25_7);
-
-    simde_float32x4_t rt_sqrt =
-        simde_vsqrtq_f32(simde_vdivq_f32(cBarPrime7, denom_rt));
-
-    // (hBarPrime - 275)/25
-    simde_float32x4_t h_diff =
-        simde_vsubq_f32(hBarPrime, simde_vdupq_n_f32(275.0f));
-    simde_float32x4_t h_scaled = simde_vmulq_n_f32(h_diff, 1.0f / 25.0f);
-
-    // -(h_scaled)^2
-    simde_float32x4_t h_squared = simde_vmulq_f32(h_scaled, h_scaled);
-    simde_float32x4_t neg_h_squared = simde_vnegq_f32(h_squared);
-
-    // exp(-((hBarPrime - 275)/25)^2)
-    simde_float32x4_t exp_result = math<>::exp(neg_h_squared);
-
-    // 60 * exp_result * π/180
-    angle =
-        simde_vmulq_n_f32(simde_vmulq_n_f32(exp_result, 60.0f), M_PI / 180.0f);
-
-    simde_float32x4_t sin_result = math<>::sin(angle);
-
-    simde_float32x4_t rT =
-        simde_vmulq_n_f32(simde_vmulq_f32(rt_sqrt, sin_result), -2.0f);
-
-    simde_float32x4_t lightness = simde_vdivq_f32(deltaLPrime, sL);
-    simde_float32x4_t chroma = simde_vdivq_f32(deltaCPrime, sC);
-    simde_float32x4_t hue = simde_vdivq_f32(deltaHPrime, sH);
-
-    simde_float32x4_t lightness_sq = simde_vmulq_f32(lightness, lightness);
-    simde_float32x4_t chroma_sq = simde_vmulq_f32(chroma, chroma);
-    simde_float32x4_t hue_sq = simde_vmulq_f32(hue, hue);
-
-    // rT * chroma * hue
-    simde_float32x4_t rt_term =
-        simde_vmulq_f32(simde_vmulq_f32(rT, chroma), hue);
-
-    // Sum all terms
-    sum = simde_vaddq_f32(
-        simde_vaddq_f32(simde_vaddq_f32(lightness_sq, chroma_sq), hue_sq),
-        rt_term);
-
-    // Calculate final sqrt
-    simde_float32x4_t result = simde_vsqrtq_f32(sum);
-
-    // Store the result
-    simde_vst1q_f32(results, result);
+    simde_vst1q_f16(results, result);
 }
 
-void Lab::deltaE(const Lab &ref, const Lab *comp, float *results, int len)
+void Lab::deltaE(const Lab &ref, const Lab *comp, simde_float16_t *results,
+                 int len)
 {
     const size_t totalFloats = len * 19;
 
@@ -505,7 +514,7 @@ void Lab::deltaE(const Lab &ref, const Lab *comp, float *results, int len)
     }
 }
 
-float Lab::deltaE(const Lab &other) const noexcept
+simde_float16_t Lab::deltaE(const Lab &other) const noexcept
 {
     const float lBarPrime = (this->L() + other.L()) * 0.5f;
     const float c1 = std::sqrt(this->a() * this->a() + this->b() * this->b());

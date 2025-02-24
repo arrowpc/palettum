@@ -1,4 +1,5 @@
 #include "color.h"
+#include <simde/arm/neon/qrshl.h>
 #include <simde/arm/neon/types.h>
 #include "simd_utils.h"
 
@@ -349,6 +350,298 @@ void Lab::deltaE_NEON(const Lab &ref, const Lab *comp, simde_float16_t *results)
     simde_float16x8_t result = simde_vsqrtq_f16(sum);
 
     simde_vst1q_f16(results, result);
+}
+
+void Lab::deltaE_AVX2(const Lab &ref, const Lab *comp, simde_float32 *results)
+{
+    simde__m256 ref_L = simde_mm256_set1_ps(ref.L());
+    simde__m256 ref_a = simde_mm256_set1_ps(ref.a());
+    simde__m256 ref_b = simde_mm256_set1_ps(ref.b());
+
+    simde__m256 comp_L =
+        simde_mm256_setr_ps(comp[0].L(), comp[1].L(), comp[2].L(), comp[3].L(),
+                            comp[4].L(), comp[5].L(), comp[6].L(), comp[7].L());
+    simde__m256 comp_a =
+        simde_mm256_setr_ps(comp[0].a(), comp[1].a(), comp[2].a(), comp[3].a(),
+                            comp[4].a(), comp[5].a(), comp[6].a(), comp[7].a());
+    simde__m256 comp_b =
+        simde_mm256_setr_ps(comp[0].b(), comp[1].b(), comp[2].b(), comp[3].b(),
+                            comp[4].b(), comp[5].b(), comp[6].b(), comp[7].b());
+
+    simde__m256 lBarPrime = simde_mm256_mul_ps(
+        simde_mm256_add_ps(ref_L, comp_L), simde_mm256_set1_ps(0.5f));
+
+    simde__m256 c1 = simde_mm256_sqrt_ps(simde_mm256_add_ps(
+        simde_mm256_mul_ps(ref_a, ref_a), simde_mm256_mul_ps(ref_b, ref_b)));
+
+    simde__m256 c2 = simde_mm256_sqrt_ps(
+        simde_mm256_add_ps(simde_mm256_mul_ps(comp_a, comp_a),
+                           simde_mm256_mul_ps(comp_b, comp_b)));
+
+    simde__m256 cBar = simde_mm256_mul_ps(simde_mm256_add_ps(c1, c2),
+                                          simde_mm256_set1_ps(0.5f));
+
+    // Calculating cBar^7 with 4 multiplication operations
+    // instead of 7 by taking advantage of the fact that
+    // 7 = 1 + 2 + 4
+    simde__m256 cBar2 = simde_mm256_mul_ps(cBar, cBar);
+    simde__m256 cBar4 = simde_mm256_mul_ps(cBar2, cBar2);
+    simde__m256 cBar3 = simde_mm256_mul_ps(cBar, cBar2);
+    simde__m256 cBar7 = simde_mm256_mul_ps(cBar3, cBar4);
+
+    simde__m256 pow25_7 = simde_mm256_set1_ps(6103515625.0f);
+
+    // Computing cBar7 / (cBar7 + pow25_7)
+    simde__m256 denom = simde_mm256_add_ps(cBar7, pow25_7);
+
+    simde__m256 recip = simde_mm256_rcp_ps(denom);
+    // Optional: Refine the reciprocal approximation for better accuracy
+    recip = simde_mm256_mul_ps(
+        recip, simde_mm256_sub_ps(simde_mm256_set1_ps(2.0f),
+                                  simde_mm256_mul_ps(denom, recip)));
+
+    simde__m256 frac = simde_mm256_mul_ps(cBar7, recip);
+    simde__m256 sqrtFrac = simde_mm256_sqrt_ps(frac);
+
+    // Since 0.5(1-x) = 0.5 - 0.5 * x
+    // 1 + 0.5 - 0.5 * x = 1.5 - 0.5 * x
+    simde__m256 gPlusOne = simde_mm256_sub_ps(
+        simde_mm256_set1_ps(1.5f),
+        simde_mm256_mul_ps(sqrtFrac, simde_mm256_set1_ps(0.5f)));
+
+    simde__m256 a1Prime = simde_mm256_mul_ps(ref_a, gPlusOne);
+    simde__m256 a2Prime = simde_mm256_mul_ps(comp_a, gPlusOne);
+
+    simde__m256 c1Prime = simde_mm256_sqrt_ps(
+        simde_mm256_add_ps(simde_mm256_mul_ps(a1Prime, a1Prime),
+                           simde_mm256_mul_ps(ref_b, ref_b)));
+
+    simde__m256 c2Prime = simde_mm256_sqrt_ps(
+        simde_mm256_add_ps(simde_mm256_mul_ps(a2Prime, a2Prime),
+                           simde_mm256_mul_ps(comp_b, comp_b)));
+
+    simde__m256 cBarPrime = simde_mm256_mul_ps(
+        simde_mm256_add_ps(c1Prime, c2Prime), simde_mm256_set1_ps(0.5f));
+
+    simde__m256 deg_factor = simde_mm256_set1_ps(180.0f / M_PI);
+    simde__m256 two_pi = simde_mm256_set1_ps(2.0f * M_PI);
+
+    simde__m256 angle_h1 = math<>::atan2(ref_b, a1Prime);
+    simde__m256 h1Prime = simde_mm256_add_ps(angle_h1, two_pi);
+    h1Prime = simde_mm256_mul_ps(h1Prime, deg_factor);
+
+    simde__m256 angle_h2 = math<>::atan2(comp_b, a2Prime);
+    simde__m256 h2Prime = simde_mm256_add_ps(angle_h2, two_pi);
+    h2Prime = simde_mm256_mul_ps(h2Prime, deg_factor);
+
+    simde__m256 deltaLPrime = simde_mm256_sub_ps(comp_L, ref_L);
+    simde__m256 deltaCPrime = simde_mm256_sub_ps(c2Prime, c1Prime);
+
+    // Compute the raw angular difference: deltaH = h2Prime - h1Prime
+    simde__m256 deltaH = simde_mm256_sub_ps(h2Prime, h1Prime);
+
+    // Compute the absolute difference.
+    simde__m256 absDelta = simde_mm256_andnot_ps(
+        simde_mm256_set1_ps(-0.0f), deltaH);  // abs using sign bit mask
+
+    // Create a mask for when an adjustment is needed (absolute difference > 180)
+    simde__m256 mask180 = simde_mm256_cmp_ps(
+        absDelta, simde_mm256_set1_ps(180.0f), SIMDE_CMP_GT_OQ);
+
+    // Create a mask to decide the sign of the adjustment
+    simde__m256 signMask =
+        simde_mm256_cmp_ps(h2Prime, h1Prime, SIMDE_CMP_LE_OQ);
+
+    // Combine the masks: if adjustment needed AND h2Prime <= h1Prime then +360, else -360
+    simde__m256 sign = simde_mm256_or_ps(
+        simde_mm256_and_ps(signMask, simde_mm256_set1_ps(1.0f)),
+        simde_mm256_andnot_ps(signMask, simde_mm256_set1_ps(-1.0f)));
+
+    // Multiply the sign by 360 to create the offset
+    simde__m256 offset = simde_mm256_mul_ps(sign, simde_mm256_set1_ps(360.0f));
+
+    // Only apply the offset where the adjustment is needed
+    offset = simde_mm256_and_ps(mask180, offset);
+
+    simde__m256 deltahPrime = simde_mm256_add_ps(deltaH, offset);
+
+    // Compute the angle in radians: deltahPrime * (M_PI / 360.0f)
+    simde__m256 scale = simde_mm256_set1_ps(M_PI / 360.0f);
+    simde__m256 angle = simde_mm256_mul_ps(deltahPrime, scale);
+
+    // Approximate the sine of the angle
+    simde__m256 sin_angle = math<>::sin(angle);
+
+    // Compute c1Prime * c2Prime and then take the square root
+    simde__m256 prod_c1c2 = simde_mm256_mul_ps(c1Prime, c2Prime);
+    simde__m256 sqrt_c1c2 = simde_mm256_sqrt_ps(prod_c1c2);
+
+    // Multiply: 2 * sqrt(c1Prime * c2Prime) * sin(deltahPrime * M_PI/360.0f)
+    simde__m256 deltaHPrime = simde_mm256_mul_ps(
+        simde_mm256_set1_ps(2.0f), simde_mm256_mul_ps(sqrt_c1c2, sin_angle));
+
+    // Compute (lBarPrime - 50)
+    simde__m256 diff =
+        simde_mm256_sub_ps(lBarPrime, simde_mm256_set1_ps(50.0f));
+
+    // Compute squared difference: (lBarPrime - 50)^2
+    simde__m256 diffSq = simde_mm256_mul_ps(diff, diff);
+
+    // Compute numerator: 0.015f * (lBarPrime - 50)^2
+    simde__m256 numerator =
+        simde_mm256_mul_ps(diffSq, simde_mm256_set1_ps(0.015f));
+
+    // Compute denominator input: 20 + (lBarPrime - 50)^2
+    simde__m256 denom_val =
+        simde_mm256_add_ps(simde_mm256_set1_ps(20.0f), diffSq);
+
+    // Compute the square root of the denominator
+    simde__m256 sqrt_denominator = simde_mm256_sqrt_ps(denom_val);
+
+    // Compute the reciprocal of the square root
+    recip = simde_mm256_rcp_ps(sqrt_denominator);
+    // Optional: Refine the reciprocal approximation
+    recip = simde_mm256_mul_ps(
+        recip, simde_mm256_sub_ps(simde_mm256_set1_ps(2.0f),
+                                  simde_mm256_mul_ps(sqrt_denominator, recip)));
+
+    // (0.015f * (lBarPrime - 50)^2) / sqrt(20 + (lBarPrime - 50)^2)
+    simde__m256 fraction = simde_mm256_mul_ps(numerator, recip);
+
+    // sL = 1 + fraction
+    simde__m256 sL = simde_mm256_add_ps(simde_mm256_set1_ps(1.0f), fraction);
+
+    simde__m256 sC = simde_mm256_add_ps(
+        simde_mm256_set1_ps(1.0f),
+        simde_mm256_mul_ps(cBarPrime, simde_mm256_set1_ps(0.045f)));
+
+    simde__m256 sum = simde_mm256_add_ps(h1Prime, h2Prime);
+    diff = simde_mm256_sub_ps(h1Prime, h2Prime);
+    simde__m256 absDiff = simde_mm256_andnot_ps(
+        simde_mm256_set1_ps(-0.0f), diff);  // abs using sign bit mask
+
+    // Condition 1: (absDiff <= 180)
+    simde__m256 cond1 = simde_mm256_cmp_ps(absDiff, simde_mm256_set1_ps(180.0f),
+                                           SIMDE_CMP_LE_OQ);
+
+    // For diff > 180, test: (sum < 360)
+    simde__m256 cond2 =
+        simde_mm256_cmp_ps(sum, simde_mm256_set1_ps(360.0f), SIMDE_CMP_LT_OQ);
+
+    // If absDiff <= 180, no offset is needed; otherwise, if (sum < 360) use +360, else use -360.
+    simde__m256 offsetForNotCond1 = simde_mm256_or_ps(
+        simde_mm256_and_ps(cond2, simde_mm256_set1_ps(360.0f)),
+        simde_mm256_andnot_ps(cond2, simde_mm256_set1_ps(-360.0f)));
+
+    offset =
+        simde_mm256_or_ps(simde_mm256_and_ps(cond1, simde_mm256_set1_ps(0.0f)),
+                          simde_mm256_andnot_ps(cond1, offsetForNotCond1));
+
+    // Compute hBarPrime = (sum + offset) / 2
+    simde__m256 hBarPrime = simde_mm256_mul_ps(simde_mm256_add_ps(sum, offset),
+                                               simde_mm256_set1_ps(0.5f));
+
+    const float DEG_TO_RAD = M_PI / 180.0f;
+
+    simde__m256 deg_to_rad = simde_mm256_set1_ps(DEG_TO_RAD);
+    simde__m256 hBarPrime2 =
+        simde_mm256_mul_ps(hBarPrime, simde_mm256_set1_ps(2.0f));
+    simde__m256 hBarPrime3 =
+        simde_mm256_mul_ps(hBarPrime, simde_mm256_set1_ps(3.0f));
+    simde__m256 hBarPrime4 =
+        simde_mm256_mul_ps(hBarPrime, simde_mm256_set1_ps(4.0f));
+
+    simde__m256 rad1 = simde_mm256_mul_ps(
+        simde_mm256_sub_ps(hBarPrime, simde_mm256_set1_ps(30.0f)), deg_to_rad);
+    simde__m256 rad2 = simde_mm256_mul_ps(hBarPrime2, deg_to_rad);
+    simde__m256 rad3 = simde_mm256_mul_ps(
+        simde_mm256_add_ps(hBarPrime3, simde_mm256_set1_ps(6.0f)), deg_to_rad);
+    simde__m256 rad4 = simde_mm256_mul_ps(
+        simde_mm256_sub_ps(hBarPrime4, simde_mm256_set1_ps(63.0f)), deg_to_rad);
+
+    simde__m256 cos1 = math<>::cos(rad1);
+    simde__m256 cos2 = math<>::cos(rad2);
+    simde__m256 cos3 = math<>::cos(rad3);
+    simde__m256 cos4 = math<>::cos(rad4);
+
+    simde__m256 t = simde_mm256_set1_ps(1.0f);
+    t = simde_mm256_sub_ps(
+        t, simde_mm256_mul_ps(
+               cos1, simde_mm256_set1_ps(0.17f)));  // t = 1 - 0.17 * cos1
+    t = simde_mm256_add_ps(
+        t, simde_mm256_mul_ps(cos2,
+                              simde_mm256_set1_ps(0.24f)));  // t += 0.24 * cos2
+    t = simde_mm256_add_ps(
+        t, simde_mm256_mul_ps(cos3,
+                              simde_mm256_set1_ps(0.32f)));  // t += 0.32 * cos3
+    t = simde_mm256_sub_ps(
+        t, simde_mm256_mul_ps(cos4,
+                              simde_mm256_set1_ps(0.20f)));  // t -= 0.20 * cos4
+
+    simde__m256 sH =
+        simde_mm256_add_ps(simde_mm256_set1_ps(1.0f),
+                           simde_mm256_mul_ps(simde_mm256_mul_ps(cBarPrime, t),
+                                              simde_mm256_set1_ps(0.015f)));
+
+    simde__m256 cBarPrime2 = simde_mm256_mul_ps(cBarPrime, cBarPrime);
+    simde__m256 cBarPrime4 = simde_mm256_mul_ps(cBarPrime2, cBarPrime2);
+    simde__m256 cBarPrime7 = simde_mm256_mul_ps(
+        cBarPrime4, simde_mm256_mul_ps(cBarPrime2, cBarPrime));
+
+    simde__m256 denom_rt = simde_mm256_add_ps(cBarPrime7, pow25_7);
+
+    recip = simde_mm256_rcp_ps(denom_rt);
+
+    simde__m256 rt_sqrt =
+        simde_mm256_sqrt_ps(simde_mm256_mul_ps(cBarPrime7, recip));
+
+    // (hBarPrime - 275)/25
+    simde__m256 h_diff =
+        simde_mm256_sub_ps(hBarPrime, simde_mm256_set1_ps(275.0f));
+    simde__m256 h_scaled =
+        simde_mm256_mul_ps(h_diff, simde_mm256_set1_ps(1.0f / 25.0f));
+
+    // -(h_scaled)^2
+    simde__m256 h_squared = simde_mm256_mul_ps(h_scaled, h_scaled);
+    simde__m256 neg_h_squared = simde_mm256_xor_ps(
+        h_squared,
+        simde_mm256_set1_ps(-0.0f));  // Negate using XOR with sign bit
+
+    // exp(-((hBarPrime - 275)/25)^2)
+    simde__m256 exp_result = math<>::exp(neg_h_squared);
+
+    // 60 * exp_result * π/180
+    angle = simde_mm256_mul_ps(
+        simde_mm256_mul_ps(exp_result, simde_mm256_set1_ps(60.0f)),
+        simde_mm256_set1_ps(M_PI / 180.0f));
+
+    simde__m256 sin_result = math<>::sin(angle);
+
+    simde__m256 rT = simde_mm256_mul_ps(simde_mm256_mul_ps(rt_sqrt, sin_result),
+                                        simde_mm256_set1_ps(-2.0f));
+
+    simde__m256 lightness = simde_mm256_div_ps(deltaLPrime, sL);
+    simde__m256 chroma = simde_mm256_div_ps(deltaCPrime, sC);
+    simde__m256 hue = simde_mm256_div_ps(deltaHPrime, sH);
+
+    simde__m256 lightness_sq = simde_mm256_mul_ps(lightness, lightness);
+    simde__m256 chroma_sq = simde_mm256_mul_ps(chroma, chroma);
+    simde__m256 hue_sq = simde_mm256_mul_ps(hue, hue);
+
+    // rT * chroma * hue
+    simde__m256 rt_term =
+        simde_mm256_mul_ps(simde_mm256_mul_ps(rT, chroma), hue);
+
+    // Sum all terms
+    sum = simde_mm256_add_ps(
+        simde_mm256_add_ps(simde_mm256_add_ps(lightness_sq, chroma_sq), hue_sq),
+        rt_term);
+
+    // Calculate final sqrt
+    simde__m256 result = simde_mm256_sqrt_ps(sum);
+
+    // Store the result
+    simde_mm256_storeu_ps(results, result);
 }
 
 void Lab::deltaE(const Lab &ref, const Lab *comp, simde_float16_t *results,

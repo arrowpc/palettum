@@ -14,7 +14,7 @@
 
 #include <math.h>
 #include <simde/arm/neon.h>
-#include <simde/arm/neon/rsubhn.h>
+#include <simde/x86/avx2.h>
 #include <algorithm>
 #include <iostream>
 #include <optional>
@@ -55,6 +55,8 @@ public:
 
     static void deltaE_NEON(const Lab &ref, const Lab *comp,
                             simde_float16_t *results);
+    static void deltaE_AVX2(const Lab &ref, const Lab *comp,
+                            simde_float32 *results);
     static void deltaE(const Lab &ref, const Lab *comp,
                        simde_float16_t *results, int len);
     [[nodiscard]] simde_float16_t deltaE(const Lab &other) const noexcept;

@@ -4,6 +4,7 @@
 #include <omp.h>
 #include <unordered_map>
 #include <vector>
+#include "color/delta_e.h"
 #include "image.h"
 
 class Palettum
@@ -18,7 +19,6 @@ public:
                                   int transparent_threshold = 0);
     static GIF convertToPalette(GIF &gif, std::vector<RGB> &palette,
                                 int transparent_threshold = 0);
-
     static bool validateImageColors(Image &image, std::vector<RGB> &palette);
 };
 

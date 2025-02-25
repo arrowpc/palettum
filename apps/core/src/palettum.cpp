@@ -7,6 +7,9 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
     std::vector<Lab> constants_lab(palette.size());
     RGBCache cache;
 
+    static std::vector<float> results;
+#pragma omp threadprivate(results)
+
 #pragma omp parallel for
     for (int i = 0; i < palette.size(); ++i)
     {
@@ -15,41 +18,47 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
 
     const int height = image.height();
     const int width = image.width();
+    const int palette_size = palette.size();
 
-#pragma omp parallel for collapse(2) schedule(dynamic)
-    for (int y = 0; y < height; ++y)
+#pragma omp parallel
     {
-        for (int x = 0; x < width; ++x)
+        results.resize(palette_size);
+
+#pragma omp for collapse(2) schedule(dynamic)
+        for (int y = 0; y < height; ++y)
         {
-            RGBA currentPixel = image.get(x, y);
-
-            if (currentPixel.alpha() < transparent_threshold)
+            for (int x = 0; x < width; ++x)
             {
-                result.set(x, y, RGBA(0, 0, 0, 0));
-                continue;
-            }
+                RGBA currentPixel = image.get(x, y);
 
-            auto closestColor = cache.get(currentPixel);
-
-            if (!closestColor)
-            {
-                float closestDE = 250.0f;
-                std::vector<float> results(palette.size());
-                Lab::deltaE(currentPixel.toLab(), constants_lab.data(),
-                            results.data(), palette.size());
-
-                for (size_t i = 0; i < palette.size(); ++i)
+                if (currentPixel.alpha() < transparent_threshold)
                 {
-                    if (results[i] < closestDE)
-                    {
-                        closestDE = results[i];
-                        closestColor = palette[i];
-                    }
+                    result.set(x, y, RGBA(0, 0, 0, 0));
+                    continue;
                 }
-                cache.set(currentPixel, *closestColor);
-            }
 
-            result.set(x, y, *closestColor);
+                auto closestColor = cache.get(currentPixel);
+
+                if (!closestColor)
+                {
+                    float closestDE = FLT_MAX;
+                    Lab currentLab = currentPixel.toLab();
+
+                    results = deltaE(currentLab, constants_lab);
+
+                    for (size_t i = 0; i < palette_size; ++i)
+                    {
+                        if (results[i] < closestDE)
+                        {
+                            closestDE = results[i];
+                            closestColor = palette[i];
+                        }
+                    }
+                    cache.set(currentPixel, *closestColor);
+                }
+
+                result.set(x, y, *closestColor);
+            }
         }
     }
     return result;
@@ -68,50 +77,62 @@ GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette,
         result.setPalette(frameIndex, palette);
     }
 
+    static std::vector<float> results;
+#pragma omp threadprivate(results)
+
 #pragma omp parallel for
     for (int i = 0; i < palette.size(); ++i)
     {
         constants_lab[i] = palette[i].toLab();
     }
 
+    const int palette_size = palette.size();
+
     for (size_t frameIndex = 0; frameIndex < gif.frameCount(); ++frameIndex)
     {
         const auto &sourceFrame = gif.getFrame(frameIndex);
-
         const int height = sourceFrame.image.height();
         const int width = sourceFrame.image.width();
 
-#pragma omp parallel for collapse(2) schedule(dynamic)
-        for (int y = 0; y < height; ++y)
+#pragma omp parallel
         {
-            for (int x = 0; x < width; ++x)
+            results.resize(palette_size);
+
+#pragma omp for collapse(2) schedule(dynamic)
+            for (int y = 0; y < height; ++y)
             {
-                RGBA currentPixel = sourceFrame.image.get(x, y);
-
-                if (currentPixel.alpha() < transparent_threshold)
+                for (int x = 0; x < width; ++x)
                 {
-                    result.setPixel(frameIndex, x, y, RGBA(0, 0, 0, 0));
-                    continue;
-                }
+                    RGBA currentPixel = sourceFrame.image.get(x, y);
 
-                auto closestColor = cache.get(currentPixel);
-                if (!closestColor)
-                {
-                    float closestDE = 250.0f;
-                    std::vector<float> results(palette.size());
-                    Lab::deltaE(currentPixel.toLab(), constants_lab.data(),
-                                results.data(), palette.size());
-                    for (size_t i = 0; i < palette.size(); ++i)
+                    if (currentPixel.alpha() < transparent_threshold)
                     {
-                        if (results[i] < closestDE)
-                        {
-                            closestDE = results[i];
-                            closestColor = palette[i];
-                        }
+                        result.setPixel(frameIndex, x, y, RGBA(0, 0, 0, 0));
+                        continue;
                     }
-                    cache.set(currentPixel, *closestColor);
+
+                    auto closestColor = cache.get(currentPixel);
+
+                    if (!closestColor)
+                    {
+                        float closestDE = FLT_MAX;
+                        Lab currentLab = currentPixel.toLab();
+
+                        results = deltaE(currentLab, constants_lab);
+
+                        for (size_t i = 0; i < palette_size; ++i)
+                        {
+                            if (results[i] < closestDE)
+                            {
+                                closestDE = results[i];
+                                closestColor = palette[i];
+                            }
+                        }
+                        cache.set(currentPixel, *closestColor);
+                    }
+
+                    result.setPixel(frameIndex, x, y, *closestColor);
                 }
-                result.setPixel(frameIndex, x, y, *closestColor);
             }
         }
     }

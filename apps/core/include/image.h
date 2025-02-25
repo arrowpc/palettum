@@ -7,7 +7,7 @@
 #include <gif_lib.h>
 #include <memory>
 #include <vector>
-#include "color.h"
+#include "color/rgb.h"
 
 class Image
 {

@@ -6,6 +6,15 @@
 #include <simde/x86/avx2.h>
 #include <cmath>
 
+#ifndef M_PI
+#    define M_PI 3.14159265358979323846264338327950288
+#endif
+
+const float pow25_7 = 6103515625.0f;
+float const RAD_TO_DEG = 180.0f / M_PI;
+float const HALF_DEG_TO_RAD = M_PI / 360.0f;
+float const DEG_TO_RAD = M_PI / 180.0f;
+
 enum class precision { high, low };
 constexpr precision default_precision = precision::low;
 

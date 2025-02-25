@@ -42,7 +42,7 @@ PYBIND11_MODULE(palettum, m)
         .def("L", &Lab::L)
         .def("a", &Lab::a)
         .def("b", &Lab::b)
-        .def("deltaE", py::overload_cast<const Lab &>(&Lab::deltaE, py::const_))
+        // .def("deltaE", py::overload_cast<const Lab &>(&Lab::deltaE, py::const_))
         .def("toRGB", &Lab::toRGB)
         .def("__repr__", [](const Lab &lab) {
             return "Lab(" + std::to_string(lab.L()) + ", " +

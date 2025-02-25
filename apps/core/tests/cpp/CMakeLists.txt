@@ -1,4 +1,10 @@
-add_executable(palettum_tests palettum_test.cpp ${CMAKE_SOURCE_DIR}/src/palettum.cpp ${CMAKE_SOURCE_DIR}/src/image.cpp ${CMAKE_SOURCE_DIR}/src/color.cpp)
+add_executable(palettum_tests palettum_test.cpp 
+  ${CMAKE_SOURCE_DIR}/src/palettum.cpp 
+  ${CMAKE_SOURCE_DIR}/src/image.cpp 
+  ${CMAKE_SOURCE_DIR}/src/color/delta_e.cpp 
+  ${CMAKE_SOURCE_DIR}/src/color/rgb.cpp
+  ${CMAKE_SOURCE_DIR}/src/color/lab.cpp
+)
 target_link_libraries(palettum_tests PUBLIC GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main pybind11::embed OpenMP::OpenMP_CXX GIF::GIF)
 
 target_include_directories(palettum_tests PRIVATE

@@ -4,7 +4,7 @@
 #include <vector>
 #include "color/lab.h"
 #include "color/simd_detect.h"
-#include "math.hpp"
+#include "simd_math.h"
 
 namespace delta {
 

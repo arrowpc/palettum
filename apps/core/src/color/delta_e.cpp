@@ -225,13 +225,12 @@ void CIEDE2000::calculate_neon_batch(const Lab &reference, const Lab *colors,
     simde_float16x8_t cBarPrime =
         simde_vmulq_f16(simde_vaddq_f16(c1Prime, c2Prime), v_half);
 
-    simde_float16x8_t h1Prime =
-        simde_vmulq_f16(simde_vaddq_f16(math<>::atan2(ref_b, a1Prime),
-                                        simde_vdupq_n_f16(two_pi)),
-                        v_deg_factor);
+    simde_float16x8_t h1Prime = simde_vmulq_f16(
+        simde_vaddq_f16(math::atan2(ref_b, a1Prime), simde_vdupq_n_f16(two_pi)),
+        v_deg_factor);
 
     simde_float16x8_t h2Prime =
-        simde_vmulq_f16(simde_vaddq_f16(math<>::atan2(comp_b, a2Prime),
+        simde_vmulq_f16(simde_vaddq_f16(math::atan2(comp_b, a2Prime),
                                         simde_vdupq_n_f16(two_pi)),
                         v_deg_factor);
 
@@ -254,7 +253,7 @@ void CIEDE2000::calculate_neon_batch(const Lab &reference, const Lab *colors,
     simde_float16x8_t deltahPrime = simde_vaddq_f16(deltaH, offset);
 
     simde_float16x8_t angle = simde_vmulq_f16(deltahPrime, v_rad_scale);
-    simde_float16x8_t sin_angle = math<>::sin(angle);
+    simde_float16x8_t sin_angle = math::sin(angle);
 
     // sqrt(c1Prime * c2Prime) * sin_angle * two
     simde_float16x8_t c1c2_sqrt =
@@ -297,14 +296,14 @@ void CIEDE2000::calculate_neon_batch(const Lab &reference, const Lab *colors,
         simde_float16x8_t angle = simde_vmulq_f16(
             simde_vsubq_f16(hBarPrime, simde_vdupq_n_f16(thirty)),
             v_deg_to_rad);
-        t = simde_vfmsq_n_f16(t, math<>::cos(angle), zero_point_one_seven);
+        t = simde_vfmsq_n_f16(t, math::cos(angle), zero_point_one_seven);
     }
 
     // t = t + (cos((hBarPrime*2*deg_to_rad)) * 0.24)
     {
         simde_float16x8_t angle =
             simde_vmulq_f16(simde_vmulq_f16(hBarPrime, v_two), v_deg_to_rad);
-        t = simde_vfmaq_n_f16(t, math<>::cos(angle), zero_point_two_four);
+        t = simde_vfmaq_n_f16(t, math::cos(angle), zero_point_two_four);
     }
 
     // t = t + (cos(((hBarPrime*3 + 6)*deg_to_rad)) * 0.32)
@@ -313,7 +312,7 @@ void CIEDE2000::calculate_neon_batch(const Lab &reference, const Lab *colors,
         simde_float16x8_t inner =
             simde_vfmaq_n_f16(simde_vdupq_n_f16(six), hBarPrime, 3.0f);
         simde_float16x8_t angle = simde_vmulq_f16(inner, v_deg_to_rad);
-        t = simde_vfmaq_n_f16(t, math<>::cos(angle), zero_point_three_two);
+        t = simde_vfmaq_n_f16(t, math::cos(angle), zero_point_three_two);
     }
 
     // t = t - (cos(((hBarPrime*4 - 63)*deg_to_rad)) * 0.2)
@@ -321,7 +320,7 @@ void CIEDE2000::calculate_neon_batch(const Lab &reference, const Lab *colors,
         simde_float16x8_t inner = simde_vsubq_f16(
             simde_vmulq_n_f16(hBarPrime, 4.0f), simde_vdupq_n_f16(sixty_three));
         simde_float16x8_t angle = simde_vmulq_f16(inner, v_deg_to_rad);
-        t = simde_vfmsq_n_f16(t, math<>::cos(angle), zero_point_two);
+        t = simde_vfmsq_n_f16(t, math::cos(angle), zero_point_two);
     }
 
     // sH = 1 + 0.015 * cBarPrime * t
@@ -348,13 +347,13 @@ void CIEDE2000::calculate_neon_batch(const Lab &reference, const Lab *colors,
 
     simde_float16x8_t exp_term =
         simde_vnegq_f16(simde_vmulq_f16(h_scaled, h_scaled));
-    simde_float16x8_t exp_result = math<precision::low>::exp(exp_term);
+    simde_float16x8_t exp_result = math::exp(exp_term);
 
     // sin(60 * exp_result * deg_to_rad)
     simde_float16x8_t exp_sixty =
         simde_vmulq_f16(exp_result, simde_vdupq_n_f16(sixty));
     simde_float16x8_t sin_angle_rt =
-        math<>::sin(simde_vmulq_f16(exp_sixty, v_deg_to_rad));
+        math::sin(simde_vmulq_f16(exp_sixty, v_deg_to_rad));
 
     // rT = -2 * rt_sqrt * sin_angle_rt
     simde_float16x8_t rT =
@@ -505,11 +504,11 @@ void CIEDE2000::calculate_avx2_batch(const Lab &reference, const Lab *colors,
     simde__m256 deg_factor = simde_mm256_set1_ps(180.0f / M_PI);
     simde__m256 two_pi = simde_mm256_set1_ps(2.0f * M_PI);
 
-    simde__m256 angle_h1 = math<>::atan2(ref_b, a1Prime);
+    simde__m256 angle_h1 = math::atan2(ref_b, a1Prime);
     simde__m256 h1Prime = simde_mm256_add_ps(angle_h1, two_pi);
     h1Prime = simde_mm256_mul_ps(h1Prime, deg_factor);
 
-    simde__m256 angle_h2 = math<>::atan2(comp_b, a2Prime);
+    simde__m256 angle_h2 = math::atan2(comp_b, a2Prime);
     simde__m256 h2Prime = simde_mm256_add_ps(angle_h2, two_pi);
     h2Prime = simde_mm256_mul_ps(h2Prime, deg_factor);
 
@@ -549,7 +548,7 @@ void CIEDE2000::calculate_avx2_batch(const Lab &reference, const Lab *colors,
     simde__m256 angle = simde_mm256_mul_ps(deltahPrime, scale);
 
     // Approximate the sine of the angle
-    simde__m256 sin_angle = math<>::sin(angle);
+    simde__m256 sin_angle = math::sin(angle);
 
     // Compute c1Prime * c2Prime and then take the square root
     simde__m256 prod_c1c2 = simde_mm256_mul_ps(c1Prime, c2Prime);
@@ -638,10 +637,10 @@ void CIEDE2000::calculate_avx2_batch(const Lab &reference, const Lab *colors,
     simde__m256 rad4 = simde_mm256_mul_ps(
         simde_mm256_sub_ps(hBarPrime4, simde_mm256_set1_ps(63.0f)), deg_to_rad);
 
-    simde__m256 cos1 = math<>::cos(rad1);
-    simde__m256 cos2 = math<>::cos(rad2);
-    simde__m256 cos3 = math<>::cos(rad3);
-    simde__m256 cos4 = math<>::cos(rad4);
+    simde__m256 cos1 = math::cos(rad1);
+    simde__m256 cos2 = math::cos(rad2);
+    simde__m256 cos3 = math::cos(rad3);
+    simde__m256 cos4 = math::cos(rad4);
 
     simde__m256 t = simde_mm256_set1_ps(1.0f);
     t = simde_mm256_sub_ps(
@@ -687,14 +686,14 @@ void CIEDE2000::calculate_avx2_batch(const Lab &reference, const Lab *colors,
         simde_mm256_set1_ps(-0.0f));  // Negate using XOR with sign bit
 
     // exp(-((hBarPrime - 275)/25)^2)
-    simde__m256 exp_result = math<>::exp(neg_h_squared);
+    simde__m256 exp_result = math::exp(neg_h_squared);
 
     // 60 * exp_result * π/180
     angle = simde_mm256_mul_ps(
         simde_mm256_mul_ps(exp_result, simde_mm256_set1_ps(60.0f)),
         simde_mm256_set1_ps(M_PI / 180.0f));
 
-    simde__m256 sin_result = math<>::sin(angle);
+    simde__m256 sin_result = math::sin(angle);
 
     simde__m256 rT = simde_mm256_mul_ps(simde_mm256_mul_ps(rt_sqrt, sin_result),
                                         simde_mm256_set1_ps(-2.0f));

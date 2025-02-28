@@ -1,4 +1,9 @@
 #include "image/image.h"
+#include <stdexcept>
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <stb_image.h>
 #include <stb_image_resize2.h>
 #include <stb_image_write.h>
@@ -92,7 +97,9 @@ std::vector<unsigned char> Image::write() const
                               m_height, m_channels, &len);
     if (!png_data)
     {
-        return {};
+        throw std::runtime_error(
+            std::string("Failed to write image to memory: ") +
+            stbi_failure_reason());
     }
 
     std::vector<unsigned char> result(png_data, png_data + len);
@@ -108,12 +115,21 @@ bool Image::write(const std::string &filename) const
 
 bool Image::write(const char *filename) const
 {
-    return stbi_write_png(filename, m_width, m_height, m_channels,
-                          m_data.data(), m_width * m_channels);
+    bool written = stbi_write_png(filename, m_width, m_height, m_channels,
+                                  m_data.data(), m_width * m_channels);
+    if (!written)
+    {
+        throw std::runtime_error(std::string("Failed to write image: ") +
+                                 stbi_failure_reason());
+    }
+    return written;
 }
 
 bool Image::resize(int width, int height)
 {
+    if (width <= 0 || height <= 0)
+        throw std::out_of_range("Invalid resize dimensions");
+
     std::vector<uint8_t> new_data(width * height * m_channels);
 
     double x_ratio = static_cast<double>(m_width) / width;
@@ -158,8 +174,8 @@ RGBA Image::get(int x, int y) const
 void Image::set(int x, int y, const RGBA &color)
 {
     if (m_channels != 4)
-        throw std::logic_error(
-            "Image does not have an alpha channel. Use Image::set instead.");
+        throw std::logic_error("Image does not have an alpha channel. Use "
+                               "Image::set(int, int, const RGB&) instead.");
 
     validateCoordinates(x, y);
     size_t pos = (y * m_width + x) * m_channels;
@@ -215,7 +231,7 @@ void Image::validateCoordinates(int x, int y) const
 {
     if (x < 0 || x >= m_width || y < 0 || y >= m_height)
     {
-        throw std::out_of_range("RGB coordinates out of bounds");
+        throw std::out_of_range("Given coordinates out of bounds");
     }
 }
 

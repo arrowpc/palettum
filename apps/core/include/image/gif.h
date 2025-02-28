@@ -62,6 +62,7 @@ public:
 
 private:
     void parse(GifFileType *gif);
+    void write(GifFileType *gif) const;
     std::vector<Frame> m_frames;
     int m_width;
     int m_height;
@@ -69,7 +70,7 @@ private:
     std::unique_ptr<ColorMapObject, void (*)(ColorMapObject *)>
         m_globalColorMap;
 
-    int m_loop_count;  // 0 = infinite, -1 = no loop, else specific count
+    int m_loop_count;  // <= 0 = infinite, else specific count + 1
     int m_background_color_index;
     bool m_has_global_color_map;
 

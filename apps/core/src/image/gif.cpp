@@ -1,4 +1,5 @@
 #include "image/gif.h"
+#include <cfloat>
 
 GIF::Frame::Frame(const Image &img)
     : image(img)
@@ -143,9 +144,9 @@ void GIF::parse(GifFileType *gif)
         m_has_global_color_map = true;
     }
 
-    for (int i = 0; i < gif->ExtensionBlockCount; i++)
+    for (int i = 0; i < gif->SavedImages->ExtensionBlockCount; i++)
     {
-        ExtensionBlock *ext = &gif->ExtensionBlocks[i];
+        ExtensionBlock *ext = &gif->SavedImages->ExtensionBlocks[i];
         if (ext->Function == APPLICATION_EXT_FUNC_CODE &&
             ext->ByteCount >= 11 &&
             strncmp((const char *)ext->Bytes, "NETSCAPE2.0", 11) == 0 &&
@@ -254,7 +255,7 @@ int GIF::readFromMemory(GifFileType *gif, GifByteType *buf, int size)
 
 GIF::GIF(const unsigned char *buffer, int length)
     : m_globalColorMap(nullptr, GifFreeMapObject)
-    , m_loop_count(0)
+    , m_loop_count(-1)
     , m_background_color_index(0)
     , m_has_global_color_map(false)
 {
@@ -494,80 +495,7 @@ bool GIF::write(const char *filename) const
                                  std::string(GifErrorString(error)));
     }
 
-    if (EGifPutScreenDesc(gif, m_width, m_height, 8, m_background_color_index,
-                          m_has_global_color_map ? m_globalColorMap.get()
-                                                 : nullptr) != GIF_OK)
-    {
-        EGifCloseFile(gif, &error);
-        throw std::runtime_error("Failed to write screen descriptor: " +
-                                 std::string(GifErrorString(gif->Error)));
-    }
-
-    unsigned char nsle[3] = {1, 0, 0};
-    if (EGifPutExtensionLeader(gif, APPLICATION_EXT_FUNC_CODE) != GIF_OK ||
-        EGifPutExtensionBlock(gif, 11, "NETSCAPE2.0") != GIF_OK ||
-        EGifPutExtensionBlock(gif, 3, nsle) != GIF_OK ||
-        EGifPutExtensionTrailer(gif) != GIF_OK)
-    {
-        EGifCloseFile(gif, &error);
-        throw std::runtime_error("Failed to write loop extension: " +
-                                 std::string(GifErrorString(gif->Error)));
-    }
-
-    for (const auto &frame : m_frames)
-    {
-        unsigned char extension[4];
-        extension[0] = (frame.disposal_method & 0x07) << 2;
-        if (frame.has_transparency)
-        {
-            extension[0] |= 0x01;
-        }
-        extension[1] = frame.delay_cs & 0xFF;
-        extension[2] = (frame.delay_cs >> 8) & 0xFF;
-        extension[3] = frame.transparent_index;
-
-        if (EGifPutExtension(gif, GRAPHICS_EXT_FUNC_CODE, 4, extension) !=
-            GIF_OK)
-        {
-            EGifCloseFile(gif, &error);
-            throw std::runtime_error("Failed to write graphic extension: " +
-                                     std::string(GifErrorString(gif->Error)));
-        }
-
-        int frameMinX = frame.hasVisiblePixels ? frame.minX : 0;
-        int frameMinY = frame.hasVisiblePixels ? frame.minY : 0;
-        int frameMaxX = frame.hasVisiblePixels ? frame.maxX : 1;
-        int frameMaxY = frame.hasVisiblePixels ? frame.maxY : 1;
-
-        int frameWidth = frameMaxX - frameMinX + 1;
-        int frameHeight = frameMaxY - frameMinY + 1;
-
-        if (EGifPutImageDesc(gif, frameMinX, frameMinY, frameWidth, frameHeight,
-                             frame.is_interlaced,
-                             frame.colorMap.get()) != GIF_OK)
-        {
-            EGifCloseFile(gif, &error);
-            throw std::runtime_error("Failed to write image descriptor: " +
-                                     std::string(GifErrorString(gif->Error)));
-        }
-
-        std::vector<GifByteType> line(frameWidth);
-        for (int y = frameMinY; y <= frameMaxY; y++)
-        {
-            for (int x = frameMinX; x <= frameMaxX; x++)
-            {
-                line[x - frameMinX] =
-                    frame.indices[y * frame.image.width() + x];
-            }
-            if (EGifPutLine(gif, line.data(), frameWidth) != GIF_OK)
-            {
-                EGifCloseFile(gif, &error);
-                throw std::runtime_error(
-                    "Failed to write image line: " +
-                    std::string(GifErrorString(gif->Error)));
-            }
-        }
-    }
+    write(gif);
 
     if (EGifCloseFile(gif, &error) != GIF_OK)
     {
@@ -597,6 +525,20 @@ std::vector<unsigned char> GIF::write() const
     std::vector<unsigned char> result;
     gif->UserData = &result;
 
+    write(gif);
+
+    if (EGifCloseFile(gif, &error) != GIF_OK)
+    {
+        throw std::runtime_error("Failed to close GIF buffer: " +
+                                 std::string(GifErrorString(error)));
+    }
+    return result;
+}
+
+void GIF::write(GifFileType *gif) const
+{
+    int error = 0;
+
     if (EGifPutScreenDesc(gif, m_width, m_height, 8, m_background_color_index,
                           m_has_global_color_map ? m_globalColorMap.get()
                                                  : nullptr) != GIF_OK)
@@ -606,7 +548,11 @@ std::vector<unsigned char> GIF::write() const
                                  std::string(GifErrorString(gif->Error)));
     }
 
-    unsigned char nsle[3] = {1, 0, 0};
+    uint16_t loopVal = std::clamp(m_loop_count, 0, 0xFFFF);
+
+    unsigned char nsle[3] = {1, static_cast<unsigned char>(loopVal & 0xFF),
+                             static_cast<unsigned char>((loopVal >> 8) & 0xFF)};
+
     if (EGifPutExtensionLeader(gif, APPLICATION_EXT_FUNC_CODE) != GIF_OK ||
         EGifPutExtensionBlock(gif, 11, "NETSCAPE2.0") != GIF_OK ||
         EGifPutExtensionBlock(gif, 3, nsle) != GIF_OK ||
@@ -619,44 +565,11 @@ std::vector<unsigned char> GIF::write() const
 
     std::vector<GifByteType> currentIndices(m_width * m_height,
                                             m_background_color_index);
-
     for (const auto &frame : m_frames)
     {
         std::vector<GifByteType> nextIndices = currentIndices;
 
-        int frameMinX = frame.hasVisiblePixels ? frame.minX : 0;
-        int frameMinY = frame.hasVisiblePixels ? frame.minY : 0;
-        int frameMaxX = frame.hasVisiblePixels ? frame.maxX : 1;
-        int frameMaxY = frame.hasVisiblePixels ? frame.maxY : 1;
-
-        bool hasChanges = false;
-        for (int y = frameMinY; y <= frameMaxY; y++)
-        {
-            for (int x = frameMinX; x <= frameMaxX; x++)
-            {
-                GifByteType newIndex = frame.indices[y * m_width + x];
-                if (newIndex != currentIndices[y * m_width + x])
-                {
-                    hasChanges = true;
-                    nextIndices[y * m_width + x] = newIndex;
-                }
-            }
-        }
-
-        if (!hasChanges)
-        {
-            frameMinX = frameMinY = 0;
-            frameMaxX = frameMaxY = 1;
-        }
-
-        frameMinX = std::max(0, frameMinX - 1);
-        frameMinY = std::max(0, frameMinY - 1);
-        frameMaxX = std::min(m_width - 1, frameMaxX + 1);
-        frameMaxY = std::min(m_height - 1, frameMaxY + 1);
-
-        int frameWidth = frameMaxX - frameMinX + 1;
-        int frameHeight = frameMaxY - frameMinY + 1;
-
+        // Graphic control extension
         unsigned char extension[4];
         extension[0] = (frame.disposal_method & 0x07) << 2;
         if (frame.has_transparency)
@@ -675,6 +588,38 @@ std::vector<unsigned char> GIF::write() const
                                      std::string(GifErrorString(gif->Error)));
         }
 
+        // Determine frame bounds
+        int frameMinX = frame.hasVisiblePixels ? frame.minX : 0;
+        int frameMinY = frame.hasVisiblePixels ? frame.minY : 0;
+        int frameMaxX = frame.hasVisiblePixels
+                            ? frame.maxX
+                            : 0;  // Single pixel if no visible pixels
+        int frameMaxY = frame.hasVisiblePixels ? frame.maxY : 0;
+
+        bool hasChanges = false;
+        for (int y = frameMinY; y <= frameMaxY; y++)
+        {
+            for (int x = frameMinX; x <= frameMaxX; x++)
+            {
+                GifByteType newIndex = frame.indices[y * m_width + x];
+                if (newIndex != currentIndices[y * m_width + x])
+                {
+                    hasChanges = true;
+                    nextIndices[y * m_width + x] = newIndex;
+                }
+            }
+        }
+
+        if (!hasChanges)
+        {
+            frameMinX = frameMinY = 0;
+            frameMaxX = frameMaxY = 0;  // Minimal 1x1 frame if no changes
+        }
+
+        int frameWidth = frameMaxX - frameMinX + 1;
+        int frameHeight = frameMaxY - frameMinY + 1;
+
+        // Write image descriptor
         if (EGifPutImageDesc(gif, frameMinX, frameMinY, frameWidth, frameHeight,
                              frame.is_interlaced,
                              frame.colorMap.get()) != GIF_OK)
@@ -684,6 +629,7 @@ std::vector<unsigned char> GIF::write() const
                                      std::string(GifErrorString(gif->Error)));
         }
 
+        // Write raster data
         std::vector<GifByteType> rasterBits(frameWidth);
         for (int y = frameMinY; y < frameMinY + frameHeight; y++)
         {
@@ -700,6 +646,7 @@ std::vector<unsigned char> GIF::write() const
             }
         }
 
+        // Update currentIndices based on disposal method
         if (frame.disposal_method == DISPOSE_DO_NOT)
         {
             currentIndices = std::move(nextIndices);
@@ -716,12 +663,7 @@ std::vector<unsigned char> GIF::write() const
         }
     }
 
-    if (EGifCloseFile(gif, &error) != GIF_OK)
-    {
-        throw std::runtime_error("Failed to close GIF buffer: " +
-                                 std::string(GifErrorString(error)));
-    }
-    return result;
+    // Note: Caller is responsible for closing the GifFileType
 }
 
 bool GIF::resize(int width, int height)

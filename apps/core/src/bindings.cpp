@@ -68,9 +68,9 @@ PYBIND11_MODULE(palettum, m)
         .def("b", &Lab::b)
         .def("toRGB", &Lab::toRGB)
         .def("__repr__", [](const Lab &lab) {
-            return "Lab(" + std::to_string(lab.L()) + ", " +
-                   std::to_string(lab.a()) + ", " + std::to_string(lab.b()) +
-                   ")";
+            return "Lab(" + std::to_string((float)lab.L()) + ", " +
+                   std::to_string((float)lab.a()) + ", " +
+                   std::to_string((float)lab.b()) + ")";
         });
 
     py::class_<RGBA, RGB>(m, "RGBA")

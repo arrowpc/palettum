@@ -5,7 +5,8 @@
 #include <unordered_map>
 #include <vector>
 #include "color/delta_e.h"
-#include "image.h"
+#include "image/gif.h"
+#include "image/image.h"
 
 class Palettum
 {

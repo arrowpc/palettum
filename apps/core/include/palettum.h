@@ -1,5 +1,4 @@
-#ifndef PALETTUM_CORE_PALETTUM_H
-#define PALETTUM_CORE_PALETTUM_H
+#pragma once
 
 #include <omp.h>
 #include <unordered_map>
@@ -8,19 +7,15 @@
 #include "image/gif.h"
 #include "image/image.h"
 
-class Palettum
-{
-private:
-    Image m_image;
-    std::vector<RGB> m_palette;
-
-public:
-    Palettum() = default;
-    static Image convertToPalette(Image &image, std::vector<RGB> &palette,
-                                  int transparent_threshold = 0);
-    static GIF convertToPalette(GIF &gif, std::vector<RGB> &palette,
-                                int transparent_threshold = 0);
-    static bool validateImageColors(Image &image, std::vector<RGB> &palette);
+struct Config {
+    std::vector<RGB> palette = {{255, 0, 0}, {0, 255, 0}, {0, 0, 255}};
+    size_t transparencyThreshold = 0;
+    Formula formula = DEFAULT_FORMULA;
+    Architecture architecture = DEFAULT_ARCH;
 };
 
-#endif  //PALETTUM_CORE_PALETTUM_H
+namespace palettum {
+Image palettify(Image &image, Config &config);
+GIF palettify(GIF &gif, Config &config);
+bool validate(Image &image, Config &config);
+};  // namespace palettum

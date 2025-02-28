@@ -21,12 +21,15 @@
 enum class Architecture { SCALAR, NEON, AVX2 };
 
 #if HAS_NEON
-constexpr Architecture best_architecture = Architecture::NEON;
+constexpr Architecture DEFAULT_ARCH = Architecture::NEON;
 #elif HAS_AVX2
-constexpr Architecture best_architecture = Architecture::AVX2;
+constexpr Architecture DEFAULT_ARCH = Architecture::AVX2;
 #else
-constexpr Architecture best_architecture = Architecture::SCALAR;
+constexpr Architecture DEFAULT_ARCH = Architecture::SCALAR;
 #endif
+
+enum class Formula { EUCLIDEAN, CIE76, CIE94, CIEDE2000 };
+constexpr Formula DEFAULT_FORMULA = Formula::CIEDE2000;
 
 constexpr int get_lane_width(Architecture arch)
 {
@@ -153,96 +156,62 @@ inline float deltaE(const Lab &color1, const Lab &color2)
     return CIEDE2000::calculate(color1, color2);
 }
 
-// Type traits to detect if a type is a formula or architecture
-template <typename T>
-struct is_formula : std::false_type {
-};
-
-template <>
-struct is_formula<EUCLIDEAN> : std::true_type {
-};
-template <>
-struct is_formula<CIE76> : std::true_type {
-};
-template <>
-struct is_formula<CIE94> : std::true_type {
-};
-template <>
-struct is_formula<CIEDE2000> : std::true_type {
-};
-
-template <typename T>
-struct is_architecture : std::false_type {
-};
-
-template <>
-struct is_architecture<
-    std::integral_constant<Architecture, Architecture::SCALAR>>
-    : std::true_type {
-};
-template <>
-struct is_architecture<std::integral_constant<Architecture, Architecture::NEON>>
-    : std::true_type {
-};
-template <>
-struct is_architecture<std::integral_constant<Architecture, Architecture::AVX2>>
-    : std::true_type {
-};
-
-// Primary deltaE template for batch processing
-template <typename T1 = CIEDE2000,
-          typename T2 = std::integral_constant<Architecture, best_architecture>>
-std::vector<float> deltaE(const Lab &reference, const std::vector<Lab> &colors)
+// Batch deltaE with runtime formula and architecture selection
+inline std::vector<float> deltaE(const Lab &reference,
+                                 const std::vector<Lab> &colors,
+                                 Formula formula = DEFAULT_FORMULA,
+                                 Architecture arch = DEFAULT_ARCH)
 {
-    // If T1 is a formula and T2 is an architecture, use them directly
-    if constexpr (is_formula<T1>::value && is_architecture<T2>::value)
+    switch (formula)
     {
-        return T1::calculate_vectorized(reference, colors, T2::value);
-    }
-    // If T1 is an architecture and T2 is a formula, swap them
-    else if constexpr (is_architecture<T1>::value && is_formula<T2>::value)
-    {
-        return T2::calculate_vectorized(reference, colors, T1::value);
-    }
-    // If T1 is a formula but T2 is not an architecture, use best_architecture
-    else if constexpr (is_formula<T1>::value)
-    {
-        return T1::calculate_vectorized(reference, colors, best_architecture);
-    }
-    // If T1 is an architecture but T2 is not a formula, use CIEDE2000
-    else if constexpr (is_architecture<T1>::value)
-    {
-        return CIEDE2000::calculate_vectorized(reference, colors, T1::value);
-    }
-    // Default case: use CIEDE2000 and best_architecture
-    else
-    {
-        return CIEDE2000::calculate_vectorized(reference, colors,
-                                               best_architecture);
+        case Formula::EUCLIDEAN:
+            return CIEDE2000::calculate_vectorized(reference, colors, arch);
+        case Formula::CIE76:
+            return CIEDE2000::calculate_vectorized(reference, colors, arch);
+        case Formula::CIE94:
+            return CIEDE2000::calculate_vectorized(reference, colors, arch);
+        case Formula::CIEDE2000:
+            return CIEDE2000::calculate_vectorized(reference, colors, arch);
+        default:
+            return CIEDE2000::calculate_vectorized(reference, colors,
+                                                   arch);  // Fallback
     }
 }
 
-// Overload that takes explicit architecture enum
+// Traits to map Formula enum to formula struct
+template <Formula F>
+struct FormulaType;
+
+template <>
+struct FormulaType<Formula::EUCLIDEAN> {
+    using type = EUCLIDEAN;
+};
+
+template <>
+struct FormulaType<Formula::CIE76> {
+    using type = CIE76;
+};
+
+template <>
+struct FormulaType<Formula::CIE94> {
+    using type = CIE94;
+};
+
+template <>
+struct FormulaType<Formula::CIEDE2000> {
+    using type = CIEDE2000;
+};
+
+template <Formula F = DEFAULT_FORMULA, Architecture A = DEFAULT_ARCH>
+std::vector<float> deltaE(const Lab &reference, const std::vector<Lab> &colors)
+{
+    using FormulaT = typename FormulaType<F>::type;
+    return FormulaT::calculate_vectorized(reference, colors, A);
+}
+
 inline std::vector<float> deltaE(const Lab &reference,
                                  const std::vector<Lab> &colors,
                                  Architecture arch)
 {
     return CIEDE2000::calculate_vectorized(reference, colors, arch);
-}
-
-// Template specialization for explicit architecture constants
-template <Architecture Arch>
-using ArchType = std::integral_constant<Architecture, Arch>;
-
-template <Architecture Arch>
-std::vector<float> deltaE(const Lab &reference, const std::vector<Lab> &colors)
-{
-    return deltaE<ArchType<Arch>>(reference, colors);
-}
-
-// Helper template for formula + architecture combinations
-template <typename FormulaT, Architecture Arch>
-std::vector<float> deltaE(const Lab &reference, const std::vector<Lab> &colors)
-{
-    return FormulaT::calculate_vectorized(reference, colors, Arch);
 }

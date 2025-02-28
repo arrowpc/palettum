@@ -1,24 +1,25 @@
 #include "palettum.h"
 
-Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
-                                 int transparent_threshold)
+namespace palettum {
+
+Image palettify(Image &image, Config &config)
 {
     Image result(image.width(), image.height(), image.hasAlpha());
-    std::vector<Lab> constants_lab(palette.size());
+    std::vector<Lab> constants_lab(config.palette.size());
     RGBCache cache;
 
     static std::vector<float> results;
 #pragma omp threadprivate(results)
 
 #pragma omp parallel for
-    for (size_t i = 0; i < palette.size(); ++i)
+    for (size_t i = 0; i < config.palette.size(); ++i)
     {
-        constants_lab[i] = palette[i].toLab();
+        constants_lab[i] = config.palette[i].toLab();
     }
 
     const size_t height = image.height();
     const size_t width = image.width();
-    const size_t palette_size = palette.size();
+    const size_t palette_size = config.palette.size();
 
 #pragma omp parallel
     {
@@ -31,7 +32,7 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
             {
                 RGBA currentPixel = image.get(x, y);
 
-                if (currentPixel.alpha() < transparent_threshold)
+                if (currentPixel.alpha() < config.transparencyThreshold)
                 {
                     result.set(x, y, RGBA(0, 0, 0, 0));
                     continue;
@@ -44,14 +45,14 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
                     float closestDE = FLT_MAX;
                     Lab currentLab = currentPixel.toLab();
 
-                    results = deltaE(currentLab, constants_lab);
-
+                    results = deltaE(currentLab, constants_lab, config.formula,
+                                     config.architecture);
                     for (size_t i = 0; i < palette_size; ++i)
                     {
                         if (results[i] < closestDE)
                         {
                             closestDE = results[i];
-                            closestColor = palette[i];
+                            closestColor = config.palette[i];
                         }
                     }
                     cache.set(currentPixel, *closestColor);
@@ -64,29 +65,28 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
     return result;
 }
 
-GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette,
-                               int transparent_threshold)
+GIF palettify(GIF &gif, Config &config)
 {
-    std::vector<Lab> constants_lab(palette.size());
+    std::vector<Lab> constants_lab(config.palette.size());
     RGBCache cache;
 
     GIF result = gif;
 
     for (size_t frameIndex = 0; frameIndex < result.frameCount(); ++frameIndex)
     {
-        result.setPalette(frameIndex, palette);
+        result.setPalette(frameIndex, config.palette);
     }
 
     static std::vector<float> results;
 #pragma omp threadprivate(results)
 
 #pragma omp parallel for
-    for (size_t i = 0; i < palette.size(); ++i)
+    for (size_t i = 0; i < config.palette.size(); ++i)
     {
-        constants_lab[i] = palette[i].toLab();
+        constants_lab[i] = config.palette[i].toLab();
     }
 
-    const size_t palette_size = palette.size();
+    const size_t palette_size = config.palette.size();
 
     for (size_t frameIndex = 0; frameIndex < gif.frameCount(); ++frameIndex)
     {
@@ -105,7 +105,7 @@ GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette,
                 {
                     RGBA currentPixel = sourceFrame.image.get(x, y);
 
-                    if (currentPixel.alpha() < transparent_threshold)
+                    if (currentPixel.alpha() < config.transparencyThreshold)
                     {
                         result.setPixel(frameIndex, x, y, RGBA(0, 0, 0, 0));
                         continue;
@@ -118,14 +118,15 @@ GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette,
                         float closestDE = FLT_MAX;
                         Lab currentLab = currentPixel.toLab();
 
-                        results = deltaE(currentLab, constants_lab);
+                        results = deltaE(currentLab, constants_lab,
+                                         config.formula, config.architecture);
 
                         for (size_t i = 0; i < palette_size; ++i)
                         {
                             if (results[i] < closestDE)
                             {
                                 closestDE = results[i];
-                                closestColor = palette[i];
+                                closestColor = config.palette[i];
                             }
                         }
                         cache.set(currentPixel, *closestColor);
@@ -139,7 +140,7 @@ GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette,
     return result;
 }
 
-bool Palettum::validateImageColors(Image &image, std::vector<RGB> &palette)
+bool validate(Image &image, Config &config)
 {
     const int height = image.height();
     const int width = image.width();
@@ -151,7 +152,7 @@ bool Palettum::validateImageColors(Image &image, std::vector<RGB> &palette)
         {
             const RGBA currentPixel = image.get(x, y);
             bool foundMatch = false;
-            for (const auto &color : palette)
+            for (const auto &color : config.palette)
             {
                 if (currentPixel.red() == color.red() &&
                     currentPixel.green() == color.green() &&
@@ -164,3 +165,4 @@ bool Palettum::validateImageColors(Image &image, std::vector<RGB> &palette)
     }
     return isValid;
 }
+}  // namespace palettum

@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <optional>
+#include <vector>
 #include "color/lab.h"
 
 class Lab;

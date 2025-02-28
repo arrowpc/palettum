@@ -2,6 +2,7 @@
 #include <color/rgb.h>
 #include <simde/arm/neon.h>
 #include <simde/x86/avx2.h>
+#include <algorithm>
 #include <iostream>
 
 class RGB;

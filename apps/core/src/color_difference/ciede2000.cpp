@@ -3,10 +3,13 @@
 float CIEDE2000::calculate(const Lab &color1, const Lab &color2)
 {
     const float lBarPrime = (color1.L() + color2.L()) * 0.5f;
-    const float c1 =
-        std::sqrt(color1.a() * color1.a() + color1.b() * color1.b());
-    const float c2 =
-        std::sqrt(color2.a() * color2.a() + color2.b() * color2.b());
+    const float c1 = std::sqrt(
+        static_cast<float>(color1.a()) * static_cast<float>(color1.a()) +
+        static_cast<float>(color1.b()) * static_cast<float>(color1.b()));
+    const float c2 = std::sqrt(
+        static_cast<float>(color2.a()) * static_cast<float>(color2.a()) +
+        static_cast<float>(color2.b()) * static_cast<float>(color2.b()));
+
     const float cBar = (c1 + c2) * 0.5f;
     const float cBar7 = std::pow(cBar, 7.0f);
     const float pow25_7 = 6103515625.0f;  // std::pow(25.0f, 7.0f) precomputed

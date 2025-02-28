@@ -15,14 +15,18 @@ public:
         int disposal_method{};
         int transparent_index{};
         bool has_transparency{};
-        int y_offset{};
         int x_offset{};
+        int y_offset{};
         bool is_interlaced{};
+
+        int minX, minY, maxX, maxY;
+        bool hasVisiblePixels;
 
         explicit Frame(const Image &img);
         Frame(const Frame &other);
         Frame(Frame &&) noexcept = default;
 
+        void updateBounds(int x, int y, GifByteType index);
         void setPixel(int x, int y, const RGBA &color, GifByteType index);
         void setPixel(int x, int y, const RGB &color, GifByteType index);
         [[nodiscard]] GifByteType getIndex(int x, int y) const;
@@ -57,11 +61,13 @@ public:
     [[nodiscard]] int height() const noexcept;
 
 private:
+    void parse(GifFileType *gif);
     std::vector<Frame> m_frames;
-    std::unique_ptr<ColorMapObject, void (*)(ColorMapObject *)>
-        m_globalColorMap;
     int m_width;
     int m_height;
+
+    std::unique_ptr<ColorMapObject, void (*)(ColorMapObject *)>
+        m_globalColorMap;
 
     int m_loop_count;  // 0 = infinite, -1 = no loop, else specific count
     int m_background_color_index;

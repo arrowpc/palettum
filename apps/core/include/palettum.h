@@ -4,7 +4,7 @@
 #include <omp.h>
 #include <unordered_map>
 #include <vector>
-#include "color/delta_e.h"
+#include "color_difference.h"
 #include "image/gif.h"
 #include "image/image.h"
 

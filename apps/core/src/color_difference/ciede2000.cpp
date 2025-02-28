@@ -1,42 +1,5 @@
-#include "color/delta_e.h"
+#include "color_difference.h"
 
-namespace delta {
-
-//TODO
-// --- CIE76 ---
-float CIE76::calculate(const Lab &color1, const Lab &color2)
-{
-    return 1.0f;
-}
-
-//TODO
-std::vector<float> CIE76::calculate(const Lab &reference,
-                                    const std::vector<Lab> &colors)
-{
-    std::vector<float> results;
-    results.reserve(colors.size());
-    for (const auto &col : colors)
-    {
-        results.push_back(calculate(reference, col));
-    }
-    return results;
-}
-
-//TODO
-// --- CIE94 ---
-float CIE94::calculate(const Lab &color1, const Lab &color2)
-{
-    return CIE76::calculate(color1, color2);
-}
-
-//TODO
-std::vector<float> CIE94::calculate(const Lab &reference,
-                                    const std::vector<Lab> &colors)
-{
-    return CIE76::calculate(reference, colors);
-}
-
-// --- CIEDE2000 ---
 float CIEDE2000::calculate(const Lab &color1, const Lab &color2)
 {
     const float lBarPrime = (color1.L() + color2.L()) * 0.5f;
@@ -104,34 +67,8 @@ float CIEDE2000::calculate(const Lab &color1, const Lab &color2)
                      rT * chroma * hue);
 }
 
-std::vector<float> CIEDE2000::calculate(const Lab &reference,
-                                        const std::vector<Lab> &colors)
-{
-    switch (simd::best_architecture)
-    {
-        case simd::Architecture::NEON:
-            return calculate_neon(reference, colors);
-        case simd::Architecture::AVX2:
-            return calculate_avx2(reference, colors);
-        case simd::Architecture::SCALAR:
-        default:
-            return calculate_scalar(reference, colors);
-    }
-}
-
-std::vector<float> CIEDE2000::calculate_scalar(const Lab &reference,
-                                               const std::vector<Lab> &colors)
-{
-    std::vector<float> results(colors.size());
-    for (size_t i = 0; i < colors.size(); ++i)
-    {
-        results[i] = calculate(reference, colors[i]);
-    }
-    return results;
-}
-
-void CIEDE2000::calculate_neon_batch(const Lab &reference, const Lab *colors,
-                                     float *results)
+void CIEDE2000::calculate_neon(const Lab &reference, const Lab *colors,
+                               float *results)
 {
     const simde_float16_t half = 0.5f;
     const simde_float16_t one = 1.0f;
@@ -391,46 +328,8 @@ void CIEDE2000::calculate_neon_batch(const Lab &reference, const Lab *colors,
     // simde_vst1q_f16(results, result);
 }
 
-std::vector<float> CIEDE2000::calculate_neon(const Lab &reference,
-                                             const std::vector<Lab> &colors)
-{
-    const size_t lane_width = simd::get_lane_width(simd::best_architecture);
-    const size_t numFullChunks = colors.size() / lane_width;
-    const size_t remainder = colors.size() % lane_width;
-    std::vector<float> results(colors.size());
-
-    for (size_t i = 0; i < numFullChunks; ++i)
-    {
-        calculate_neon_batch(reference, &colors[i * lane_width],
-                             &results[i * lane_width]);
-    }
-
-    if (remainder > 0)
-    {
-        Lab tempLabs[lane_width];
-        for (size_t i = 0; i < remainder; ++i)
-        {
-            tempLabs[i] = colors[numFullChunks * lane_width + i];
-        }
-        for (size_t i = remainder; i < lane_width; ++i)
-        {
-            tempLabs[i] = colors[colors.size() - 1];
-        }
-
-        float tempResults[lane_width];
-        calculate_neon_batch(reference, tempLabs, tempResults);
-
-        for (size_t i = 0; i < remainder; ++i)
-        {
-            results[numFullChunks * lane_width + i] = tempResults[i];
-        }
-    }
-
-    return results;
-}
-
-void CIEDE2000::calculate_avx2_batch(const Lab &reference, const Lab *colors,
-                                     float *results)
+void CIEDE2000::calculate_avx2(const Lab &reference, const Lab *colors,
+                               float *results)
 {
     simde__m256 ref_L = simde_mm256_set1_ps(reference.L());
     simde__m256 ref_a = simde_mm256_set1_ps(reference.a());
@@ -721,43 +620,3 @@ void CIEDE2000::calculate_avx2_batch(const Lab &reference, const Lab *colors,
     // Store the result
     simde_mm256_storeu_ps(results, result);
 }
-
-std::vector<float> CIEDE2000::calculate_avx2(const Lab &reference,
-                                             const std::vector<Lab> &colors)
-{
-    const size_t lane_width = simd::get_lane_width(simd::best_architecture);
-    const size_t numFullChunks = colors.size() / lane_width;
-    const size_t remainder = colors.size() % lane_width;
-    std::vector<float> results(colors.size());
-
-    for (size_t i = 0; i < numFullChunks; ++i)
-    {
-        calculate_avx2_batch(reference, &colors[i * lane_width],
-                             &results[i * lane_width]);
-    }
-
-    if (remainder > 0)
-    {
-        Lab tempLabs[lane_width];
-        for (size_t i = 0; i < remainder; ++i)
-        {
-            tempLabs[i] = colors[numFullChunks * lane_width + i];
-        }
-        for (size_t i = remainder; i < lane_width; ++i)
-        {
-            tempLabs[i] = colors[colors.size() - 1];
-        }
-
-        float tempResults[lane_width];
-        calculate_avx2_batch(reference, tempLabs, tempResults);
-
-        for (size_t i = 0; i < remainder; ++i)
-        {
-            results[numFullChunks * lane_width + i] = tempResults[i];
-        }
-    }
-
-    return results;
-}
-
-}  // namespace delta

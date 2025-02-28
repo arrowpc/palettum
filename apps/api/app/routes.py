@@ -5,7 +5,7 @@ from functools import wraps
 from app import app
 from flask import jsonify, request, send_file
 
-import palettum
+from palettum import GIF, RGB, Config, Image, palettify
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg"}
 MAX_DIMENSION = 7680
@@ -82,7 +82,7 @@ def parse_palette(palette_file):
         palette = []
         for line in palette_lines:
             r, g, b = eval(line)
-            color = palettum.RGB(r, g, b)
+            color = RGB(r, g, b)
             palette.append(color)
         for color in palette:
             if not all(
@@ -158,19 +158,20 @@ def upload_image():
         else:
             transparent_threshold = 0
 
+        conf = Config()
+        conf.palette = palette
+        conf.transparencyThreshold = transparent_threshold
+
         try:
             if is_gif(img_data):
                 print("Processing GIF...")
-                gif = palettum.GIF(img_data)
+                gif = GIF(img_data)
 
                 if width or height:
                     # TODO: Dimension validation should happen before processing/loading
                     gif = resize_gif(gif, width, height)
 
-                result = palettum.Palettum.convertToPalette(
-                    gif, palette, transparent_threshold
-                )
-
+                result = palettify(gif, conf)
                 gif_data = result.write()
 
                 if not gif_data:
@@ -180,14 +181,12 @@ def upload_image():
                 return send_file(io.BytesIO(bytes(gif_data)), mimetype="image/gif")
             else:
                 print("Processing static image...")
-                img = palettum.Image(img_data)
+                img = Image(img_data)
 
                 if width or height:
                     img = resize_image(img, width, height)
 
-                result = palettum.Palettum.convertToPalette(
-                    img, palette, transparent_threshold
-                )
+                result = palettify(img, conf)
                 png_data = result.write()
 
                 if not png_data:

@@ -1,8 +1,5 @@
 #pragma once
 
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <memory>
 #include <vector>
 #include "color/rgb.h"

@@ -9,7 +9,6 @@
     {
       "name": "base",
       "hidden": true,
-      "generator": "Ninja",
       "cacheVariables": {
         "PYBIND11_FINDPYTHON": "ON",
         "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/external/vcpkg/scripts/buildsystems/vcpkg.cmake"

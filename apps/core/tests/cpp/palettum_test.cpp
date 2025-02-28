@@ -58,7 +58,7 @@ TEST(DeltaEComputation, TestSpecificLabValues)
 {
     Lab lab1(50.0, 2.6772, -100.7751);
     Lab lab2(50.0, 50.0, 89.7485);
-    EXPECT_NEAR(lab1.deltaE(lab2), 61.2219665084882, 1e-2);
+    EXPECT_NEAR(deltaE(lab1, lab2), 61.2219665084882, 1e-2);
 }
 
 class PalettumTests : public ::testing::Test
@@ -66,6 +66,7 @@ class PalettumTests : public ::testing::Test
 protected:
     Image result;
     Image img;
+    Config conf;
     std::vector<RGB> palette;
 
     void SetUp() override
@@ -78,7 +79,8 @@ protected:
             {73, 58, 193},  {106, 92, 255},  {129, 30, 159},  {180, 74, 192},
             {255, 56, 129}, {255, 153, 170}, {109, 72, 47},   {156, 105, 38},
             {0, 0, 0},      {137, 141, 144}, {212, 215, 217}, {255, 255, 255}};
-        result = Palettum::convertToPalette(img, palette);
+        conf.palette = palette;
+        result = palettum::palettify(img, conf);
     }
 };
 
@@ -96,6 +98,6 @@ TEST_F(PalettumTests, ConvertJpegToPalette)
 
 TEST_F(PalettumTests, ValidateImageColors)
 {
-    EXPECT_EQ(Palettum::validateImageColors(result, palette), true);
-    EXPECT_EQ(Palettum::validateImageColors(img, palette), false);
+    EXPECT_EQ(palettum::validate(result, conf), true);
+    EXPECT_EQ(palettum::validate(img, conf), false);
 }

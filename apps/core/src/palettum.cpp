@@ -11,23 +11,23 @@ Image Palettum::convertToPalette(Image &image, std::vector<RGB> &palette,
 #pragma omp threadprivate(results)
 
 #pragma omp parallel for
-    for (int i = 0; i < palette.size(); ++i)
+    for (size_t i = 0; i < palette.size(); ++i)
     {
         constants_lab[i] = palette[i].toLab();
     }
 
-    const int height = image.height();
-    const int width = image.width();
-    const int palette_size = palette.size();
+    const size_t height = image.height();
+    const size_t width = image.width();
+    const size_t palette_size = palette.size();
 
 #pragma omp parallel
     {
         results.resize(palette_size);
 
 #pragma omp for collapse(2) schedule(dynamic)
-        for (int y = 0; y < height; ++y)
+        for (size_t y = 0; y < height; ++y)
         {
-            for (int x = 0; x < width; ++x)
+            for (size_t x = 0; x < width; ++x)
             {
                 RGBA currentPixel = image.get(x, y);
 
@@ -81,12 +81,12 @@ GIF Palettum::convertToPalette(GIF &gif, std::vector<RGB> &palette,
 #pragma omp threadprivate(results)
 
 #pragma omp parallel for
-    for (int i = 0; i < palette.size(); ++i)
+    for (size_t i = 0; i < palette.size(); ++i)
     {
         constants_lab[i] = palette[i].toLab();
     }
 
-    const int palette_size = palette.size();
+    const size_t palette_size = palette.size();
 
     for (size_t frameIndex = 0; frameIndex < gif.frameCount(); ++frameIndex)
     {

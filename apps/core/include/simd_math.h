@@ -5,11 +5,6 @@
 #include <simde/arm/neon/types.h>
 #include <simde/x86/avx2.h>
 
-const float pow25_7 = 6103515625.0f;
-float const RAD_TO_DEG = 180.0f / M_PI;
-float const HALF_DEG_TO_RAD = M_PI / 360.0f;
-float const DEG_TO_RAD = M_PI / 180.0f;
-
 namespace math {
 
 static inline simde_float32x4_t sin(simde_float32x4_t x)
@@ -260,8 +255,8 @@ static inline simde_float16x8_t atan2(simde_float16x8_t y, simde_float16x8_t x)
     // Add epsilon to denominator to avoid division by zero
     simde_float16x8_t epsilon_term =
         simde_vandq_u16(simde_vreinterpretq_u16_f16(epsilon), x_near_zero);
-    den = simde_vaddq_f16(den, simde_vreinterpretq_f16_u16(epsilon_term));
-
+    den = simde_vaddq_f16(
+        den, *reinterpret_cast<simde_float16x8_t *>(&epsilon_term));
     simde_float16x8_t atan_input = simde_vdivq_f16(num, den);
     simde_float16x8_t result = math::atan(atan_input);
 

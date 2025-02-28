@@ -10,8 +10,10 @@ class RGB;
 class Lab
 {
 public:
-    explicit Lab(simde_float16_t L = 0, simde_float16_t a = 0,
-                 simde_float16_t b = 0) noexcept;
+    explicit Lab(
+        simde_float16_t L = static_cast<simde_float16_t>(0.f),
+        simde_float16_t a = static_cast<simde_float16_t>(0.f),
+        simde_float16_t b = static_cast<simde_float16_t>(0.f)) noexcept;
     [[nodiscard]] RGB toRGB() const noexcept;
     [[nodiscard]] simde_float16_t L() const noexcept;
     [[nodiscard]] simde_float16_t a() const noexcept;

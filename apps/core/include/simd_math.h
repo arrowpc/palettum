@@ -6,6 +6,18 @@
 #include <simde/x86/avx2.h>
 #include <cstring>
 
+#ifndef M_PI
+#    define M_PI 3.14159265358979323846264338327950288
+#endif
+
+#ifndef M_PI_2
+#    define M_PI_2 1.57079632679489661923132169163975144
+#endif
+
+#ifndef M_PI_4
+#    define M_PI_4 0.785398163397448309615660845819875721
+#endif
+
 namespace math {
 
 static inline simde_float32x4_t sin(simde_float32x4_t x)
@@ -152,16 +164,21 @@ static inline simde_float16x8_t sin(simde_float16x8_t x)
     static const simde_float16 inv_6 = 0.1667f;  // Reduced precision for fp16
     simde_float16x8_t x2 = simde_vmulq_f16(x, x);
     simde_float16x8_t term = simde_vmulq_n_f16(x2, inv_6);
-    return simde_vmulq_f16(x, simde_vsubq_f16(simde_vdupq_n_f16(1.0f), term));
+    return simde_vmulq_f16(
+        x, simde_vsubq_f16(
+               simde_vdupq_n_f16(static_cast<simde_float16_t>(1.0f)), term));
 }
 
 static inline simde_float16x8_t cos(simde_float16x8_t x)
 {
-    const simde_float16x8_t tp =
-        simde_vdupq_n_f16(0.1592f);  // 1/(2*PI) in fp16
-    const simde_float16x8_t quarter = simde_vdupq_n_f16(0.25f);
-    const simde_float16x8_t sixteen = simde_vdupq_n_f16(16.0f);
-    const simde_float16x8_t half = simde_vdupq_n_f16(0.5f);
+    const simde_float16x8_t tp = simde_vdupq_n_f16(
+        static_cast<simde_float16_t>(0.1592f));  // 1/(2*PI) in fp16
+    const simde_float16x8_t quarter =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(0.25f));
+    const simde_float16x8_t sixteen =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(16.0f));
+    const simde_float16x8_t half =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(0.5f));
 
     x = simde_vmulq_f16(x, tp);
     simde_float16x8_t x_plus_quarter = simde_vaddq_f16(x, quarter);
@@ -197,10 +214,14 @@ static inline simde_float16x8_t exp(simde_float16x8_t x)
 
 static inline simde_float16x8_t atan(simde_float16x8_t x)
 {
-    const simde_float16x8_t pi_4 = simde_vdupq_n_f16(0.7854f);  // π/4 in fp16
-    const simde_float16x8_t c1 = simde_vdupq_n_f16(0.2447f);
-    const simde_float16x8_t c2 = simde_vdupq_n_f16(0.0663f);
-    const simde_float16x8_t one = simde_vdupq_n_f16(1.0f);
+    const simde_float16x8_t pi_4 = simde_vdupq_n_f16(
+        static_cast<simde_float16_t>(0.7854f));  // π/4 in fp16
+    const simde_float16x8_t c1 =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(0.2447f));
+    const simde_float16x8_t c2 =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(0.0663f));
+    const simde_float16x8_t one =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(1.0f));
 
     simde_float16x8_t abs_x = simde_vabsq_f16(x);           // |x|
     simde_float16x8_t term1 = simde_vmulq_f16(pi_4, x);     // π/4 * x
@@ -221,11 +242,14 @@ static inline simde_float16x8_t atan(simde_float16x8_t x)
 // Great read !
 static inline simde_float16x8_t atan2(simde_float16x8_t y, simde_float16x8_t x)
 {
-    const simde_float16x8_t pi = simde_vdupq_n_f16(3.1416f);
-    const simde_float16x8_t pi_2 = simde_vdupq_n_f16(1.5708f);
-    const simde_float16x8_t epsilon =
-        simde_vdupq_n_f16(0.0001f);  // Adjusted for fp16
-    const simde_float16x8_t zero = simde_vdupq_n_f16(0.0f);
+    const simde_float16x8_t pi =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(3.1416f));
+    const simde_float16x8_t pi_2 =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(1.5708f));
+    const simde_float16x8_t epsilon = simde_vdupq_n_f16(
+        static_cast<simde_float16_t>(0.0001f));  // Adjusted for fp16
+    const simde_float16x8_t zero =
+        simde_vdupq_n_f16(static_cast<simde_float16_t>(0.0f));
 
     // Create masks for absolute value and sign bit
     const simde_uint16x8_t abs_mask = simde_vdupq_n_u16(0x7FFF);

@@ -5,30 +5,30 @@ on:
 
   push:
     paths:
-      - '.github/workflows/core_cpp_test.yml'
-      - 'apps/core/tests/test_images/**'
-      - 'apps/core/**/CMakeLists.txt'
-      - 'apps/core/CMakeLists.txt'
-      - 'apps/core/**/*.cmake'
-      - 'apps/core/vcpkg.json'
-      - 'apps/core/**.cpp'
-      - 'apps/core/**.h'
+      - ".github/workflows/core_cpp_test.yml"
+      - "apps/core/tests/test_images/**"
+      - "apps/core/**/CMakeLists.txt"
+      - "apps/core/CMakeLists.txt"
+      - "apps/core/**/*.cmake"
+      - "apps/core/vcpkg.json"
+      - "apps/core/**.cpp"
+      - "apps/core/**.h"
   pull_request:
     paths:
-      - '.github/workflows/core_cpp_test.yml'
-      - 'apps/core/tests/test_images/**'
-      - 'apps/core/**/CMakeLists.txt'
-      - 'apps/core/CMakeLists.txt'
-      - 'apps/core/vcpkg.json'
-      - 'apps/core/**/*.cmake'
-      - 'apps/core/**.cpp'
-      - 'apps/core/**.h'
+      - ".github/workflows/core_cpp_test.yml"
+      - "apps/core/tests/test_images/**"
+      - "apps/core/**/CMakeLists.txt"
+      - "apps/core/CMakeLists.txt"
+      - "apps/core/vcpkg.json"
+      - "apps/core/**/*.cmake"
+      - "apps/core/**.cpp"
+      - "apps/core/**.h"
 
 jobs:
   test:
     strategy:
       matrix:
-        os: [ ubuntu-latest, macos-13, windows-2019 ]
+        os: [ubuntu-latest, macos-13, windows-2019]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -42,16 +42,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install numpy
-
-      - name: Create build directory
-        run: |
-          mkdir build-test
 
       - name: Install python dependencies
         run: pip install -r requirements.txt
@@ -68,25 +64,18 @@ jobs:
           runVcpkgInstall: true
 
       - name: Configure CMake
-        working-directory: apps/core/build-test
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "macOS" ]; then
             export OpenMP_ROOT=$(brew --prefix)/opt/libomp
           fi
-          cmake -D CMAKE_BUILD_TYPE=Release ..
+          cmake --preset=default
 
       - name: Build project
-        working-directory: apps/core/build-test
         shell: bash
         run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            cmake --build . --config Release --parallel
-          else
-            make -j$(nproc)
-          fi
+          cmake --build --preset=default
 
       - name: Run tests
-        working-directory: apps/core/build-test
         run: |
-          ctest --output-on-failure -C Release
+          ctest --preset=default

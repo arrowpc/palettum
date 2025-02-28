@@ -1,5 +1,7 @@
 #include "palettum.h"
 
+std::vector<float> results;
+
 namespace palettum {
 
 Image palettify(Image &image, Config &config)
@@ -7,9 +9,6 @@ Image palettify(Image &image, Config &config)
     Image result(image.width(), image.height(), image.hasAlpha());
     std::vector<Lab> constants_lab(config.palette.size());
     RGBCache cache;
-
-    static std::vector<float> results;
-#pragma omp threadprivate(results)
 
 #pragma omp parallel for
     for (size_t i = 0; i < config.palette.size(); ++i)
@@ -76,9 +75,6 @@ GIF palettify(GIF &gif, Config &config)
     {
         result.setPalette(frameIndex, config.palette);
     }
-
-    static std::vector<float> results;
-#pragma omp threadprivate(results)
 
 #pragma omp parallel for
     for (size_t i = 0; i < config.palette.size(); ++i)

@@ -7,6 +7,9 @@
 #include "image/gif.h"
 #include "image/image.h"
 
+extern std::vector<float> results;
+#pragma omp threadprivate(results)
+
 struct Config {
     std::vector<RGB> palette = {{255, 0, 0}, {0, 255, 0}, {0, 0, 255}};
     size_t transparencyThreshold = 0;

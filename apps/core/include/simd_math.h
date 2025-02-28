@@ -4,6 +4,7 @@
 #include <simde/arm/neon/reinterpret.h>
 #include <simde/arm/neon/types.h>
 #include <simde/x86/avx2.h>
+#include <cstring>
 
 namespace math {
 
@@ -253,10 +254,12 @@ static inline simde_float16x8_t atan2(simde_float16x8_t y, simde_float16x8_t x)
     simde_float16x8_t den = simde_vbslq_f16(swap_mask, y, x);
 
     // Add epsilon to denominator to avoid division by zero
-    simde_float16x8_t epsilon_term =
+    simde_uint16x8_t epsilon_term_uint =
         simde_vandq_u16(simde_vreinterpretq_u16_f16(epsilon), x_near_zero);
-    den = simde_vaddq_f16(
-        den, *reinterpret_cast<simde_float16x8_t *>(&epsilon_term));
+    simde_float16x8_t epsilon_term;
+    memcpy(&epsilon_term, &epsilon_term_uint, sizeof(epsilon_term));
+    den = simde_vaddq_f16(den, epsilon_term);
+
     simde_float16x8_t atan_input = simde_vdivq_f16(num, den);
     simde_float16x8_t result = math::atan(atan_input);
 

@@ -1,5 +1,6 @@
 #include "image/gif.h"
 #include <cfloat>
+#include <cstring>
 
 GIF::Frame::Frame(const Image &img)
     : image(img)

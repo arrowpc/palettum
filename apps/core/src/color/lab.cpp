@@ -61,5 +61,7 @@ simde_float16_t Lab::b() const noexcept
 
 std::ostream &operator<<(std::ostream &os, const Lab &lab)
 {
-    return os << "Lab(" << lab.m_L << ", " << lab.m_a << ", " << lab.m_b << ")";
+    return os << "Lab(" << static_cast<float>(lab.m_L) << ", "
+              << static_cast<float>(lab.m_a) << ", "
+              << static_cast<float>(lab.m_b) << ")";
 }

@@ -44,11 +44,41 @@ class CMakeBuild(build_ext):
         # Set Python_EXECUTABLE instead if you use PYBIND11_FINDPYTHON
         # EXAMPLE_VERSION_INFO shows you how to pass a value into the C++ code
         # from Python.
+        # VCPKG Bootstrapping Logic (akin to CMake)
+        vcpkg_root = Path(ext.sourcedir) / "external" / "vcpkg"
+        vcpkg_toolchain = vcpkg_root / "scripts" / "buildsystems" / "vcpkg.cmake"
+
+        # Check if VCPKG needs bootstrapping
+        if sys.platform == "win32":
+            vcpkg_executable = vcpkg_root / "vcpkg.exe"
+            bootstrap_script = "bootstrap-vcpkg.bat"
+        else:
+            vcpkg_executable = vcpkg_root / "vcpkg"
+            bootstrap_script = "bootstrap-vcpkg.sh"
+
+        if not vcpkg_executable.exists():
+            print(f"VCPKG not found at {vcpkg_executable}, bootstrapping...")
+            bootstrap_cmd = [str(vcpkg_root / bootstrap_script), "-disableMetrics"]
+            try:
+                subprocess.run(bootstrap_cmd, cwd=vcpkg_root, check=True)
+            except subprocess.CalledProcessError as e:
+                raise RuntimeError(f"Failed to bootstrap VCPKG: {e}")
+            if not vcpkg_executable.exists():
+                raise RuntimeError(
+                    f"VCPKG bootstrap succeeded but {vcpkg_executable} still not found."
+                )
+
+        if not vcpkg_toolchain.exists():
+            raise FileNotFoundError(
+                f"VCPKG toolchain file not found at: {vcpkg_toolchain}"
+            )
+
         cmake_args = [
             f"-DBUILD_TESTS=OFF",
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}{os.sep}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
+            f"-DCMAKE_TOOLCHAIN_FILE={vcpkg_toolchain}",
         ]
         build_args = []
         # Adding CMake arguments set as environment variable
@@ -128,7 +158,7 @@ class CMakeBuild(build_ext):
 # logic and declaration, and simpler if you include description/version in a file.
 setup(
     name="palettum",
-    version="0.2.9",
+    version="0.3.0",
     author="ArrowPC",
     description="Core functionality for the Palettum project.",
     long_description="Core functionality for the Palettum project.",

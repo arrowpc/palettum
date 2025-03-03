@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
+
 project(Palettum_Core 
         VERSION 0.3.0
         DESCRIPTION "Core library for Palettum"
@@ -15,6 +16,9 @@ execute_process(
   ${CMAKE_BINARY_DIR}/compile_commands.json
   ${CMAKE_SOURCE_DIR}/build/compile_commands.json
 )
+
+
+message(STATUS "System processor: ${CMAKE_SYSTEM_PROCESSOR}")
 
 find_package(OpenMP REQUIRED)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -68,3 +72,5 @@ if(BUILD_TESTS)
         add_subdirectory(tests/cpp)
     endif()
 endif()
+
+

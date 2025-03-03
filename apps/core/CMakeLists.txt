@@ -16,8 +16,10 @@ execute_process(
   ${CMAKE_SOURCE_DIR}/build/compile_commands.json
 )
 
+find_package(OpenMP REQUIRED)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0")
@@ -25,15 +27,12 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
     endif()
 elseif(MSVC)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /openmp:experimental")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /openmp:llvm /openmp:experimental")
     
     if(CMAKE_BUILD_TYPE STREQUAL "Release")
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2")
     endif()
 endif()
-
-find_package(OpenMP REQUIRED)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -44,6 +43,11 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
         add_definitions(-DHAS_AVX2)
     endif()
+endif()
+
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
+  add_definitions(-DHAS_NEON)
 endif()
 
 find_package(GIF REQUIRED)

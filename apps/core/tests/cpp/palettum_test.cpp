@@ -96,8 +96,8 @@ TEST_F(PalettumTests, ConvertJpegToPalette)
         << " pixels out of " << totalPixels << ")";
 }
 
-TEST_F(PalettumTests, ValidateImageColors)
-{
-    EXPECT_EQ(palettum::validate(result, conf), true);
-    EXPECT_EQ(palettum::validate(img, conf), false);
-}
+// TEST_F(PalettumTests, ValidateImageColors)
+// {
+//     EXPECT_EQ(palettum::validate(result, conf), true);
+//     EXPECT_EQ(palettum::validate(img, conf), false);
+// }

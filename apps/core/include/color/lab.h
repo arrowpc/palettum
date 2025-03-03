@@ -5,17 +5,6 @@
 #include <iostream>
 #include "color/rgb.h"
 
-#if defined(SIMDE_ARCH_X86_AVX2)
-#    define HAS_AVX2 1
-#else
-#    define HAS_AVX2 0
-#endif
-
-#if defined(SIMDE_ARCH_ARM_NEON)
-#    define HAS_NEON 1
-#else
-#    define HAS_NEON 0
-#endif
 // --------------------------------
 #if HAS_NEON
 using lab_float_t = simde_float16_t;

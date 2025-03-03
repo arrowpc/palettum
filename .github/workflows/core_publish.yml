@@ -4,24 +4,24 @@ on:
   workflow_dispatch:
     inputs:
       publish_target:
-        description: 'Publish to PyPI or TestPyPI'
+        description: "Publish to PyPI or TestPyPI"
         required: true
         type: choice
         options:
-          - 'none'
-          - 'test'
-          - 'production'
-        default: 'none'
+          - "none"
+          - "test"
+          - "production"
+        default: "none"
   push:
     branches:
-      - '**'
+      - "**"
     paths:
-      - '.github/workflows/core_publish.yml'
+      - ".github/workflows/core_publish.yml"
   pull_request:
     branches:
-      - '**'
+      - "**"
     paths:
-      - '.github/workflows/core_publish.yml'
+      - ".github/workflows/core_publish.yml"
 
 jobs:
   build_wheels:
@@ -34,8 +34,8 @@ jobs:
           - os: windows-2019
           - os: macos-13
             deployment-target: "13.0"
-          - os: macos-14
-            deployment-target: "14.0"
+          - os: macos-15
+            deployment-target: "15.0"
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.x'
+          python-version: "3.x"
 
       - name: Move core into root
         if: runner.os == 'Linux' || runner.os == 'macOS'
@@ -70,11 +70,12 @@ jobs:
           runVcpkgInstall: true
 
       - name: Use cibuildwheel
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v2.23.0
         env:
-          CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-*
+          CIBW_BUILD: cp38-* cp39-* cp310-* cp311-* cp312-* cp313-*
           CIBW_ARCHS_MACOS: auto
           CIBW_ARCHS_LINUX: x86_64
+          CIBW_MANYLINUX_X86_64_IMAGE: dockcross/manylinux_2_28-x64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
           CIBW_BEFORE_BUILD: |

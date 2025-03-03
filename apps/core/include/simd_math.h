@@ -5,6 +5,7 @@
 #include <simde/arm/neon/types.h>
 #include <simde/x86/avx2.h>
 #include <cstring>
+#include "color/lab.h"
 
 #ifndef M_PI
 #    define M_PI 3.14159265358979323846264338327950288
@@ -20,6 +21,7 @@
 
 namespace math {
 
+#if !HAS_NEON
 static inline simde_float32x4_t sin(simde_float32x4_t x)
 {
     static const float inv_6 = 0.166666667f;
@@ -157,8 +159,9 @@ static inline simde_float32x4_t atan2(simde_float32x4_t y, simde_float32x4_t x)
 
     return result;
 }
+#endif
 
-// Vectorized functions for simde_float16x8_t
+#if HAS_NEON
 static inline simde_float16x8_t sin(simde_float16x8_t x)
 {
     static const simde_float16 inv_6 = 0.1667f;  // Reduced precision for fp16
@@ -320,6 +323,7 @@ static inline simde_float16x8_t atan2(simde_float16x8_t y, simde_float16x8_t x)
 
     return result;
 }
+#endif
 
 // Vectorized functions for simde__m256
 static inline simde__m256 sin(simde__m256 x)

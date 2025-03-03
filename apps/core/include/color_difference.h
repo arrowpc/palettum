@@ -6,18 +6,6 @@
 #include "color/lab.h"
 #include "simd_math.h"
 
-#if defined(SIMDE_ARCH_X86_AVX2)
-#    define HAS_AVX2 1
-#else
-#    define HAS_AVX2 0
-#endif
-
-#if defined(SIMDE_ARCH_ARM_NEON)
-#    define HAS_NEON 1
-#else
-#    define HAS_NEON 0
-#endif
-
 enum class Architecture { SCALAR, NEON, AVX2 };
 
 #if HAS_NEON
@@ -36,6 +24,11 @@ constexpr int get_lane_width(Architecture arch)
     switch (arch)
     {
         case Architecture::NEON:
+#if HAS_NEON
+            return 8;
+#else
+            return 4;
+#endif
         case Architecture::AVX2:
             return 8;
         case Architecture::SCALAR:

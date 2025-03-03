@@ -1,6 +1,6 @@
 #include "color/lab.h"
 
-Lab::Lab(simde_float16_t L, simde_float16_t a, simde_float16_t b) noexcept
+Lab::Lab(lab_float_t L, lab_float_t a, lab_float_t b) noexcept
     : m_L(L)
     , m_a(a)
     , m_b(b)
@@ -46,15 +46,15 @@ RGB Lab::toRGB() const noexcept
                static_cast<unsigned char>(std::round(b)));
 }
 
-simde_float16_t Lab::L() const noexcept
+lab_float_t Lab::L() const noexcept
 {
     return m_L;
 }
-simde_float16_t Lab::a() const noexcept
+lab_float_t Lab::a() const noexcept
 {
     return m_a;
 }
-simde_float16_t Lab::b() const noexcept
+lab_float_t Lab::b() const noexcept
 {
     return m_b;
 }

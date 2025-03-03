@@ -11,14 +11,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+include(CheckCXXCompilerFlag)
+
 execute_process(
   COMMAND ${CMAKE_COMMAND} -E create_symlink
   ${CMAKE_BINARY_DIR}/compile_commands.json
   ${CMAKE_SOURCE_DIR}/build/compile_commands.json
 )
-
-
-message(STATUS "System processor: ${CMAKE_SYSTEM_PROCESSOR}")
 
 find_package(OpenMP REQUIRED)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -38,18 +37,73 @@ elseif(MSVC)
     endif()
 endif()
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
-        add_definitions(-DHAS_AVX2)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64-v3")
-    elseif(MSVC)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
+
+if(APPLE)
+  execute_process(
+    COMMAND uname -m
+    OUTPUT_VARIABLE ARCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  
+  message(STATUS "macOS architecture: ${ARCH}")
+  
+  if(ARCH STREQUAL "arm64")
+    check_cxx_compiler_flag("-march=armv8-a+simd" COMPILER_SUPPORTS_NEON)
+    if(COMPILER_SUPPORTS_NEON)
+      add_definitions(-DHAS_NEON)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+simd")
     endif()
-endif()
-
-
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64")
-  add_definitions(-DHAS_NEON)
+  elseif(ARCH STREQUAL "x86_64")
+    check_cxx_compiler_flag("-march=x86-64-v3" COMPILER_SUPPORTS_X86_64_V3)
+    if(COMPILER_SUPPORTS_X86_64_V3)
+      add_definitions(-DHAS_AVX2)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64-v3")
+    endif()
+  endif()
+elseif(WIN32)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64")
+      check_cxx_compiler_flag("/arch:AVX2" COMPILER_SUPPORTS_AVX2)
+      if(COMPILER_SUPPORTS_AVX2)
+        add_definitions(-DHAS_AVX2)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
+      endif()
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64")
+      check_cxx_compiler_flag("/arch:armv8.2" COMPILER_SUPPORTS_NEON)
+      if(COMPILER_SUPPORTS_NEON)
+        add_definitions(-DHAS_NEON)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:armv8.2")
+      endif()
+    endif()
+  elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+      check_cxx_compiler_flag("-march=x86-64-v3" COMPILER_SUPPORTS_X86_64_V3)
+      if(COMPILER_SUPPORTS_X86_64_V3)
+        add_definitions(-DHAS_AVX2)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64-v3")
+      endif()
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
+      check_cxx_compiler_flag("-march=armv8-a+simd" COMPILER_SUPPORTS_NEON)
+      if(COMPILER_SUPPORTS_NEON)
+        add_definitions(-DHAS_NEON)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+simd")
+      endif()
+    endif()
+  endif()
+else()
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    check_cxx_compiler_flag("-march=x86-64-v3" COMPILER_SUPPORTS_X86_64_V3)
+    if(COMPILER_SUPPORTS_X86_64_V3)
+      add_definitions(-DHAS_AVX2)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64-v3")
+    endif()
+  elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
+    check_cxx_compiler_flag("-march=armv8-a+simd" COMPILER_SUPPORTS_NEON)
+    if(COMPILER_SUPPORTS_NEON)
+      add_definitions(-DHAS_NEON)
+      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=armv8-a+simd")
+    endif()
+  endif()
 endif()
 
 find_package(GIF REQUIRED)
@@ -72,5 +126,4 @@ if(BUILD_TESTS)
         add_subdirectory(tests/cpp)
     endif()
 endif()
-
 

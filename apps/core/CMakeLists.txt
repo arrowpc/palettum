@@ -34,14 +34,12 @@ elseif(MSVC)
     endif()
 endif()
 
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64-v3")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" OR CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
         add_definitions(-DHAS_AVX2)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64-v3")
     elseif(MSVC)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /arch:AVX2")
-        add_definitions(-DHAS_AVX2)
     endif()
 endif()
 

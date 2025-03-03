@@ -61,7 +61,7 @@ PYBIND11_MODULE(palettum, m)
         });
 
     py::class_<Lab>(m, "Lab")
-        .def(py::init<simde_float16_t, simde_float16_t, simde_float16_t>(),
+        .def(py::init<lab_float_t, lab_float_t, lab_float_t>(),
              py::arg("L") = 0, py::arg("a") = 0, py::arg("b") = 0)
         .def("L", &Lab::L)
         .def("a", &Lab::a)

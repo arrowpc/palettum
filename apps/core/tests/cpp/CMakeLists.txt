@@ -4,7 +4,9 @@ add_executable(palettum_tests
 )
 
 target_link_libraries(palettum_tests PUBLIC 
+  GTest::gtest
   GTest::gtest_main 
+  GTest::gmock
   GTest::gmock_main 
   pybind11::embed 
   OpenMP::OpenMP_CXX 

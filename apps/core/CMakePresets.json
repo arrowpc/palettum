@@ -69,6 +69,7 @@
     {
       "name": "default",
       "configurePreset": "default",
+      "configuration": "Release",
       "displayName": "Run Tests for Default (Release)",
       "description": "Runs tests after building with 'default' preset",
       "output": {
@@ -81,6 +82,7 @@
     {
       "name": "debug",
       "configurePreset": "debug",
+      "configuration": "Debug",
       "displayName": "Run Tests for Debug",
       "description": "Runs tests after building with 'debug' preset",
       "output": {

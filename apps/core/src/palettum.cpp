@@ -1,7 +1,5 @@
 #include "palettum.h"
 
-std::vector<float> results;
-
 namespace palettum {
 
 Image palettify(Image &image, Config &config)
@@ -20,6 +18,7 @@ Image palettify(Image &image, Config &config)
     const size_t width = image.width();
     const size_t palette_size = config.palette.size();
 
+    thread_local std::vector<float> results;
 #pragma omp parallel
     {
         results.resize(palette_size);
@@ -90,6 +89,7 @@ GIF palettify(GIF &gif, Config &config)
         const int height = sourceFrame.image.height();
         const int width = sourceFrame.image.width();
 
+        thread_local std::vector<float> results;
 #pragma omp parallel
         {
             results.resize(palette_size);

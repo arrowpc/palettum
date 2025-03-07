@@ -667,6 +667,40 @@ void GIF::write(GifFileType *gif) const
     // Note: Caller is responsible for closing the GifFileType
 }
 
+void GIF::Frame::recalculateBounds()
+{
+    int newWidth = image.width();
+    int newHeight = image.height();
+
+    minX = newWidth;
+    minY = newHeight;
+    maxX = 0;
+    maxY = 0;
+    hasVisiblePixels = false;
+
+    for (int y = 0; y < newHeight; y++)
+    {
+        for (int x = 0; x < newWidth; x++)
+        {
+            GifByteType index = indices[y * newWidth + x];
+            if (!has_transparency || index != transparent_index)
+            {
+                minX = std::min(minX, x);
+                minY = std::min(minY, y);
+                maxX = std::max(maxX, x);
+                maxY = std::max(maxY, y);
+                hasVisiblePixels = true;
+            }
+        }
+    }
+
+    if (!hasVisiblePixels)
+    {
+        minX = minY = 0;
+        maxX = maxY = 0;
+    }
+}
+
 bool GIF::resize(int width, int height)
 {
     if (width <= 0 || height <= 0)
@@ -696,8 +730,9 @@ bool GIF::resize(int width, int height)
                     frame.indices[src_y * m_width + src_x];
             }
         }
-
         frame.indices = std::move(new_indices);
+
+        frame.recalculateBounds();
     }
 
     m_width = width;

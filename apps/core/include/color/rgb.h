@@ -1,32 +1,10 @@
-#ifndef COLOR_H
-#define COLOR_H
+#pragma once
 
-#pragma push_macro("min")
-#pragma push_macro("max")
-
-#undef min
-#undef max
-
-#include <simd_utils.h>
-
-#pragma pop_macro("min")
-#pragma pop_macro("max")
-
-#include <algorithm>
 #include <iostream>
 #include <optional>
 #include <vector>
+#include "color/lab.h"
 
-#ifndef M_PI
-#    define M_PI 3.14159265358979323846264338327950288
-#endif
-
-const float pow25_7 = 6103515625.0f;
-float const RAD_TO_DEG = 180.0f / M_PI;
-float const HALF_DEG_TO_RAD = M_PI / 360.0f;
-float const DEG_TO_RAD = M_PI / 180.0f;
-
-class RGB;
 class Lab;
 
 struct XYZ {
@@ -37,23 +15,6 @@ struct XYZ {
     static constexpr float WHITE_Z = 108.883;
     static constexpr float EPSILON = 0.008856;
     static constexpr float KAPPA = 903.3;
-};
-
-class Lab
-{
-public:
-    explicit Lab(float L = 0, float a = 0, float b = 0) noexcept;
-    [[nodiscard]] RGB toRGB() const noexcept;
-    [[nodiscard]] float L() const noexcept;
-    [[nodiscard]] float a() const noexcept;
-    [[nodiscard]] float b() const noexcept;
-    static void deltaE(const Lab &ref, const Lab *comp, float *results,
-                       int len);
-    [[nodiscard]] float deltaE(const Lab &other) const noexcept;
-    friend std::ostream &operator<<(std::ostream &os, const Lab &lab);
-
-private:
-    float m_L, m_a, m_b;
 };
 
 class RGB
@@ -158,5 +119,3 @@ public:
 private:
     unsigned char m_a;
 };
-
-#endif  //COLOR_H

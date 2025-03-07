@@ -9,18 +9,42 @@ PYBIND11_MODULE(palettum, m)
 {
     m.doc() = "Core functionality for the Palettum project.";
 
-    py::class_<Palettum>(m, "Palettum")
-        .def_static("convertToPalette",
-                    py::overload_cast<Image &, std::vector<RGB> &, int>(
-                        &Palettum::convertToPalette),
-                    py::arg("image"), py::arg("palette"),
-                    py::arg("transparent_threshold") = 0)
-        .def_static("convertToPalette",
-                    py::overload_cast<GIF &, std::vector<RGB> &, int>(
-                        &Palettum::convertToPalette),
-                    py::arg("gif"), py::arg("palette"),
-                    py::arg("transparent_threshold") = 0)
-        .def_static("validateImageColors", &Palettum::validateImageColors);
+    m.def(
+        "palettify",
+        [](Image &img, Config &config) -> Image {
+            return palettum::palettify(img, config);
+        },
+        py::arg("image"), py::arg("config"));
+
+    m.def(
+        "palettify",
+        [](GIF &gif, Config &config) -> GIF {
+            return palettum::palettify(gif, config);
+        },
+        py::arg("gif"), py::arg("config"));
+
+    m.def("validate", &palettum::validate, py::arg("image"), py::arg("config"));
+
+    py::enum_<Formula>(m, "Formula")
+        .value("EUCLIDEAN", Formula::EUCLIDEAN)
+        .value("CIE76", Formula::CIE76)
+        .value("CIE94", Formula::CIE94)
+        .value("CIEDE2000", Formula::CIEDE2000)
+        .export_values();
+
+    py::enum_<Architecture>(m, "Architecture")
+        .value("SCALAR", Architecture::SCALAR)
+        .value("NEON", Architecture::NEON)
+        .value("AVX2", Architecture::AVX2)
+        .export_values();
+
+    py::class_<Config>(m, "Config")
+        .def(py::init<>())
+        .def_readwrite("palette", &Config::palette)
+        .def_readwrite("transparencyThreshold", &Config::transparencyThreshold)
+        .def_readwrite("formula", &Config::formula)
+        .def_readwrite("architecture", &Config::architecture)
+        .def_readwrite("quantLevel", &Config::quantLevel);
 
     py::class_<RGB>(m, "RGB")
         .def(py::init<unsigned char, unsigned char, unsigned char>())
@@ -38,17 +62,24 @@ PYBIND11_MODULE(palettum, m)
         });
 
     py::class_<Lab>(m, "Lab")
-        .def(py::init<float, float, float>())
+        .def(py::init<lab_float_t, lab_float_t, lab_float_t>(),
+             py::arg("L") = 0, py::arg("a") = 0, py::arg("b") = 0)
         .def("L", &Lab::L)
         .def("a", &Lab::a)
         .def("b", &Lab::b)
-        .def("deltaE", py::overload_cast<const Lab &>(&Lab::deltaE, py::const_))
         .def("toRGB", &Lab::toRGB)
         .def("__repr__", [](const Lab &lab) {
-            return "Lab(" + std::to_string(lab.L()) + ", " +
-                   std::to_string(lab.a()) + ", " + std::to_string(lab.b()) +
-                   ")";
+            return "Lab(" + std::to_string((float)lab.L()) + ", " +
+                   std::to_string((float)lab.a()) + ", " +
+                   std::to_string((float)lab.b()) + ")";
         });
+
+    py::class_<RGBA, RGB>(m, "RGBA")
+        .def(py::init<unsigned char, unsigned char, unsigned char,
+                      unsigned char>(),
+             py::arg("r") = 0, py::arg("g") = 0, py::arg("b") = 0,
+             py::arg("a") = 255)
+        .def("alpha", &RGBA::alpha);
 
     py::class_<Image>(m, "Image")
         .def(py::init<>())
@@ -62,9 +93,8 @@ PYBIND11_MODULE(palettum, m)
             {
                 throw std::runtime_error("Buffer must be 1-dimensional");
             }
-            return std::make_unique<Image>(
-                static_cast<const unsigned char *>(info.ptr),
-                static_cast<int>(info.size));
+            return new Image(static_cast<const unsigned char *>(info.ptr),
+                             static_cast<int>(info.size));
         }))
         .def("write", py::overload_cast<>(&Image::write, py::const_))
         .def("write",
@@ -84,9 +114,9 @@ PYBIND11_MODULE(palettum, m)
                  return py::array_t<uint8_t>(
                      {img.height(), img.width(), img.channels()},  // shape
                      {img.width() * img.channels(), img.channels(),
-                      1},           // strides
-                     img.data(),    // data pointer
-                     py::cast(img)  // parent object
+                      1},  // strides
+                     img.data(),
+                     py::cast(img)  // keep parent alive
                  );
              })
         .def("__eq__", &Image::operator==)
@@ -103,9 +133,8 @@ PYBIND11_MODULE(palettum, m)
             {
                 throw std::runtime_error("Buffer must be 1-dimensional");
             }
-            return std::make_unique<GIF>(
-                static_cast<const unsigned char *>(info.ptr),
-                static_cast<int>(info.size));
+            return new GIF(static_cast<const unsigned char *>(info.ptr),
+                           static_cast<int>(info.size));
         }))
         .def("write",
              py::overload_cast<const std::string &>(&GIF::write, py::const_))
@@ -115,7 +144,8 @@ PYBIND11_MODULE(palettum, m)
         .def("frameCount", &GIF::frameCount)
         .def("width", &GIF::width)
         .def("height", &GIF::height)
-        .def("addFrame", &GIF::addFrame)
+        .def("addFrame", &GIF::addFrame, py::arg("image"),
+             py::arg("delay_cs") = 10)
         .def("setPixel",
              py::overload_cast<size_t, int, int, const RGBA &>(&GIF::setPixel))
         .def("setPixel",

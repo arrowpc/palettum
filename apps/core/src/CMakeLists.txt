@@ -1,4 +1,7 @@
-pybind11_add_module(palettum bindings.cpp palettum.cpp image.cpp color.cpp)
+pybind11_add_module(palettum 
+  bindings.cpp 
+  ${SRC_FILES}
+)
 target_link_libraries(palettum PRIVATE OpenMP::OpenMP_CXX GIF::GIF)
 target_include_directories(palettum PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}

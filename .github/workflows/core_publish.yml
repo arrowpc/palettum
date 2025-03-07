@@ -87,11 +87,10 @@ jobs:
           CIBW_MANYLINUX_AARCH64_IMAGE: quay.io/pypa/manylinux_2_28_aarch64:latest
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_SKIP: "*musllinux*"
+          CIBW_BEFORE_ALL_LINUX: |
+            yum -y install zip ninja-build
           CIBW_BEFORE_BUILD: |
             pip install "pybind11[global]"
-          CIBW_BEFORE_BUILD_LINUX: |
-            pip install "pybind11[global]"
-            yum -y install zip ninja-build
           CIBW_ENVIRONMENT_LINUX: |
             VCPKG_FORCE_SYSTEM_BINARIES=1
           CIBW_ENVIRONMENT_MACOS: >

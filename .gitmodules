@@ -1,6 +1,3 @@
-[submodule "apps/core/external/simd_utils"]
-	path = apps/core/external/simd_utils
-	url = https://github.com/JishinMaster/simd_utils
 [submodule "apps/core/external/vcpkg"]
 	path = apps/core/external/vcpkg
   url = https://github.com/microsoft/vcpkg

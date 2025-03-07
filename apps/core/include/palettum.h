@@ -1,25 +1,25 @@
-#ifndef PALETTUM_CORE_PALETTUM_H
-#define PALETTUM_CORE_PALETTUM_H
+#pragma once
 
 #include <omp.h>
 #include <unordered_map>
 #include <vector>
-#include "image.h"
+#include "color_difference.h"
+#include "image/gif.h"
+#include "image/image.h"
 
-class Palettum
-{
-private:
-    Image m_image;
-    std::vector<RGB> m_palette;
-
-public:
-    Palettum() = default;
-    static Image convertToPalette(Image &image, std::vector<RGB> &palette,
-                                  int transparent_threshold = 0);
-    static GIF convertToPalette(GIF &gif, std::vector<RGB> &palette,
-                                int transparent_threshold = 0);
-
-    static bool validateImageColors(Image &image, std::vector<RGB> &palette);
+struct Config {
+    std::vector<RGB> palette = {{255, 0, 0}, {0, 255, 0}, {0, 0, 255}};
+    size_t transparencyThreshold = 0;
+    Formula formula = DEFAULT_FORMULA;
+    Architecture architecture = DEFAULT_ARCH;
+    uint8_t quantLevel =
+        2;  // Quantization level (q=1: 128 bins, q=2: 64 bins, q=3: 32 bins, etc.)
+            // Smaller q = more bins = higher accuracy but larger memory usage
+            // 0 to disable quantization
 };
 
-#endif  //PALETTUM_CORE_PALETTUM_H
+namespace palettum {
+Image palettify(Image &image, Config &config);
+GIF palettify(GIF &gif, Config &config);
+bool validate(Image &image, Config &config);
+};  // namespace palettum

@@ -43,7 +43,8 @@ PYBIND11_MODULE(palettum, m)
         .def_readwrite("palette", &Config::palette)
         .def_readwrite("transparencyThreshold", &Config::transparencyThreshold)
         .def_readwrite("formula", &Config::formula)
-        .def_readwrite("architecture", &Config::architecture);
+        .def_readwrite("architecture", &Config::architecture)
+        .def_readwrite("quantLevel", &Config::quantLevel);
 
     py::class_<RGB>(m, "RGB")
         .def(py::init<unsigned char, unsigned char, unsigned char>())

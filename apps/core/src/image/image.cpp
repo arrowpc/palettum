@@ -10,6 +10,7 @@
 
 Image::Image(const unsigned char *buffer, int length)
 {
+    fpng::fpng_init();
     int width, height, channels;
     uint8_t *data =
         stbi_load_from_memory(buffer, length, &width, &height, &channels, 0);
@@ -49,6 +50,7 @@ Image::Image(int width, int height)
     , m_height(height)
     , m_data(size())
 {
+    fpng::fpng_init();
 }
 
 Image::Image(int width, int height, bool withAlpha)
@@ -57,6 +59,7 @@ Image::Image(int width, int height, bool withAlpha)
     , m_channels(withAlpha ? 4 : 3)
     , m_data(width * height * (withAlpha ? 4 : 3))
 {
+    fpng::fpng_init();
 }
 
 int Image::operator-(const Image &other) const
@@ -91,19 +94,15 @@ int Image::operator-(const Image &other) const
 
 std::vector<unsigned char> Image::write() const
 {
-    int len;
-    unsigned char *png_data =
-        stbi_write_png_to_mem(m_data.data(), m_width * m_channels, m_width,
-                              m_height, m_channels, &len);
-    if (!png_data)
+    std::vector<uint8_t> result;
+    bool success = fpng::fpng_encode_image_to_memory(
+        m_data.data(), m_width, m_height, m_channels, result);
+
+    if (!success)
     {
         throw std::runtime_error(
-            std::string("Failed to write image to memory: ") +
-            stbi_failure_reason());
+            std::string("Failed to write image to memory using fpng"));
     }
-
-    std::vector<unsigned char> result(png_data, png_data + len);
-    STBIW_FREE(png_data);
 
     return result;
 }
@@ -115,13 +114,15 @@ bool Image::write(const std::string &filename) const
 
 bool Image::write(const char *filename) const
 {
-    bool written = stbi_write_png(filename, m_width, m_height, m_channels,
-                                  m_data.data(), m_width * m_channels);
+    bool written = fpng::fpng_encode_image_to_file(
+        filename, m_data.data(), m_width, m_height, m_channels);
+
     if (!written)
     {
-        throw std::runtime_error(std::string("Failed to write image: ") +
-                                 stbi_failure_reason());
+        throw std::runtime_error(
+            std::string("Failed to write image using fpng"));
     }
+
     return written;
 }
 

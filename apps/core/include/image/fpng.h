@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <cmath>
 #include <vector>
 
 #ifndef FPNG_TRAIN_HUFFMAN_TABLES

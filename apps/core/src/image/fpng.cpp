@@ -9,12 +9,13 @@
 // FPNG_NO_SSE - Set to 1 to completely disable SSE usage, even on x86/x64. By default, on x86/x64 it's enabled.
 // FPNG_DISABLE_DECODE_CRC32_CHECKS - Set to 1 to disable PNG chunk CRC-32 tests, for improved fuzzing. Defaults to 0.
 // FPNG_USE_UNALIGNED_LOADS - Set to 1 to indicate it's OK to read/write unaligned 32-bit/64-bit values. Defaults to 0, unless x86/x64.
-//
-// With gcc/clang on x86, compile with -msse4.1 -mpclmul -fno-strict-aliasing
-// Only tested with -fno-strict-aliasing (which the Linux kernel uses, and MSVC's default).
-//
+
 #include "image/fpng.h"
 #include <assert.h>
+#include <simde/x86/avx2.h>
+#include <simde/x86/clmul.h>
+#include <simde/x86/sse2.h>
+#include <simde/x86/sse3.h>
 #include <string.h>
 
 #ifdef _MSC_VER
@@ -32,17 +33,17 @@
     defined(i386) || defined(__ia64__) || defined(__x86_64__)
 #    define FPNG_X86_OR_X64_CPU (1)
 #else
-#    define FPNG_X86_OR_X64_CPU (0)
+#    define FPNG_X86_OR_X64_CPU (1)
 #endif
 
 #if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
 #    ifdef _MSC_VER
 #        include <intrin.h>
 #    endif
-#    include <emmintrin.h>  // SSE2
-#    include <smmintrin.h>  // SSE4.1
-#    include <wmmintrin.h>  // pclmul
-#    include <xmmintrin.h>  // SSE
+// #    include <emmintrin.h>  // SSE2
+// #    include <smmintrin.h>  // SSE4.1
+// #    include <wmmintrin.h>  // pclmul
+// #    include <xmmintrin.h>  // SSE
 #endif
 
 #ifndef FPNG_NO_STDIO
@@ -472,39 +473,44 @@ static uint32_t crc32_pclmul(const uint8_t *p, size_t size, uint32_t crc)
 #    else
     static const uint64_t __attribute__((aligned(16)))
 #    endif
-    s_u[2] = {0x1DB710641, 0x1F7011641},
-    s_k5k0[2] = {0x163CD6124, 0}, s_k3k4[2] = {0x1751997D0, 0xCCAA009E};
-
+        s_u[2] = {0x1DB710641, 0x1F7011641},
+        s_k5k0[2] = {0x163CD6124, 0}, s_k3k4[2] = {0x1751997D0, 0xCCAA009E};
     // Load first 16 bytes, apply initial CRC32
-    __m128i b =
-        _mm_xor_si128(_mm_cvtsi32_si128(~crc),
-                      _mm_loadu_si128(reinterpret_cast<const __m128i *>(p)));
+    simde__m128i b = simde_mm_xor_si128(
+        simde_mm_cvtsi32_si128(~crc),
+
+        simde_mm_loadu_si128(reinterpret_cast<const simde__m128i *>(p)));
 
     // We're skipping directly to Step 2 page 12 - iteratively folding by 1 (by 4 is overkill for our needs)
-    const __m128i k3k4 =
-        _mm_load_si128(reinterpret_cast<const __m128i *>(s_k3k4));
+    const simde__m128i k3k4 =
+        simde_mm_load_si128(reinterpret_cast<const simde__m128i *>(s_k3k4));
 
     for (size -= 16, p += 16; size >= 16; size -= 16, p += 16)
-        b = _mm_xor_si128(
-            _mm_xor_si128(
-                _mm_clmulepi64_si128(b, k3k4, 17),
-                _mm_loadu_si128(reinterpret_cast<const __m128i *>(p))),
-            _mm_clmulepi64_si128(b, k3k4, 0));
+        b = simde_mm_xor_si128(
+            simde_mm_xor_si128(simde_mm_clmulepi64_si128(b, k3k4, 17),
+                               simde_mm_loadu_si128(
+                                   reinterpret_cast<const simde__m128i *>(p))),
+            simde_mm_clmulepi64_si128(b, k3k4, 0));
 
     // Final stages: fold to 64-bits, 32-bit Barrett reduction
-    const __m128i z = _mm_set_epi32(0, ~0, 0, ~0),
-                  u = _mm_load_si128(reinterpret_cast<const __m128i *>(s_u));
-    b = _mm_xor_si128(_mm_srli_si128(b, 8), _mm_clmulepi64_si128(b, k3k4, 16));
-    b = _mm_xor_si128(
-        _mm_clmulepi64_si128(
-            _mm_and_si128(b, z),
-            _mm_loadl_epi64(reinterpret_cast<const __m128i *>(s_k5k0)), 0),
-        _mm_srli_si128(b, 4));
-    return ~_mm_extract_epi32(
-        _mm_xor_si128(
-            b, _mm_clmulepi64_si128(
-                   _mm_and_si128(
-                       _mm_clmulepi64_si128(_mm_and_si128(b, z), u, 16), z),
+    const simde__m128i z = simde_mm_set_epi32(0, ~0, 0, ~0),
+                       u = simde_mm_load_si128(
+                           reinterpret_cast<const simde__m128i *>(s_u));
+    b = simde_mm_xor_si128(simde_mm_srli_si128(b, 8),
+                           simde_mm_clmulepi64_si128(b, k3k4, 16));
+    b = simde_mm_xor_si128(
+        simde_mm_clmulepi64_si128(
+            simde_mm_and_si128(b, z),
+            simde_mm_loadl_epi64(
+                reinterpret_cast<const simde__m128i *>(s_k5k0)),
+            0),
+        simde_mm_srli_si128(b, 4));
+    return ~simde_mm_extract_epi32(
+        simde_mm_xor_si128(
+            b, simde_mm_clmulepi64_si128(
+                   simde_mm_and_si128(simde_mm_clmulepi64_si128(
+                                          simde_mm_and_si128(b, z), u, 16),
+                                      z),
                    u, 0)),
         1);
 }
@@ -521,7 +527,7 @@ static uint32_t crc32_sse41_simd(const unsigned char *buf, size_t len,
 }
 #endif
 
-#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
+#if FPNG_X86_OR_X64_CPU && FPNG_NO_SSE
 
 #    ifndef _MSC_VER
 static void do_cpuid(uint32_t eax, uint32_t ecx, uint32_t *regs)
@@ -550,9 +556,9 @@ struct cpu_info {
         memset(this, 0, sizeof(*this));
     }
 
-    bool m_initialized, m_has_fpu, m_has_mmx, m_has_sse, m_has_sse2, m_has_sse3,
-        m_has_ssse3, m_has_sse41, m_has_sse42, m_has_avx, m_has_avx2,
-        m_has_pclmulqdq;
+    bool m_initialized, m_has_fpu, m_hassimde_mmx, m_has_sse, m_has_sse2,
+        m_has_sse3, m_has_ssse3, m_has_sse41, m_has_sse42, m_has_avx,
+        m_has_avx2, m_has_pclmulqdq;
 
     void init()
     {
@@ -605,7 +611,7 @@ private:
     void extract_x86_flags(uint32_t ecx, uint32_t edx)
     {
         m_has_fpu = (edx & (1 << 0)) != 0;
-        m_has_mmx = (edx & (1 << 23)) != 0;
+        m_hassimde_mmx = (edx & (1 << 23)) != 0;
         m_has_sse = (edx & (1 << 25)) != 0;
         m_has_sse2 = (edx & (1 << 26)) != 0;
         m_has_sse3 = (ecx & (1 << 0)) != 0;
@@ -637,8 +643,9 @@ void fpng_init()
 bool fpng_cpu_supports_sse41()
 {
 #if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
-    assert(g_cpu_info.m_initialized);
-    return g_cpu_info.can_use_sse41();
+    return true;
+    // assert(g_cpu_info.m_initialized);
+    // return g_cpu_info.can_use_sse41();
 #else
     return false;
 #endif
@@ -647,9 +654,8 @@ bool fpng_cpu_supports_sse41()
 uint32_t fpng_crc32(const void *pData, size_t size, uint32_t prev_crc32)
 {
 #if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
-    if (g_cpu_info.can_use_pclmul())
-        return crc32_sse41_simd(static_cast<const uint8_t *>(pData), size,
-                                prev_crc32);
+    return crc32_sse41_simd(static_cast<const uint8_t *>(pData), size,
+                            prev_crc32);
 #endif
 
     return crc32_slice_by_4(pData, size, prev_crc32);
@@ -666,39 +672,45 @@ static uint32_t adler32_sse_16(const uint8_t *p, size_t len, uint32_t initial)
 
     while (len >= 16)
     {
-        __m128i a = _mm_setr_epi32(s1, 0, 0, 0), b = _mm_setzero_si128(),
-                c = _mm_setzero_si128(), d = _mm_setzero_si128(),
-                e = _mm_setzero_si128(), f = _mm_setzero_si128(),
-                g = _mm_setzero_si128(), h = _mm_setzero_si128();
+        simde__m128i a = simde_mm_setr_epi32(s1, 0, 0, 0),
+                     b = simde_mm_setzero_si128(), c = simde_mm_setzero_si128(),
+                     d = simde_mm_setzero_si128(), e = simde_mm_setzero_si128(),
+                     f = simde_mm_setzero_si128(), g = simde_mm_setzero_si128(),
+                     h = simde_mm_setzero_si128();
 
         const size_t n = minimum<size_t>(len >> 4, 5552);
 
         for (size_t i = 0; i < n; i++)
         {
-            const __m128i v = _mm_loadu_si128((const __m128i *)(p + i * 16));
-            a = _mm_add_epi32(a, _mm_cvtepu8_epi32(_mm_shuffle_epi32(
-                                     v, _MM_SHUFFLE(0, 0, 0, 0))));
-            b = _mm_add_epi32(b, a);
-            c = _mm_add_epi32(c, _mm_cvtepu8_epi32(_mm_shuffle_epi32(
-                                     v, _MM_SHUFFLE(1, 1, 1, 1))));
-            d = _mm_add_epi32(d, c);
-            e = _mm_add_epi32(e, _mm_cvtepu8_epi32(_mm_shuffle_epi32(
-                                     v, _MM_SHUFFLE(2, 2, 2, 2))));
-            f = _mm_add_epi32(f, e);
-            g = _mm_add_epi32(g, _mm_cvtepu8_epi32(_mm_shuffle_epi32(
-                                     v, _MM_SHUFFLE(3, 3, 3, 3))));
-            h = _mm_add_epi32(h, g);
+            const simde__m128i v =
+                simde_mm_loadu_si128((const simde__m128i *)(p + i * 16));
+            a = simde_mm_add_epi32(
+                a, simde_mm_cvtepu8_epi32(simde_mm_shuffle_epi32(
+                       v, SIMDE_MM_SHUFFLE(0, 0, 0, 0))));
+            b = simde_mm_add_epi32(b, a);
+            c = simde_mm_add_epi32(
+                c, simde_mm_cvtepu8_epi32(simde_mm_shuffle_epi32(
+                       v, SIMDE_MM_SHUFFLE(1, 1, 1, 1))));
+            d = simde_mm_add_epi32(d, c);
+            e = simde_mm_add_epi32(
+                e, simde_mm_cvtepu8_epi32(simde_mm_shuffle_epi32(
+                       v, SIMDE_MM_SHUFFLE(2, 2, 2, 2))));
+            f = simde_mm_add_epi32(f, e);
+            g = simde_mm_add_epi32(
+                g, simde_mm_cvtepu8_epi32(simde_mm_shuffle_epi32(
+                       v, SIMDE_MM_SHUFFLE(3, 3, 3, 3))));
+            h = simde_mm_add_epi32(h, g);
         }
 
         uint32_t sa[16], sb[16];
-        _mm_storeu_si128((__m128i *)sa, a);
-        _mm_storeu_si128((__m128i *)(sa + 4), c);
-        _mm_storeu_si128((__m128i *)sb, b);
-        _mm_storeu_si128((__m128i *)(sb + 4), d);
-        _mm_storeu_si128((__m128i *)(sa + 8), e);
-        _mm_storeu_si128((__m128i *)(sa + 12), g);
-        _mm_storeu_si128((__m128i *)(sb + 8), f);
-        _mm_storeu_si128((__m128i *)(sb + 12), h);
+        simde_mm_storeu_si128((simde__m128i *)sa, a);
+        simde_mm_storeu_si128((simde__m128i *)(sa + 4), c);
+        simde_mm_storeu_si128((simde__m128i *)sb, b);
+        simde_mm_storeu_si128((simde__m128i *)(sb + 4), d);
+        simde_mm_storeu_si128((simde__m128i *)(sa + 8), e);
+        simde_mm_storeu_si128((simde__m128i *)(sa + 12), g);
+        simde_mm_storeu_si128((simde__m128i *)(sb + 8), f);
+        simde_mm_storeu_si128((simde__m128i *)(sb + 12), h);
 
         // This could be vectorized, but it's only executed every 5552*16 iterations.
         uint64_t vs1 = 0;
@@ -763,8 +775,7 @@ static uint32_t fpng_adler32_scalar(const uint8_t *ptr, size_t buf_len,
 uint32_t fpng_adler32(const void *pData, size_t size, uint32_t adler)
 {
 #if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
-    if (g_cpu_info.can_use_sse41())
-        return adler32_sse_16((const uint8_t *)pData, size, adler);
+    return adler32_sse_16((const uint8_t *)pData, size, adler);
 #endif
     return fpng_adler32_scalar((const uint8_t *)pData, size, adler);
 }
@@ -2280,17 +2291,18 @@ static void apply_filter(uint32_t filter, int w, int h, uint32_t num_chans,
             *pDst++ = 2;
 
 #if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
-            if (g_cpu_info.can_use_sse41())
+            if (true)
             {
                 uint32_t bytes_to_process = w * num_chans, ofs = 0;
                 for (; bytes_to_process >= 16;
                      bytes_to_process -= 16, ofs += 16)
-                    _mm_storeu_si128(
-                        (__m128i *)(pDst + ofs),
-                        _mm_sub_epi8(
-                            _mm_loadu_si128((const __m128i *)(pSrc + ofs)),
-                            _mm_loadu_si128(
-                                (const __m128i *)(pPrev_src + ofs))));
+                    simde_mm_storeu_si128(
+                        (simde__m128i *)(pDst + ofs),
+                        simde_mm_sub_epi8(
+                            simde_mm_loadu_si128(
+                                (const simde__m128i *)(pSrc + ofs)),
+                            simde_mm_loadu_si128(
+                                (const simde__m128i *)(pPrev_src + ofs))));
 
                 for (; bytes_to_process; bytes_to_process--, ofs++)
                     pDst[ofs] = (uint8_t)(pSrc[ofs] - pPrev_src[ofs]);

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <image/fpng.h>
 #include <memory>
 #include <vector>
 #include "color/rgb.h"

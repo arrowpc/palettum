@@ -213,13 +213,14 @@ bool validate(Image &image, Config &config)
 {
     const int height = image.height();
     const int width = image.width();
-    bool isValid = true;
-#pragma omp parallel for collapse(2) schedule(dynamic)
     for (int y = 0; y < height; ++y)
     {
         for (int x = 0; x < width; ++x)
         {
             const RGBA currentPixel = image.get(x, y);
+
+            if (currentPixel.alpha() < config.transparencyThreshold)
+                continue;
             bool foundMatch = false;
             for (const auto &color : config.palette)
             {
@@ -229,9 +230,9 @@ bool validate(Image &image, Config &config)
                     foundMatch = true;
             }
             if (!foundMatch)
-                isValid = false;
+                return false;
         }
     }
-    return isValid;
+    return true;
 }
 }  // namespace palettum

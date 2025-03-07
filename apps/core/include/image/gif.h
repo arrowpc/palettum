@@ -27,6 +27,7 @@ public:
         Frame(Frame &&) noexcept = default;
 
         void updateBounds(int x, int y, GifByteType index);
+        void recalculateBounds();
         void setPixel(int x, int y, const RGBA &color, GifByteType index);
         void setPixel(int x, int y, const RGB &color, GifByteType index);
         [[nodiscard]] GifByteType getIndex(int x, int y) const;

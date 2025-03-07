@@ -12,6 +12,10 @@ struct Config {
     size_t transparencyThreshold = 0;
     Formula formula = DEFAULT_FORMULA;
     Architecture architecture = DEFAULT_ARCH;
+    uint8_t quantLevel =
+        2;  // Quantization level (q=1: 128 bins, q=2: 64 bins, q=3: 32 bins, etc.)
+            // Smaller q = more bins = higher accuracy but larger memory usage
+            // 0 to disable quantization
 };
 
 namespace palettum {

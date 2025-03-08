@@ -3,31 +3,14 @@ import os
 from functools import wraps
 
 from app import app
-from flask import jsonify, request, send_file
+from app.auth import require_api_key
+from flask import Response, jsonify, request, send_file
 
 from palettum import GIF, RGB, Config, Image, palettify
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg"}
 MAX_DIMENSION = 7680
 MAX_THRESHOLD = 255
-
-
-def require_api_key(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if os.getenv("FLASK_ENV") == "testing":
-            return f(*args, **kwargs)
-
-        api_key = request.headers.get("X-API-Key")
-        if not api_key:
-            return jsonify({"error": "No API key provided"}), 401
-
-        if api_key != os.getenv("API_KEY"):
-            return jsonify({"error": "Invalid API key"}), 401
-
-        return f(*args, **kwargs)
-
-    return decorated
 
 
 @app.errorhandler(ValueError)
@@ -43,6 +26,11 @@ def bad_request(error):
 @app.route("/")
 def index():
     return "Welcome to Palettum API!"
+
+
+@app.route("/health")
+def health_check():
+    return jsonify({"status": "ok"})
 
 
 def validate_image_content_type(image):
@@ -130,7 +118,6 @@ def is_gif(data):
 
 
 @app.route("/upload", methods=["POST"])
-@require_api_key
 def upload_image():
     try:
         if "image" not in request.files:
@@ -161,6 +148,7 @@ def upload_image():
         conf = Config()
         conf.palette = palette
         conf.transparencyThreshold = transparent_threshold
+        conf.quantLevel = 0
 
         try:
             if is_gif(img_data):
@@ -180,20 +168,25 @@ def upload_image():
                 print("Sending GIF response...")
                 return send_file(io.BytesIO(bytes(gif_data)), mimetype="image/gif")
             else:
-                print("Processing static image...")
+                print("Loading static image...")
                 img = Image(img_data)
 
                 if width or height:
                     img = resize_image(img, width, height)
 
+                print("Palettifying static image...")
                 result = palettify(img, conf)
+
+                print("Writing PNG response...")
                 png_data = result.write()
 
                 if not png_data:
                     raise ValueError("Failed to encode the processed image")
 
                 print("Sending PNG response...")
-                return send_file(io.BytesIO(bytes(png_data)), mimetype="image/png")
+                # return send_file(io.BytesIO(bytes(png_data)), mimetype="image/png")
+                response = Response(bytes(png_data), mimetype="image/png")
+                return response
 
         except RuntimeError as e:
             print(f"Processing error: {e}")

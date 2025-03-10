@@ -10,7 +10,7 @@ import {
 } from "@/lib/palettes";
 
 interface PaletteManagerProps {
-  onPaletteSelect: (colors: Color[]) => void;
+  onPaletteSelect: (palette: Palette) => void;
 }
 
 function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
@@ -26,7 +26,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    onPaletteSelect(selectedPalette.colors);
+    onPaletteSelect(selectedPalette);
   }, [selectedPalette, onPaletteSelect]);
 
   useEffect(() => {

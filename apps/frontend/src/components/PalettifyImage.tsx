@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Palette, ImagePlus, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { processImage, APIError } from "@/services/api";
-import type { Color } from "@/lib/palettes";
+import type { Palette as PaletteType } from "@/lib/palettes";
 import ImageViewer from "@/components/ImageViewer";
 import { cn } from "@/lib/utils";
 
@@ -12,7 +12,7 @@ interface PalettifyImageProps {
     width: number | null;
     height: number | null;
   };
-  palette: Color[];
+  palette: PaletteType;
   transparentThreshold: number;
 }
 
@@ -56,7 +56,7 @@ function PalettifyImage({
       return;
     }
 
-    if (palette.length === 0) {
+    if (palette.colors.length === 0) {
       setError("Choose a color palette");
       return;
     }
@@ -67,7 +67,7 @@ function PalettifyImage({
     try {
       const processedBlob = await processImage(
         file,
-        palette,
+        palette.colors,
         dimensions.width || undefined,
         dimensions.height || undefined,
         transparentThreshold,
@@ -107,7 +107,8 @@ function PalettifyImage({
       const baseFileName = file.name.replace(/\.[^/.]+$/, "");
 
       const outputExtension = originalExtension === "gif" ? "gif" : "png";
-      link.download = `palettified-${baseFileName}.${outputExtension}`;
+      const paletteName = palette.name.toLowerCase().replace(/\s+/g, "-");
+      link.download = `${baseFileName}-${paletteName}.${outputExtension}`;
 
       document.body.appendChild(link);
       link.click();
@@ -126,7 +127,7 @@ function PalettifyImage({
       <div className="flex justify-end">
         <Button
           onClick={handleProcessImage}
-          disabled={!file || palette.length === 0 || isProcessing}
+          disabled={!file || palette.colors.length === 0 || isProcessing}
           className={cn(
             "bg-neutral-600 hover:bg-neutral-700 text-white",
             "transition-colors",

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [shake, setShake] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isActive, setIsActive] = useState(false);
+  const uploadAreaRef = useRef<HTMLDivElement>(null);
 
   const validTypes = ["image/jpeg", "image/png", "image/gif"];
   const maxFileSize = 100 * 1024 * 1024; // 100MB
@@ -114,29 +116,54 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
 
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
-      const items = event.clipboardData?.items;
+      const activeElement = document.activeElement;
 
-      if (!items) return;
+      const isInputActive =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.getAttribute("contenteditable") === "true";
 
-      for (let i = 0; i < items.length; i++) {
-        if (items[i].type.indexOf("image") !== -1) {
-          const file = items[i].getAsFile();
-          if (file) {
-            validateFile(file);
-            return;
+      const isBackgroundActive =
+        activeElement === document.body ||
+        activeElement?.id === "root" ||
+        activeElement?.tagName === "MAIN" ||
+        activeElement?.tagName === "DIV" ||
+        isActive;
+
+      if (isInputActive && !isActive) {
+        return;
+      }
+
+      if (isBackgroundActive) {
+        const items = event.clipboardData?.items;
+
+        if (!items) return;
+
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf("image") !== -1) {
+            const file = items[i].getAsFile();
+            if (file) {
+              validateFile(file);
+              event.preventDefault();
+              return;
+            }
           }
         }
-      }
 
-      if (items.length > 0 && event.clipboardData?.getData("text")) {
-        setShake(true);
-        setError(
-          "No valid image found in clipboard. Try copying an image instead of text.",
-        );
-        setTimeout(() => setShake(false), 300);
+        if (
+          isActive &&
+          items.length > 0 &&
+          event.clipboardData?.getData("text")
+        ) {
+          setShake(true);
+          setError(
+            "No valid image found in clipboard. Try copying an image instead of text.",
+          );
+          setTimeout(() => setShake(false), 300);
+        }
       }
     },
-    [validateFile],
+    [validateFile, isActive],
   );
 
   useEffect(() => {
@@ -149,6 +176,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   return (
     <div className="space-y-2">
       <div
+        ref={uploadAreaRef}
         className={cn(
           "flex flex-col items-center justify-center w-full h-64",
           "border-2 border-dashed rounded-lg",
@@ -161,6 +189,10 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         onDragOver={(e) => handleDragEvents(e, true)}
         onDragLeave={(e) => handleDragEvents(e, false)}
         onDrop={handleDrop}
+        onFocus={() => setIsActive(true)}
+        onBlur={() => setIsActive(false)}
+        onMouseEnter={() => setIsActive(true)}
+        onMouseLeave={() => setIsActive(false)}
         tabIndex={0}
       >
         <ImageIcon

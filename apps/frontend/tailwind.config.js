@@ -135,7 +135,7 @@ export default {
         },
 
         primary: {
-          DEFAULT: "#3b82f6",
+          DEFAULT: "#525252",
           foreground: "#ffffff",
           50: "#eff6ff",
           100: "#dbeafe",

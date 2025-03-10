@@ -43,21 +43,32 @@ function PalettifyImage({
     width: number | null;
     height: number | null;
     paletteId: string | null;
+    colorFingerprint: string | null;
     transparentThreshold: number | null;
   }>({
     fileName: null,
     width: null,
     height: null,
     paletteId: null,
+    colorFingerprint: null,
     transparentThreshold: null,
   });
+
+  const currentColorFingerprint = palette?.colors
+    ? JSON.stringify(
+      [...palette.colors].sort((a, b) =>
+        a.r !== b.r ? a.r - b.r : a.g !== b.g ? a.g - b.g : a.b - b.b,
+      ),
+    )
+    : null;
 
   const isSameSettings =
     !!processedImageUrl &&
     file?.name === lastProcessedSettings.current.fileName &&
     dimensions.width === lastProcessedSettings.current.width &&
     dimensions.height === lastProcessedSettings.current.height &&
-    palette.id === lastProcessedSettings.current.paletteId &&
+    currentColorFingerprint ===
+    lastProcessedSettings.current.colorFingerprint &&
     transparentThreshold === lastProcessedSettings.current.transparentThreshold;
 
   useEffect(() => {
@@ -110,6 +121,7 @@ function PalettifyImage({
         width: dimensions.width,
         height: dimensions.height,
         paletteId: palette.id,
+        colorFingerprint: currentColorFingerprint,
         transparentThreshold: transparentThreshold,
       };
     } catch (err: unknown) {

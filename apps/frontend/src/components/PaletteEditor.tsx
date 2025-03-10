@@ -221,11 +221,6 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   const removeColor = (index: number) => {
     setErrors([]);
 
-    if (palette.colors.length <= LIMITS.MIN_COLORS) {
-      setErrors([`Cannot remove the last color`]);
-      return;
-    }
-
     setPalette((prev) => ({
       ...prev,
       colors: prev.colors.filter((_, i) => i !== index),

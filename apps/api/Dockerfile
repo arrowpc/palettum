@@ -11,4 +11,4 @@ ENV FLASK_APP=run.py
 ENV FLASK_ENV=development
 ENV PYTHONPATH=/app/api
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "run:app"]
+CMD ["sh", "-c", "gunicorn --workers=$(( 2 * $(nproc) + 1 )) --threads=4 --bind=0.0.0.0:5000 run:app"]

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ interface ImageUploadProps {
 }
 
 function ImageUpload({ onFileSelect }: ImageUploadProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedImage, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [shake, setShake] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +112,40 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
     [validateFile],
   );
 
+  const handlePaste = useCallback(
+    (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items;
+
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            validateFile(file);
+            return;
+          }
+        }
+      }
+
+      if (items.length > 0 && event.clipboardData?.getData("text")) {
+        setShake(true);
+        setError(
+          "No valid image found in clipboard. Try copying an image instead of text.",
+        );
+        setTimeout(() => setShake(false), 300);
+      }
+    },
+    [validateFile],
+  );
+
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => {
+      document.removeEventListener("paste", handlePaste);
+    };
+  }, [handlePaste]);
+
   return (
     <div className="space-y-2">
       <div
@@ -127,6 +161,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         onDragOver={(e) => handleDragEvents(e, true)}
         onDragLeave={(e) => handleDragEvents(e, false)}
         onDrop={handleDrop}
+        tabIndex={0}
       >
         <ImageIcon
           className={cn(
@@ -137,37 +172,48 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
               : "text-upload-400",
           )}
         />
-        <p className="mb-4 text-sm text-upload-400">
-          Drag and drop an image to palettify
-        </p>
-        <p className="mb-2 text-sm text-upload-400">or</p>
-        <input
-          type="file"
-          id="file-upload"
-          className="hidden"
-          accept={validTypes.join(",")}
-          onChange={handleFileChange}
-        />
-        <Button
-          onClick={() => document.getElementById("file-upload")?.click()}
-          disabled={isDragging}
-          className={cn(
-            "bg-neutral-600 hover:bg-neutral-700 text-white",
-            "transition-all duration-300",
-            isDragging && "opacity-50 scale-95 cursor-not-allowed",
-          )}
-        >
-          Browse images
-        </Button>
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-3 mb-3">
+            <p className="text-sm text-upload-400">Drag</p>
+            <div className="h-px w-10 bg-neutral-600/30"></div>
+            <p className="text-sm text-upload-400">Paste</p>
+          </div>
+
+          <input
+            type="file"
+            id="file-upload"
+            className="hidden"
+            accept={validTypes.join(",")}
+            onChange={handleFileChange}
+          />
+
+          <div className="flex items-center gap-3 mb-3">
+            <div className="h-px w-16 bg-neutral-600/30"></div>
+            <p className="text-sm text-upload-400">or</p>
+            <div className="h-px w-16 bg-neutral-600/30"></div>
+          </div>
+
+          <Button
+            onClick={() => document.getElementById("file-upload")?.click()}
+            disabled={isDragging}
+            className={cn(
+              "bg-neutral-600 hover:bg-neutral-700 text-white",
+              "transition-all duration-200",
+              isDragging && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            Choose image
+          </Button>
+        </div>
       </div>
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      {selectedFile && !error && (
+      {selectedImage && !error && (
         <p className="text-sm text-upload-400">
-          Selected file: {selectedFile.name}
+          Selected image: {selectedImage.name}
         </p>
       )}
     </div>

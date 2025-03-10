@@ -9,4 +9,5 @@ export interface Palette {
   name: string;
   colors: Color[];
   source?: string;
+  isDefault?: boolean;
 }

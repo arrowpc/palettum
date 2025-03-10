@@ -182,8 +182,8 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           "border-2 border-dashed rounded-lg",
           "transition-all duration-300",
           isDragging
-            ? "border-upload-active-border bg-upload-active-bg"
-            : "border-upload-300 bg-upload-50",
+            ? "border-primary bg-primary/5"
+            : "border-border bg-background-secondary",
           shake && "animate-shake",
         )}
         onDragOver={(e) => handleDragEvents(e, true)}
@@ -199,16 +199,16 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           className={cn(
             "w-16 h-16 mb-4",
             "transition-all duration-300",
-            isDragging
-              ? "text-upload-active-text scale-110"
-              : "text-upload-400",
+            isDragging ? "icon-active scale-110" : "text-foreground-secondary",
           )}
         />
-        <div className="flex flex-col items-center">
+        <div
+          className={`flex flex-col items-center transition-all duration-200 ${isDragging ? "opacity-50" : ""}`}
+        >
           <div className="flex items-center gap-3 mb-3">
-            <p className="text-sm text-upload-400">Drag</p>
-            <div className="h-px w-10 bg-neutral-600/30"></div>
-            <p className="text-sm text-upload-400">Paste</p>
+            <p className="text-sm text-foreground-secondary">Drag</p>
+            <div className="h-px w-10 bg-border"></div>
+            <p className="text-sm text-foreground-secondary">Paste</p>
           </div>
 
           <input
@@ -220,16 +220,16 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           />
 
           <div className="flex items-center gap-3 mb-3">
-            <div className="h-px w-16 bg-neutral-600/30"></div>
-            <p className="text-sm text-upload-400">or</p>
-            <div className="h-px w-16 bg-neutral-600/30"></div>
+            <div className="h-px w-16 bg-border"></div>
+            <p className="text-sm text-foreground-secondary">or</p>
+            <div className="h-px w-16 bg-border"></div>
           </div>
 
           <Button
             onClick={() => document.getElementById("file-upload")?.click()}
             disabled={isDragging}
             className={cn(
-              "bg-neutral-600 hover:bg-neutral-700 text-white",
+              "bg-primary hover:bg-primary-hover text-primary-foreground",
               "transition-all duration-200",
               isDragging && "opacity-50 cursor-not-allowed",
             )}
@@ -244,7 +244,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         </Alert>
       )}
       {selectedImage && !error && (
-        <p className="text-sm text-upload-400">
+        <p className="text-sm text-foreground-secondary">
           Selected image: {selectedImage.name}
         </p>
       )}

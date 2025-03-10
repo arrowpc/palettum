@@ -347,7 +347,7 @@ function PalettifyImage({
                   <Button
                     onClick={handleProcessImage}
                     disabled={true}
-                    className="bg-neutral-600 hover:bg-neutral-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="bg-primary hover:bg-primary-hover text-primary-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Palette className="mr-2 h-4 w-4" />
                     Palettify Image
@@ -363,7 +363,7 @@ function PalettifyImage({
           <Button
             onClick={handleProcessImage}
             disabled={!file || palette.colors.length === 0 || isProcessing}
-            className="bg-neutral-600 hover:bg-neutral-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-primary hover:bg-primary-hover text-primary-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isProcessing ? (
               "Processing..."
@@ -387,7 +387,7 @@ function PalettifyImage({
       {processedImageUrl && (
         <div className="mt-4 space-y-2">
           <div
-            className="rounded-lg overflow-hidden relative"
+            className="rounded-md overflow-hidden relative border border-border shadow-sm"
             ref={imageContainerRef}
           >
             <div
@@ -412,22 +412,22 @@ function PalettifyImage({
                 }}
               />
 
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-300"></div>
+              <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/5 transition-colors duration-300"></div>
 
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="bg-black/20 backdrop-blur-[1px] px-4 py-2 rounded-md flex items-center gap-2 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100 transition-all duration-300">
+                <div className="bg-foreground/10 backdrop-blur-[1px] px-4 py-2 rounded-md flex items-center gap-2 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100 transition-all duration-300">
                   <svg
                     width="20"
                     height="20"
                     viewBox="0 0 20 20"
-                    className="text-white"
+                    className="text-background"
                   >
                     <path
                       d="M3 3h5v2H5v3H3V3zm12 0h-5v2h3v3h2V3zM3 17h5v-2H5v-3H3v5zm12 0h-5v-2h3v-3h2v5z"
                       fill="currentColor"
                     />
                   </svg>
-                  <span className="text-sm font-medium text-white drop-shadow-sm">
+                  <span className="text-sm font-medium text-background drop-shadow-sm">
                     View Full Size
                   </span>
                 </div>
@@ -461,7 +461,7 @@ function PalettifyImage({
                   }).map((_, i) => (
                     <div
                       key={`empty-${i}`}
-                      className="w-2 h-2 bg-white/30 dark:bg-gray-700/30"
+                      className="w-2 h-2 bg-background/30 dark:bg-background-tertiary/30"
                     />
                   ))}
                 </div>
@@ -472,7 +472,7 @@ function PalettifyImage({
           <div className="flex justify-start">
             <Button
               onClick={handleDownload}
-              className="bg-neutral-600 hover:bg-neutral-700 text-white transition-colors flex items-center space-x-1"
+              className="bg-primary hover:bg-primary-hover text-primary-foreground transition-colors flex items-center space-x-2"
               size="sm"
             >
               <Download className="h-4 w-4" />
@@ -538,7 +538,7 @@ function PalettifyImage({
   animation: pixelPulse 1.2s ease-in-out infinite;
   transform-origin: center;
 }
-          `,
+        `,
         }}
       />
     </div>

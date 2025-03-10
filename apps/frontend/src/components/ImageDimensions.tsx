@@ -223,16 +223,16 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
 
   return (
     <div>
-      <div className="flex items-center space-x-1">
-        <h3 className="text-lg font-medium text-gray-800">Dimensions</h3>
+      <div className="flex items-center space-x-2">
+        <h3 className="text-lg font-medium text-foreground">Dimensions</h3>
         <button
           onClick={resetDimensions}
           className={cn(
             "flex items-center justify-center w-8 h-8 rounded-full",
-            "bg-control text-gray-600 transition-all",
+            "text-foreground-secondary transition-colors",
             isReset
               ? "opacity-50 cursor-not-allowed"
-              : "hover:bg-control-hover",
+              : "hover:bg-secondary hover:text-foreground",
           )}
           aria-label="Reset dimensions"
           disabled={isReset}
@@ -244,8 +244,11 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       {file ? (
         <div className="mt-4">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center bg-control border border-control-border shadow-control px-2 py-1 rounded-lg focus-within:ring-2 focus-within:ring-control-focus">
-              <label htmlFor="width" className="text-control-label mr-2">
+            <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
+              <label
+                htmlFor="width"
+                className="text-foreground-secondary px-3 py-2"
+              >
                 W
               </label>
               <input
@@ -257,11 +260,14 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 min="1"
                 max={MAX_DIMENSION}
                 placeholder="Width"
-                className="w-20 p-1 text-sm text-left focus:outline-none bg-control rounded-lg overflow-hidden text-ellipsis"
+                className="w-20 p-2 text-sm text-foreground focus:outline-none bg-background rounded-r-md"
               />
             </div>
-            <div className="flex items-center bg-control border border-control-border shadow-control px-2 py-1 rounded-lg focus-within:ring-2 focus-within:ring-control-focus">
-              <label htmlFor="height" className="text-control-label mr-2">
+            <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
+              <label
+                htmlFor="height"
+                className="text-foreground-secondary px-3 py-2"
+              >
                 H
               </label>
               <input
@@ -273,23 +279,23 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 min="1"
                 max={MAX_DIMENSION}
                 placeholder="Height"
-                className="w-20 p-1 text-sm text-left focus:outline-none bg-control rounded-lg overflow-hidden text-ellipsis"
+                className="w-20 p-2 text-sm text-foreground focus:outline-none bg-background rounded-r-md"
               />
             </div>
             <button
               onClick={() => setKeepAspectRatio(!keepAspectRatio)}
               className={cn(
-                "flex items-center justify-center w-10 h-10 border rounded-lg shadow-control focus:outline-none transition-all",
+                "flex items-center justify-center w-10 h-10 border rounded-md shadow-sm focus:outline-none transition-all",
                 keepAspectRatio
-                  ? "bg-action-primary hover:bg-action-primary-hover border-action-primary"
-                  : "bg-control hover:bg-control-hover border-control-border",
+                  ? "bg-primary text-primary-foreground border-primary hover:bg-primary-hover"
+                  : "text-foreground border-border hover:bg-secondary-hover",
               )}
               aria-label={
                 keepAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
               }
             >
               {keepAspectRatio ? (
-                <Link size={20} className="text-icon-active" />
+                <Link size={20} className="text-foreground" />
               ) : (
                 <Unlink size={20} className="text-icon-inactive" />
               )}
@@ -298,9 +304,12 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         </div>
       ) : (
         <div className="mt-4">
-          <div className="flex items-center space-x-4 opacity-50 cursor-not-allowed">
-            <div className="flex items-center bg-control-disabled border border-control-border shadow-control px-2 py-1 rounded-lg">
-              <label htmlFor="width" className="text-control-label mr-2">
+          <div className="flex items-center space-x-4 opacity-60 cursor-not-allowed">
+            <div className="flex items-center bg-input-disabled border border-border rounded-md shadow-sm">
+              <label
+                htmlFor="width"
+                className="text-foreground-muted px-3 py-2"
+              >
                 W
               </label>
               <input
@@ -309,11 +318,14 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 disabled
                 value=""
                 placeholder="Width"
-                className="w-20 p-1 text-sm text-left bg-control-disabled cursor-not-allowed rounded-lg"
+                className="w-20 p-2 text-sm text-foreground-muted bg-input-disabled cursor-not-allowed rounded-r-md"
               />
             </div>
-            <div className="flex items-center bg-control-disabled border border-control-border shadow-control px-2 py-1 rounded-lg">
-              <label htmlFor="height" className="text-control-label mr-2">
+            <div className="flex items-center bg-input-disabled border border-border rounded-md shadow-sm">
+              <label
+                htmlFor="height"
+                className="text-foreground-muted px-3 py-2"
+              >
                 H
               </label>
               <input
@@ -322,15 +334,15 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 disabled
                 value=""
                 placeholder="Height"
-                className="w-20 p-1 text-sm text-left bg-control-disabled cursor-not-allowed rounded-lg"
+                className="w-20 p-2 text-sm text-foreground-muted bg-input-disabled cursor-not-allowed rounded-r-md"
               />
             </div>
             <button
-              className="flex items-center justify-center w-10 h-10 border rounded-lg bg-control-disabled shadow-control opacity-50 cursor-not-allowed"
+              className="flex items-center justify-center w-10 h-10 border rounded-md bg-input-disabled shadow-sm cursor-not-allowed"
               disabled
               aria-label="Lock aspect ratio"
             >
-              <Unlink className="text-icon-disabled" />
+              <Unlink className="text-icon-disabled " />
             </button>
           </div>
         </div>

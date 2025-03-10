@@ -3,7 +3,7 @@ import logging
 import time
 from functools import wraps
 
-from app import app
+from app import app, limiter
 from app.auth import require_api_key
 from flask import Response, jsonify, request, send_file
 
@@ -119,6 +119,7 @@ def is_gif(data):
 
 
 @app.route("/upload", methods=["POST"])
+@limiter.limit("30 per hour")
 def upload_image():
     try:
         if "image" not in request.files:

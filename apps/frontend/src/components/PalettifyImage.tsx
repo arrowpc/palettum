@@ -1,10 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Palette, ImagePlus, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { processImage, APIError } from "@/services/api";
 import type { Palette as PaletteType } from "@/lib/palettes";
 import ImageViewer from "@/components/ImageViewer";
 import { cn } from "@/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface PalettifyImageProps {
   file: File | null;
@@ -31,6 +37,28 @@ function PalettifyImage({
   const [currentProcessedFile, setCurrentProcessedFile] = useState<
     string | null
   >(null);
+
+  const lastProcessedSettings = useRef<{
+    fileName: string | null;
+    width: number | null;
+    height: number | null;
+    paletteId: string | null;
+    transparentThreshold: number | null;
+  }>({
+    fileName: null,
+    width: null,
+    height: null,
+    paletteId: null,
+    transparentThreshold: null,
+  });
+
+  const isSameSettings =
+    !!processedImageUrl &&
+    file?.name === lastProcessedSettings.current.fileName &&
+    dimensions.width === lastProcessedSettings.current.width &&
+    dimensions.height === lastProcessedSettings.current.height &&
+    palette.id === lastProcessedSettings.current.paletteId &&
+    transparentThreshold === lastProcessedSettings.current.transparentThreshold;
 
   useEffect(() => {
     if (file && currentProcessedFile !== file.name) {
@@ -76,6 +104,14 @@ function PalettifyImage({
       const newProcessedUrl = URL.createObjectURL(processedBlob);
       setProcessedImageUrl(newProcessedUrl);
       setCurrentProcessedFile(file.name);
+
+      lastProcessedSettings.current = {
+        fileName: file.name,
+        width: dimensions.width,
+        height: dimensions.height,
+        paletteId: palette.id,
+        transparentThreshold: transparentThreshold,
+      };
     } catch (err: unknown) {
       const errorMessage =
         err instanceof APIError
@@ -108,7 +144,7 @@ function PalettifyImage({
 
       const outputExtension = originalExtension === "gif" ? "gif" : "png";
       const paletteName = palette.name.toLowerCase().replace(/\s+/g, "-");
-      link.download = `${baseFileName}-${paletteName}.${outputExtension}`;
+      link.download = `${paletteName}-${baseFileName}.${outputExtension}`;
 
       document.body.appendChild(link);
       link.click();
@@ -125,24 +161,50 @@ function PalettifyImage({
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Button
-          onClick={handleProcessImage}
-          disabled={!file || palette.colors.length === 0 || isProcessing}
-          className={cn(
-            "bg-neutral-600 hover:bg-neutral-700 text-white",
-            "transition-colors",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-          )}
-        >
-          {isProcessing ? (
-            <>Processing...</>
-          ) : (
-            <>
-              <Palette className="mr-2 h-4 w-4" />
-              Palettify Image
-            </>
-          )}
-        </Button>
+        {isSameSettings ? (
+          <TooltipProvider>
+            <Tooltip delayDuration={200}>
+              <TooltipTrigger asChild>
+                <div>
+                  <Button
+                    onClick={handleProcessImage}
+                    disabled={true}
+                    className={cn(
+                      "bg-neutral-600 hover:bg-neutral-700 text-white",
+                      "transition-colors",
+                      "disabled:opacity-50 disabled:cursor-not-allowed",
+                    )}
+                  >
+                    <Palette className="mr-2 h-4 w-4" />
+                    Palettify Image
+                  </Button>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Image already palettified with current configuration</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          <Button
+            onClick={handleProcessImage}
+            disabled={!file || palette.colors.length === 0 || isProcessing}
+            className={cn(
+              "bg-neutral-600 hover:bg-neutral-700 text-white",
+              "transition-colors",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
+            )}
+          >
+            {isProcessing ? (
+              <>Processing...</>
+            ) : (
+              <>
+                <Palette className="mr-2 h-4 w-4" />
+                Palettify Image
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {error && (

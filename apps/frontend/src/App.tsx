@@ -3,6 +3,7 @@ import ImageUpload from "@/components/ImageUpload";
 import ImageDimensions from "@/components/ImageDimensions";
 import PaletteManager from "@/components/PaletteManager";
 import PalettifyImage from "@/components/PalettifyImage";
+import DarkModeToggle from "@/components/DarkModeToggle";
 import type { Palette } from "@/lib/palettes/types";
 import ImageTransparency from "@/components/ImageTransparency";
 
@@ -29,12 +30,17 @@ function App() {
   const handleThresholdChange = useCallback((newThreshold: number) => {
     setTransparentThreshold(newThreshold);
   }, []);
+
   const handlePaletteSelect = useCallback((palette: Palette) => {
     setSelectedPalette(palette);
   }, []);
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-6">
+      <div className="flex justify-end">
+        <DarkModeToggle />
+      </div>
+
       <ImageUpload onFileSelect={handleFileSelect} />
       <ImageDimensions file={uploadedFile} onChange={handleDimensionsChange} />
       <ImageTransparency

@@ -165,9 +165,9 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
         <div className="relative w-full">
           <button
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="w-full flex items-center p-3 bg-dropdown-background border border-dropdown-border rounded-lg shadow-sm hover:bg-dropdown-hover transition-colors"
+            className="w-full flex items-center p-3 bg-background border border-border rounded-md shadow-sm hover:bg-secondary transition-colors"
           >
-            <span className="font-medium truncate mr-2 max-w-palette-name text-dropdown-text-primary">
+            <span className="font-medium truncate mr-2 max-w-palette-name text-foreground">
               {selectedPalette.name}
             </span>
             <div className="flex items-center justify-end gap-2 flex-1">
@@ -181,13 +181,13 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                     .map((color: Color, i: number) => (
                       <div
                         key={i}
-                        className="w-color-square h-color-square rounded-sm ring-1 ring-gray-200 bg-[#f5f5f5]"
+                        className="w-color-square h-color-square rounded-sm ring-1 ring-border bg-background"
                         style={{ backgroundColor: rgbToHex(color) }}
                       />
                     ))}
                   {selectedPalette.colors.length > maxVisibleColors && (
-                    <div className="w-color-square h-color-square rounded-sm ring-1 ring-gray-200 flex items-center justify-center bg-palette-preview-more-background">
-                      <span className="scale-90 text-xs font-medium text-palette-preview-more-text">
+                    <div className="w-color-square h-color-square rounded-sm ring-1 ring-border flex items-center justify-center bg-secondary">
+                      <span className="scale-90 text-xs font-medium text-foreground-secondary">
                         +{selectedPalette.colors.length - maxVisibleColors}
                       </span>
                     </div>
@@ -196,7 +196,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
               </div>
               <ChevronDown
                 className={cn(
-                  "w-5 h-5 transition-transform flex-shrink-0 text-dropdown-icon",
+                  "w-5 h-5 transition-transform flex-shrink-0 text-icon-inactive",
                   isDropdownOpen && "rotate-180",
                 )}
               />
@@ -204,33 +204,33 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
           </button>
 
           {isDropdownOpen && (
-            <div className="absolute z-10 w-full mt-2 bg-dropdown-background border border-dropdown-border rounded-lg shadow-dropdown flex flex-col">
-              <div className="p-2 border-b border-dropdown-border">
+            <div className="absolute z-10 w-full mt-2 bg-background border border-border rounded-md shadow-md flex flex-col">
+              <div className="p-2 border-b border-border">
                 <div className="relative">
                   <input
                     type="text"
                     placeholder="Search palettes..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-search-border rounded focus:outline-none focus:ring-1 focus:ring-search-ring bg-search-background placeholder-search-placeholder"
+                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring bg-background placeholder-foreground-muted"
                   />
-                  <Search className="w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 text-search-icon" />
+                  <Search className="w-4 h-4 absolute left-2 top-1/2 transform -translate-y-1/2 text-icon-inactive" />
                 </div>
               </div>
               <div className="overflow-y-auto flex-1 max-h-[175px]">
                 {filteredPalettes.map((palette) => (
                   <div
                     key={palette.id}
-                    className="flex items-center justify-between p-3 hover:bg-dropdown-hover cursor-pointer"
+                    className="flex items-center justify-between p-3 hover:bg-secondary cursor-pointer"
                     onClick={() => {
                       setSelectedPalette(palette);
                       setIsDropdownOpen(false);
                     }}
                   >
-                    <span className="truncate max-w-palette-name text-dropdown-text-primary">
+                    <span className="truncate max-w-palette-name text-foreground">
                       {palette.name}
                       {palette.isDefault && (
-                        <span className="ml-1.5 text-xs font-normal text-gray-500">
+                        <span className="ml-1.5 text-xs font-normal text-foreground-muted">
                           (default)
                         </span>
                       )}
@@ -242,7 +242,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                           .map((color: Color, i: number) => (
                             <div
                               key={i}
-                              className="w-color-square h-color-square rounded-sm ring-1 ring-gray-200 bg-[#f5f5f5]"
+                              className="w-color-square h-color-square rounded-sm ring-1 ring-border bg-background"
                               style={{ backgroundColor: rgbToHex(color) }}
                             />
                           ))}
@@ -254,7 +254,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                               e.stopPropagation();
                               handleCopyPalette(palette);
                             }}
-                            className="p-2 text-dropdown-icon hover:text-dropdown-icon-hover"
+                            className="p-2 text-icon-inactive hover:text-icon-active"
                           >
                             <Copy className="w-4 h-4" />
                           </button>
@@ -272,10 +272,10 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                                 handleEditPalette(palette);
                             }}
                             className={cn(
-                              "p-2 text-dropdown-icon",
+                              "p-2",
                               palette.isDefault
-                                ? "opacity-50 cursor-not-allowed line-through"
-                                : "hover:text-dropdown-icon-hover",
+                                ? "text-icon-disabled opacity-50 cursor-not-allowed line-through"
+                                : "text-icon-inactive hover:text-icon-active",
                             )}
                           >
                             <Edit2 className="w-4 h-4" />
@@ -291,13 +291,11 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
               </div>
 
               <div
-                className="flex items-center justify-center p-3 border-t border-dropdown-border hover:bg-dropdown-hover cursor-pointer"
+                className="flex items-center justify-center p-3 border-t border-border hover:bg-secondary cursor-pointer"
                 onClick={handleCreatePalette}
               >
-                <Plus className="w-4 h-4 mr-2 text-dropdown-icon" />
-                <span className="text-dropdown-text-primary">
-                  Create New Palette
-                </span>
+                <Plus className="w-4 h-4 mr-2 text-icon-inactive" />
+                <span className="text-foreground">Create New Palette</span>
               </div>
             </div>
           )}

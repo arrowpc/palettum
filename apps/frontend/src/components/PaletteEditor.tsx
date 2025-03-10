@@ -73,14 +73,14 @@ const ColorTile: React.FC<ColorTileProps> = ({ color, onRemove }) => (
 
 const RGBInput: React.FC<RGBInputProps> = ({ label, value, onChange }) => (
   <div className="flex flex-col items-center">
-    <span className="text-xs font-medium text-gray-700 mb-1">{label}</span>
+    <span className="text-xs font-medium text-foreground mb-1">{label}</span>
     <input
       type="number"
       min="0"
       max="255"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-12 px-1 py-1 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm text-center [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="w-12 px-1 py-1 border rounded-lg  text-center bg-background border border-border rounded-md focus:ring-2 focus:ring-ring focus:border-border-active text-center [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
     />
   </div>
 );
@@ -248,15 +248,15 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-modal-overlay flex items-center justify-center p-4 z-50">
-      <div className="bg-modal-background rounded-lg p-6 flex flex-col w-[560px] max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-foreground/10 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-background rounded-lg p-6 flex flex-col w-[560px] max-h-[90vh] overflow-y-auto border border-border shadow-lg">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-semibold text-modal-title">
+          <h2 className="text-2xl font-semibold text-foreground">
             Edit Palette
           </h2>
           <button
             onClick={handleClose}
-            className="text-modal-close hover:text-modal-close-hover transition-colors"
+            className="text-foreground-secondary hover:text-foreground transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -265,7 +265,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
         <div className="flex gap-6">
           <div className="flex-1 min-w-0">
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Palette Name
               </label>
               <input
@@ -278,8 +278,8 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                   }
                 }}
                 className={cn(
-                  "w-full px-4 py-2 border rounded-lg",
-                  "focus:ring-2 focus:ring-primary focus:border-primary",
+                  "w-full px-4 py-2 bg-background border rounded-md",
+                  "focus:ring-2 focus:ring-ring focus:border-border-active",
                   errors.some((e) => e.includes("name")) &&
                   "border-destructive",
                 )}
@@ -287,7 +287,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                 maxLength={LIMITS.MAX_NAME_LENGTH}
               />
               <div className="flex justify-between mt-1">
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-foreground-muted">
                   {palette.name.length}/{LIMITS.MAX_NAME_LENGTH}
                 </span>
               </div>
@@ -305,9 +305,9 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                 <div className="relative">
                   <div
                     className={cn(
-                      "aspect-square rounded-lg overflow-hidden cursor-pointer group",
-                      "border border-picker-tile-border",
-                      "shadow-picker-tile shadow-sm hover:shadow-picker-tile-hover",
+                      "aspect-square rounded-md overflow-hidden cursor-pointer group",
+                      "border border-border",
+                      "shadow-sm hover:shadow-md",
                       "transition-all duration-150",
                     )}
                     onClick={addColor}
@@ -318,13 +318,13 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                     />
                     <div
                       className={cn(
-                        "absolute inset-0 rounded-lg flex items-center justify-center",
-                        "bg-picker-tile-overlay group-hover:bg-picker-tile-overlay-hover",
+                        "absolute inset-0 rounded-md flex items-center justify-center",
+                        "bg-background/50 group-hover:bg-background/30",
                         "transition-all duration-150",
                       )}
                     >
-                      <div className="w-6 h-6 rounded-full bg-white shadow-md flex items-center justify-center transform group-hover:scale-110 transition-all duration-150">
-                        <Plus className="w-4 h-4 text-gray-600" />
+                      <div className="w-6 h-6 rounded-full bg-background shadow-md flex items-center justify-center transform group-hover:scale-110 transition-all duration-150">
+                        <Plus className="w-4 h-4 text-foreground" />
                       </div>
                     </div>
                   </div>
@@ -345,10 +345,10 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                     <button
                       onClick={handleEyeDropper}
                       className={cn(
-                        "p-1.5 border rounded-lg flex items-center justify-center transition-colors",
+                        "p-1.5 border rounded-md flex items-center justify-center transition-colors",
                         isPickerActive
-                          ? "bg-picker-tool-active-background hover:bg-picker-tool-active-hover border-picker-tool-active-border"
-                          : "bg-picker-tool-inactive-background hover:bg-picker-tool-inactive-hover border-picker-tool-inactive-border",
+                          ? "bg-primary hover:bg-primary-hover border-primary text-primary-foreground"
+                          : "hover:bg-secondary-hover border-border text-foreground",
                       )}
                       title="Use eyedropper"
                       onBlur={() => validateHex(hexValue)}
@@ -358,14 +358,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                         }
                       }}
                     >
-                      <Pipette
-                        className={cn(
-                          "w-4 h-4",
-                          isPickerActive
-                            ? "text-picker-tool-active-text"
-                            : "text-picker-tool-inactive-text",
-                        )}
-                      />
+                      <Pipette className="w-4 h-4" />
                     </button>
                   )}
                   <input
@@ -373,9 +366,9 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                     value={hexValue}
                     onChange={(e) => handleHexChange(e.target.value)}
                     className={cn(
-                      "w-24 px-2 py-1 text-sm text-center",
-                      "bg-control border border-control-border rounded-lg",
-                      "focus:ring-2 focus:ring-control-focus focus:border-control-focus",
+                      "w-24 px-2 py-1.5 text-sm text-center",
+                      "bg-background border border-border rounded-md",
+                      "focus:ring-2 focus:ring-ring focus:border-border-active",
                     )}
                     disabled={isSaving}
                   />
@@ -406,16 +399,17 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-modal-border">
-          <div className="text-sm text-gray-500">
+        <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-border">
+          <div className="text-sm text-foreground-muted">
             {palette.colors.length} / {LIMITS.MAX_COLORS} colors
           </div>
           <div className="flex gap-3">
             <button
               onClick={handleClose}
               className={cn(
-                "px-4 py-2 border rounded-lg transition-colors",
-                "hover:bg-gray-50 disabled:opacity-50",
+                "px-4 py-2 border rounded-md transition-colors",
+                "bg-secondary hover:bg-secondary-hover border-border text-foreground",
+                "disabled:opacity-50",
               )}
               disabled={isSaving}
             >
@@ -425,10 +419,10 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
               onClick={handleSave}
               disabled={isSaving || !hasUnsavedChanges}
               className={cn(
-                "px-4 py-2 rounded-lg transition-colors",
-                "bg-primary text-white",
-                "hover:bg-primary-600",
-                "disabled:bg-primary-300 disabled:cursor-not-allowed",
+                "px-4 py-2 rounded-md transition-colors",
+                "bg-primary text-primary-foreground",
+                "hover:bg-primary-hover",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
               {isSaving ? "Saving..." : "Save Changes"}

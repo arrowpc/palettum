@@ -98,8 +98,8 @@ const Toolbar: React.FC<ToolbarProps> = memo(
           onClick={() => handleZoom(false)}
           disabled={isMinZoom}
           className={cn(
-            "bg-neutral-600 hover:bg-neutral-700 text-white w-8 h-8 p-0",
-            "transition-colors",
+            "bg-secondary hover:bg-secondary-hover text-foreground w-8 h-8 p-0",
+            "transition-colors shadow-sm",
             isMinZoom && "opacity-50 cursor-not-allowed",
           )}
         >
@@ -109,8 +109,8 @@ const Toolbar: React.FC<ToolbarProps> = memo(
           onClick={() => handleZoom(true)}
           disabled={isMaxZoom}
           className={cn(
-            "bg-neutral-600 hover:bg-neutral-700 text-white w-8 h-8 p-0",
-            "transition-colors",
+            "bg-secondary hover:bg-secondary-hover text-foreground w-8 h-8 p-0",
+            "transition-colors shadow-sm",
             isMaxZoom && "opacity-50 cursor-not-allowed",
           )}
         >
@@ -120,8 +120,8 @@ const Toolbar: React.FC<ToolbarProps> = memo(
           onClick={resetView}
           disabled={isDefaultView}
           className={cn(
-            "bg-neutral-600 hover:bg-neutral-700 text-white w-8 h-8 p-0",
-            "transition-colors",
+            "bg-secondary hover:bg-secondary-hover text-foreground w-8 h-8 p-0",
+            "transition-colors shadow-sm",
             isDefaultView && "opacity-50 cursor-not-allowed",
           )}
         >
@@ -131,8 +131,8 @@ const Toolbar: React.FC<ToolbarProps> = memo(
           <Button
             onClick={onClose}
             className={cn(
-              "bg-destructive hover:bg-destructive/90 text-destructive-foreground w-8 h-8 p-0",
-              "transition-colors",
+              "bg-destructive hover:bg-destructive-hover text-destructive-foreground w-8 h-8 p-0",
+              "transition-colors shadow-sm",
             )}
           >
             <X className="h-4 w-4" />

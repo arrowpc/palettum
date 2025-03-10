@@ -4,3 +4,4 @@ palettum==0.3.2
 gunicorn==21.2.0
 python-dotenv==1.0.1
 flask-cors==4.0.0
+Flask-Limiter==3.10.1

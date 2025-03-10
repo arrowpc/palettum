@@ -1,5 +1,6 @@
 import io
-import os
+import logging
+import time
 from functools import wraps
 
 from app import app
@@ -129,12 +130,19 @@ def upload_image():
         palette_file = request.files["palette"]
         validate_image_content_type(image)
 
-        print("Reading palette...")
+        app.logger.info("Reading palette...")
+        start_time = time.time()
         palette = parse_palette(palette_file)
-        print(f"Palette parsed successfully, got {len(palette)} colors")
+        palette_time = time.time() - start_time
+        app.logger.info(
+            f"Palette parsed successfully in {palette_time:.2f}s, got {len(palette)} colors"
+        )
 
-        print("Reading image...")
+        app.logger.info("Reading image...")
+        start_time = time.time()
         img_data = memoryview(image.read())
+        read_time = time.time() - start_time
+        app.logger.info(f"Image read in {read_time:.2f}s")
 
         width = request.form.get("width", type=int)
         height = request.form.get("height", type=int)
@@ -148,50 +156,84 @@ def upload_image():
         conf = Config()
         conf.palette = palette
         conf.transparencyThreshold = transparent_threshold
-        conf.quantLevel = 0
 
         try:
             if is_gif(img_data):
-                print("Processing GIF...")
+                app.logger.info("Processing GIF...")
+                start_time = time.time()
                 gif = GIF(img_data)
+                gif_load_time = time.time() - start_time
+                app.logger.info(f"GIF loaded in {gif_load_time:.2f}s")
 
                 if width or height:
-                    # TODO: Dimension validation should happen before processing/loading
+                    app.logger.info("Resizing GIF...")
+                    start_time = time.time()
                     gif = resize_gif(gif, width, height)
+                    resize_time = time.time() - start_time
+                    app.logger.info(f"GIF resized in {resize_time:.2f}s")
 
+                app.logger.info("Palettifying GIF...")
+                start_time = time.time()
                 result = palettify(gif, conf)
+                palettify_time = time.time() - start_time
+                app.logger.info(f"GIF palettified in {palettify_time:.2f}s")
+
+                app.logger.info("Encoding GIF...")
+                start_time = time.time()
                 gif_data = result.write()
+                encode_time = time.time() - start_time
+                app.logger.info(f"GIF encoded in {encode_time:.2f}s")
 
                 if not gif_data:
                     raise ValueError("Failed to encode the processed GIF")
 
-                print("Sending GIF response...")
-                return send_file(io.BytesIO(bytes(gif_data)), mimetype="image/gif")
+                app.logger.info("Sending GIF response...")
+                start_time = time.time()
+                response = Response(bytes(gif_data), mimetype="image/gif")
+                app.logger.info(
+                    f"GIF response prepared in {time.time() - start_time:.2f}s"
+                )
+                return response
             else:
-                print("Loading static image...")
+                app.logger.info("Loading static image...")
+                start_time = time.time()
                 img = Image(img_data)
+                load_time = time.time() - start_time
+                app.logger.info(f"Static image loaded in {load_time:.2f}s")
 
                 if width or height:
+                    app.logger.info("Resizing image...")
+                    start_time = time.time()
                     img = resize_image(img, width, height)
+                    resize_time = time.time() - start_time
+                    app.logger.info(f"Image resized in {resize_time:.2f}s")
 
-                print("Palettifying static image...")
+                app.logger.info("Palettifying static image...")
+                start_time = time.time()
                 result = palettify(img, conf)
+                palettify_time = time.time() - start_time
+                app.logger.info(f"Static image palettified in {palettify_time:.2f}s")
 
-                print("Writing PNG response...")
+                app.logger.info("Writing PNG response...")
+                start_time = time.time()
                 png_data = result.write()
+                encode_time = time.time() - start_time
+                app.logger.info(f"PNG encoded in {encode_time:.2f}s")
 
                 if not png_data:
                     raise ValueError("Failed to encode the processed image")
 
-                print("Sending PNG response...")
-                # return send_file(io.BytesIO(bytes(png_data)), mimetype="image/png")
+                app.logger.info("Sending PNG response...")
+                start_time = time.time()
                 response = Response(bytes(png_data), mimetype="image/png")
+                app.logger.info(
+                    f"PNG response prepared in {time.time() - start_time:.2f}s"
+                )
                 return response
-
         except RuntimeError as e:
-            print(f"Processing error: {e}")
+            app.logger.error(f"Processing error: {e}")
             return jsonify(error=str(e)), 400
 
     except Exception as e:
-        print(f"Error in upload_image: {type(e).__name__}: {str(e)}")
+        app.logger.exception("Error in upload_image")
         return jsonify(error=str(e)), 400

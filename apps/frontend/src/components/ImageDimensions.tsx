@@ -16,6 +16,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
     originalWidth: null as number | null,
     originalHeight: null as number | null,
     originalAspectRatio: null as number | null,
+    currentAspectRatio: null as number | null,
   });
   const [keepAspectRatio, setKeepAspectRatio] = useState(true);
 
@@ -27,6 +28,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         originalWidth: null,
         originalHeight: null,
         originalAspectRatio: null,
+        currentAspectRatio: null,
       });
       onChange(null, null);
       return;
@@ -36,12 +38,14 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
     const url = URL.createObjectURL(file);
 
     image.onload = () => {
+      const aspectRatio = image.width / image.height;
       setDimensions({
         width: String(image.width),
         height: String(image.height),
         originalWidth: image.width,
         originalHeight: image.height,
-        originalAspectRatio: image.width / image.height,
+        originalAspectRatio: aspectRatio,
+        currentAspectRatio: aspectRatio,
       });
       onChange(image.width, image.height);
       URL.revokeObjectURL(url);
@@ -53,6 +57,20 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       URL.revokeObjectURL(url);
     };
   }, [file, onChange]);
+
+  useEffect(() => {
+    const widthNum = dimensions.width ? parseInt(dimensions.width, 10) : null;
+    const heightNum = dimensions.height
+      ? parseInt(dimensions.height, 10)
+      : null;
+
+    if (widthNum && heightNum && widthNum > 0 && heightNum > 0) {
+      setDimensions((prev) => ({
+        ...prev,
+        currentAspectRatio: widthNum / heightNum,
+      }));
+    }
+  }, [dimensions.width, dimensions.height]);
 
   const clampDimension = (value: number): number => {
     return Math.min(Math.max(1, value), MAX_DIMENSION);
@@ -71,15 +89,19 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
           const clampedWidth = clampDimension(numericValue);
           newWidth = String(clampedWidth);
 
-          if (keepAspectRatio && dimensions.originalAspectRatio) {
+          if (
+            keepAspectRatio &&
+            dimensions.currentAspectRatio &&
+            dimensions.height
+          ) {
             const calculatedHeight = Math.round(
-              clampedWidth / dimensions.originalAspectRatio,
+              clampedWidth / dimensions.currentAspectRatio,
             );
             const clampedHeight = clampDimension(calculatedHeight);
 
             if (calculatedHeight !== clampedHeight) {
               const recalculatedWidth = Math.round(
-                clampedHeight * dimensions.originalAspectRatio,
+                clampedHeight * dimensions.currentAspectRatio,
               );
               newWidth = String(clampDimension(recalculatedWidth));
             }
@@ -101,7 +123,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       }
     },
     [
-      dimensions.originalAspectRatio,
+      dimensions.currentAspectRatio,
       dimensions.height,
       keepAspectRatio,
       onChange,
@@ -121,15 +143,19 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
           const clampedHeight = clampDimension(numericValue);
           newHeight = String(clampedHeight);
 
-          if (keepAspectRatio && dimensions.originalAspectRatio) {
+          if (
+            keepAspectRatio &&
+            dimensions.currentAspectRatio &&
+            dimensions.width
+          ) {
             const calculatedWidth = Math.round(
-              clampedHeight * dimensions.originalAspectRatio,
+              clampedHeight * dimensions.currentAspectRatio,
             );
             const clampedWidth = clampDimension(calculatedWidth);
 
             if (calculatedWidth !== clampedWidth) {
               const recalculatedHeight = Math.round(
-                clampedWidth / dimensions.originalAspectRatio,
+                clampedWidth / dimensions.currentAspectRatio,
               );
               newHeight = String(clampDimension(recalculatedHeight));
             }
@@ -151,7 +177,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       }
     },
     [
-      dimensions.originalAspectRatio,
+      dimensions.currentAspectRatio,
       dimensions.width,
       keepAspectRatio,
       onChange,
@@ -164,6 +190,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         ...prev,
         width: String(dimensions.originalWidth),
         height: String(dimensions.originalHeight),
+        currentAspectRatio: dimensions.originalAspectRatio,
       }));
       onChange(dimensions.originalWidth, dimensions.originalHeight);
     }

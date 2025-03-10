@@ -59,7 +59,6 @@ const ImageTransparency: React.FC<ImageTransparencyProps> = ({
           setEnabled(false);
           setChecked(false);
         } else {
-          console.log("hi");
           setEnabled(true);
           transThreshold(checked ? 255 : 0);
         }

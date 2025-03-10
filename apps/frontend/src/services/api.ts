@@ -33,7 +33,7 @@ export async function processImage(
     formData.append("transparent_threshold", transparentThreshold.toString());
 
   try {
-    const apiUrl = ENV.API_URL || "/api";
+    const apiUrl = ENV.API_URL;
     const response = await fetch(`${apiUrl}/upload`, {
       method: "POST",
       headers: {},

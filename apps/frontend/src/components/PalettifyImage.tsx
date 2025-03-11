@@ -399,7 +399,6 @@ function PalettifyImage({
                 alt="Palettified"
                 className="w-full object-contain max-h-96 [image-rendering:-webkit-optimize-contrast] [image-rendering:crisp-edges] [image-rendering:pixelated]"
                 onLoad={() => {
-                  // Update container dimensions when image loads
                   if (imageContainerRef.current) {
                     const container = imageContainerRef.current;
                     const rect = container.getBoundingClientRect();
@@ -420,14 +419,14 @@ function PalettifyImage({
                     width="20"
                     height="20"
                     viewBox="0 0 20 20"
-                    className="text-background"
+                    className="text-white"
                   >
                     <path
                       d="M3 3h5v2H5v3H3V3zm12 0h-5v2h3v3h2V3zM3 17h5v-2H5v-3H3v5zm12 0h-5v-2h3v-3h2v5z"
                       fill="currentColor"
                     />
                   </svg>
-                  <span className="text-sm font-medium text-background drop-shadow-sm">
+                  <span className="text-sm font-medium text-white drop-shadow-sm">
                     View Full Size
                   </span>
                 </div>

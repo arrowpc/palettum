@@ -3,6 +3,27 @@ export default {
   darkMode: ["class"],
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
+    fontSize: {
+      micro: "0.1875rem",
+      "2micro": "0.25rem",
+      "3micro": "0.3125rem",
+
+      tiny: "0.375rem",
+      "2tiny": "0.4375rem",
+
+      xs: "0.4575rem",
+      sm: "0.5825rem",
+      base: "0.625rem",
+
+      md: "0.6875rem",
+      lg: "0.7rem",
+      xl: "0.8125rem",
+
+      "2xl": "0.875rem",
+      "3xl": "1rem",
+      "4xl": "1.125rem",
+      "5xl": "1.85rem",
+    },
     container: {
       center: true,
       padding: "2rem",

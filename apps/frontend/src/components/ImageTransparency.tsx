@@ -101,7 +101,7 @@ const ImageTransparency: React.FC<ImageTransparencyProps> = ({
         >
           Preserve Transparency
         </label>
-        <p className="text-sm text-foreground-secondary mt-1.5">
+        <p className="text-xs text-foreground-secondary mt-1.5">
           Transparent pixels will not be palettified
         </p>
       </div>

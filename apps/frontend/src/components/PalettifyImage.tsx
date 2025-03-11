@@ -315,7 +315,7 @@ function PalettifyImage({
       const outputExtension = originalExtension === "gif" ? "gif" : "png";
       const paletteName = palette.name.toLowerCase().replace(/\s+/g, "-");
 
-      link.download = `${paletteName}-${baseFileName}.${outputExtension}`;
+      link.download = `${baseFileName}-${paletteName}.${outputExtension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

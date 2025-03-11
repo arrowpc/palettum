@@ -16,6 +16,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+const LOCAL_STORAGE_KEY = "userPalettes";
+
 interface PaletteManagerProps {
   onPaletteSelect: (palette: Palette) => void;
 }
@@ -26,16 +28,41 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     isDefault: true,
   }));
 
+  const loadSavedPalettes = (): Palette[] => {
+    try {
+      const savedPalettes = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (savedPalettes) {
+        return JSON.parse(savedPalettes);
+      }
+    } catch (error) {
+      console.error("Failed to load palettes from localStorage:", error);
+    }
+    return [];
+  };
+
+  const [palettes, setPalettes] = useState<Palette[]>(() => {
+    const userPalettes = loadSavedPalettes();
+    return [...initialPalettes, ...userPalettes];
+  });
+
   const [selectedPalette, setSelectedPalette] = useState<Palette>(
-    initialPalettes[0],
+    palettes[0] || initialPalettes[0],
   );
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [palettes, setPalettes] = useState<Palette[]>([...initialPalettes]);
   const [maxVisibleColors, setMaxVisibleColors] = useState(5);
   const previewContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const userPalettes = palettes.filter((palette) => !palette.isDefault);
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(userPalettes));
+    } catch (error) {
+      console.error("Failed to save palettes to localStorage:", error);
+    }
+  }, [palettes]);
 
   useEffect(() => {
     onPaletteSelect(selectedPalette);

@@ -1,6 +1,6 @@
 export const LIMITS = {
   MIN_COLORS: 1,
-  MAX_COLORS: 256,
+  MAX_COLORS: 255,
   MAX_NAME_LENGTH: 50,
 } as const;
 

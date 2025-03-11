@@ -80,7 +80,7 @@ const RGBInput: React.FC<RGBInputProps> = ({ label, value, onChange }) => (
       max="255"
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-12 px-1 py-1 border rounded-lg  text-center bg-background border border-border rounded-md focus:ring-2 focus:ring-ring focus:border-border-active text-center [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="w-12 px-1 py-1 border rounded-lg text-xs text-center bg-background border border-border rounded-md focus:ring-2 focus:ring-ring focus:border-border-active text-center [-moz-appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
     />
   </div>
 );
@@ -256,7 +256,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
           </h2>
           <button
             onClick={handleClose}
-            className="text-foreground-secondary hover:text-foreground transition-colors"
+            className="text-sm text-foreground-secondary hover:text-foreground transition-colors"
           >
             <X className="w-6 h-6" />
           </button>
@@ -278,7 +278,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                   }
                 }}
                 className={cn(
-                  "w-full px-4 py-2 bg-background border rounded-md",
+                  "w-full px-4 py-2 text-sm bg-background border rounded-md",
                   "focus:ring-2 focus:ring-ring focus:border-border-active",
                   errors.some((e) => e.includes("name")) &&
                   "border-destructive",
@@ -366,7 +366,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                     value={hexValue}
                     onChange={(e) => handleHexChange(e.target.value)}
                     className={cn(
-                      "w-24 px-2 py-1.5 text-sm text-center",
+                      "w-24 px-2 py-1.5 text-xs text-center",
                       "bg-background border border-border rounded-md",
                       "focus:ring-2 focus:ring-ring focus:border-border-active",
                     )}
@@ -407,7 +407,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
             <button
               onClick={handleClose}
               className={cn(
-                "px-4 py-2 border rounded-md transition-colors",
+                "px-4 py-2 border text-sm rounded-md transition-colors",
                 "bg-secondary hover:bg-secondary-hover border-border text-foreground",
                 "disabled:opacity-50",
               )}
@@ -419,7 +419,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
               onClick={handleSave}
               disabled={isSaving || !hasUnsavedChanges}
               className={cn(
-                "px-4 py-2 rounded-md transition-colors",
+                "px-4 py-2 text-sm rounded-md transition-colors",
                 "bg-primary text-primary-foreground",
                 "hover:bg-primary-hover",
                 "disabled:opacity-50 disabled:cursor-not-allowed",

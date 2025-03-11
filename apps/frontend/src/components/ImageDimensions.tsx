@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, Unlink } from "lucide-react";
+import { RotateCcw, Link, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MAX_DIMENSION = 7680;
@@ -228,7 +228,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         <button
           onClick={resetDimensions}
           className={cn(
-            "flex items-center justify-center w-8 h-8 rounded-full",
+            "inline-flex items-center justify-center w-6 h-6 rounded-full",
             "text-foreground-secondary transition-colors",
             isReset
               ? "opacity-50 cursor-not-allowed"
@@ -237,17 +237,16 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
           aria-label="Reset dimensions"
           disabled={isReset}
         >
-          <span className="text-xl">↻</span>
+          <RotateCcw size={20} />
         </button>
       </div>
-
       {file ? (
         <div className="mt-4">
           <div className="flex items-center space-x-4">
             <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
               <label
                 htmlFor="width"
-                className="text-foreground-secondary px-3 py-2"
+                className="text-base text-foreground-secondary px-3 py-2"
               >
                 W
               </label>
@@ -260,13 +259,13 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 min="1"
                 max={MAX_DIMENSION}
                 placeholder="Width"
-                className="w-20 p-2 text-sm text-foreground focus:outline-none bg-background rounded-r-md"
+                className="w-20 p-2 text-xs text-foreground focus:outline-none bg-background rounded-r-md"
               />
             </div>
             <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
               <label
                 htmlFor="height"
-                className="text-foreground-secondary px-3 py-2"
+                className="text-base text-foreground-secondary px-3 py-2"
               >
                 H
               </label>
@@ -279,7 +278,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 min="1"
                 max={MAX_DIMENSION}
                 placeholder="Height"
-                className="w-20 p-2 text-sm text-foreground focus:outline-none bg-background rounded-r-md"
+                className="w-20 p-2 text-xs text-foreground focus:outline-none bg-background rounded-r-md"
               />
             </div>
             <button
@@ -318,7 +317,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 disabled
                 value=""
                 placeholder="Width"
-                className="w-20 p-2 text-sm text-foreground-muted bg-input-disabled cursor-not-allowed rounded-r-md"
+                className="w-20 p-2 text-xs text-foreground-muted bg-input-disabled cursor-not-allowed rounded-r-md"
               />
             </div>
             <div className="flex items-center bg-input-disabled border border-border rounded-md shadow-sm">
@@ -334,7 +333,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 disabled
                 value=""
                 placeholder="Height"
-                className="w-20 p-2 text-sm text-foreground-muted bg-input-disabled cursor-not-allowed rounded-r-md"
+                className="w-20 p-2 text-xs text-foreground-muted bg-input-disabled cursor-not-allowed rounded-r-md"
               />
             </div>
             <button

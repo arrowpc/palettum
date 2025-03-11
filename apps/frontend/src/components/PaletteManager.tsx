@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Edit2, Plus, Search, Copy } from "lucide-react";
+import { ChevronDown, Edit2, Plus, Search, Copy, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PaletteEditor from "@/components/PaletteEditor";
 import {
@@ -101,6 +101,19 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     };
     setEditingPalette(newPalette);
     setIsEditModalOpen(true);
+    setIsDropdownOpen(false);
+  };
+
+  const handleDeletePalette = (paletteId: string) => {
+    setPalettes((currentPalettes) => {
+      const newPalettes = currentPalettes.filter((p) => p.id !== paletteId);
+
+      if (selectedPalette.id === paletteId) {
+        setSelectedPalette(newPalettes[0]);
+      }
+
+      return newPalettes;
+    });
     setIsDropdownOpen(false);
   };
 
@@ -310,6 +323,28 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                         </TooltipTrigger>
                         <TooltipContent>
                           <p className="text-xs">Edit</p>
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!palette.isDefault)
+                                handleDeletePalette(palette.id);
+                            }}
+                            className={cn(
+                              "p-1.5",
+                              palette.isDefault
+                                ? "text-icon-disabled opacity-50 cursor-not-allowed line-through"
+                                : "text-icon-inactive hover:text-icon-active",
+                            )}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Delete</p>
                         </TooltipContent>
                       </Tooltip>
                     </div>

@@ -4,6 +4,7 @@ import ImageDimensions from "@/components/ImageDimensions";
 import PaletteManager from "@/components/PaletteManager";
 import PalettifyImage from "@/components/PalettifyImage";
 import DarkModeToggle from "@/components/DarkModeToggle";
+import GitHubButton from "@/components/GitHubButton";
 import type { Palette } from "@/lib/palettes/types";
 import ImageTransparency from "@/components/ImageTransparency";
 
@@ -37,7 +38,8 @@ function App() {
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-6">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center">
+        <GitHubButton />
         <DarkModeToggle />
       </div>
 

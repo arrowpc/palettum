@@ -145,7 +145,8 @@ const Toolbar: React.FC<ToolbarProps> = memo(
     prevProps.zoomLevel === nextProps.zoomLevel &&
     prevProps.zoomLimits.min === nextProps.zoomLimits.min &&
     prevProps.zoomLimits.max === nextProps.zoomLimits.max &&
-    prevProps.isDefaultView === nextProps.isDefaultView,
+    prevProps.isDefaultView === nextProps.isDefaultView &&
+    prevProps.handleZoom === nextProps.handleZoom,
 );
 
 const StableDialogContent = memo(
@@ -435,10 +436,18 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
       zoomLimits,
       resetView,
       handleZoom,
-      isDefaultView,
+      isDefaultView: isDefaultView && position.x === 0 && position.y === 0,
       onClose,
     }),
-    [zoomLevel, zoomLimits, resetView, handleZoom, isDefaultView, onClose],
+    [
+      zoomLevel,
+      zoomLimits,
+      resetView,
+      handleZoom,
+      isDefaultView,
+      position,
+      onClose,
+    ],
   );
 
   return (

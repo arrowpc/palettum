@@ -112,7 +112,7 @@
 
 @font-face {
   font-family: "8-bit HUD";
-  src: url("./fonts/8-bit_HUD/8-bit-hud.ttf") format("ttf");
+  src: url("@/fonts/8-bit_HUD/8-bit-hud.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }

@@ -1,3 +1,4 @@
+import { ENV } from "@/config/env";
 import { useState, useCallback, useEffect } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import ImageDimensions from "@/components/ImageDimensions";
@@ -27,11 +28,13 @@ function App() {
   const [apiAvailable, setApiAvailable] = useState<boolean | null>(null);
   const [isCheckingApi, setIsCheckingApi] = useState<boolean>(true);
 
+  const apiUrl = ENV.API_URL;
+
   useEffect(() => {
     const checkApiHealth = async () => {
       try {
         setIsCheckingApi(true);
-        const response = await fetch("/api/health");
+        const response = await fetch(`${apiUrl}/health`);
         setApiAvailable(response.ok);
       } catch (error) {
         console.error("API health check failed:", error);

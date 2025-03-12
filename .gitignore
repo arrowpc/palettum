@@ -18,6 +18,8 @@ vcpkg_installed/
 out
 _build
 _generate
+extras
+extras.py
 
 # ------- Python (Core & API)
 # Byte-compiled / optimized files

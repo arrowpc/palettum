@@ -8,6 +8,14 @@ import GitHubButton from "@/components/GitHubButton";
 import type { Palette } from "@/lib/palettes/types";
 import ImageTransparency from "@/components/ImageTransparency";
 
+if (import.meta.env.MODE === "development") {
+  import("react-scan").then(({ scan }) => {
+    scan({
+      enabled: true,
+    });
+  });
+}
+
 function App() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [dimensions, setDimensions] = useState({

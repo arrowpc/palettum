@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/tooltip";
 
 const LOCAL_STORAGE_KEY = "userPalettes";
+const PREVIEW_CYCLE_INTERVAL = 500; // ms
+const HOVER_CYCLE_INTERVAL = 300; // ms
 
 interface PaletteManagerProps {
   onPaletteSelect: (palette: Palette) => void;
@@ -38,37 +40,37 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
 
   const loadSavedPalettes = (): Palette[] => {
     try {
-      const savedPalettes = localStorage.getItem(LOCAL_STORAGE_KEY);
-      if (savedPalettes) {
-        return JSON.parse(savedPalettes);
-      }
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      return saved ? JSON.parse(saved) : [];
     } catch (error) {
-      console.error("Failed to load palettes from localStorage:", error);
+      console.error("Failed to load palettes:", error);
+      return [];
     }
-    return [];
   };
 
-  const [palettes, setPalettes] = useState<Palette[]>(() => {
-    const userPalettes = loadSavedPalettes();
-    return [...initialPalettes, ...userPalettes];
-  });
-
-  const [selectedPalette, setSelectedPalette] = useState<Palette>(
-    palettes[0] || initialPalettes[0],
-  );
+  const [palettes, setPalettes] = useState<Palette[]>(() => [
+    ...initialPalettes,
+    ...loadSavedPalettes(),
+  ]);
+  const [selectedPalette, setSelectedPalette] = useState<Palette>(palettes[0]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [maxVisibleColors, setMaxVisibleColors] = useState(5);
+  const [previewColorIndex, setPreviewColorIndex] = useState(0);
+  const [hoveredPaletteId, setHoveredPaletteId] = useState<string | null>(null);
+  const [hoveredColorIndices, setHoveredColorIndices] = useState<{
+    [key: string]: number;
+  }>({});
   const previewContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const userPalettes = palettes.filter((palette) => !palette.isDefault);
+    const userPalettes = palettes.filter((p) => !p.isDefault);
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(userPalettes));
     } catch (error) {
-      console.error("Failed to save palettes to localStorage:", error);
+      console.error("Failed to save palettes:", error);
     }
   }, [palettes]);
 
@@ -96,9 +98,50 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     if (previewContainerRef.current) {
       resizeObserver.observe(previewContainerRef.current);
     }
-
     return () => resizeObserver.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (selectedPalette.colors.length > maxVisibleColors) {
+      const interval = setInterval(() => {
+        setPreviewColorIndex(
+          (prev) => (prev + 1) % selectedPalette.colors.length,
+        );
+      }, PREVIEW_CYCLE_INTERVAL);
+      return () => clearInterval(interval);
+    }
+  }, [selectedPalette, maxVisibleColors]);
+
+  useEffect(() => {
+    if (hoveredPaletteId) {
+      const palette = palettes.find((p) => p.id === hoveredPaletteId);
+      if (palette && palette.colors.length > 3) {
+        const interval = setInterval(() => {
+          setHoveredColorIndices((prev) => ({
+            ...prev,
+            [hoveredPaletteId]: (prev[hoveredPaletteId] ?? 0) + 1,
+          }));
+        }, HOVER_CYCLE_INTERVAL);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [hoveredPaletteId, palettes]);
+
+  const getDisplayedColors = (
+    palette: Palette,
+    maxColors: number,
+    startIndex: number,
+  ) => {
+    if (palette.colors.length <= maxColors) {
+      return palette.colors;
+    }
+    const displayed = [];
+    for (let i = 0; i < maxColors; i++) {
+      const index = (startIndex + i) % palette.colors.length;
+      displayed.push(palette.colors[index]);
+    }
+    return displayed;
+  };
 
   const handleCreatePalette = () => {
     const newPalette: Palette = {
@@ -113,13 +156,11 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   };
 
   const handleDeletePalette = (paletteId: string) => {
-    setPalettes((currentPalettes) => {
-      const newPalettes = currentPalettes.filter((p) => p.id !== paletteId);
-
+    setPalettes((current) => {
+      const newPalettes = current.filter((p) => p.id !== paletteId);
       if (selectedPalette.id === paletteId) {
         setSelectedPalette(newPalettes[0]);
       }
-
       return newPalettes;
     });
     setIsDropdownOpen(false);
@@ -127,7 +168,6 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
 
   const handleEditPalette = (palette: Palette) => {
     if (palette.isDefault) return;
-
     setEditingPalette({ ...palette });
     setIsEditModalOpen(true);
     setIsDropdownOpen(false);
@@ -139,7 +179,6 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     const copyPattern = new RegExp(
       `^${truncatedBaseName}\\s*\\(copy(?:-(\\d+))?\\)$`,
     );
-
     const copies = palettes
       .filter((p) => copyPattern.test(p.name))
       .map((p) => {
@@ -147,50 +186,33 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
         return match && match[1] ? parseInt(match[1], 10) : 1;
       })
       .filter(Boolean) as number[];
-
-    let copyNumber = 0;
-    if (copies.length === 0) {
-      copyNumber = 0;
-    } else {
-      copyNumber = Math.max(...copies) + 1;
-    }
-
-    let newName =
+    const copyNumber = copies.length ? Math.max(...copies) + 1 : 0;
+    const newName =
       copyNumber === 0
         ? `${truncatedBaseName} (copy)`
         : `${truncatedBaseName} (copy-${copyNumber})`;
 
-    if (newName.length > LIMITS.MAX_NAME_LENGTH) {
-      newName = newName.slice(0, LIMITS.MAX_NAME_LENGTH);
-    }
-
     const newPalette: Palette = {
       id: crypto.randomUUID(),
-      name: newName,
+      name: newName.slice(0, LIMITS.MAX_NAME_LENGTH),
       colors: [...palette.colors],
       isDefault: false,
     };
-
-    setPalettes((currentPalettes) => [...currentPalettes, newPalette]);
+    setPalettes((current) => [...current, newPalette]);
     setSelectedPalette(newPalette);
     setIsDropdownOpen(false);
   };
 
   const handleSavePalette = async (updatedPalette: Palette) => {
-    setPalettes((currentPalettes) => {
-      const existingPaletteIndex = currentPalettes.findIndex(
-        (p) => p.id === updatedPalette.id,
-      );
-
-      if (existingPaletteIndex === -1) {
-        return [...currentPalettes, updatedPalette];
+    setPalettes((current) => {
+      const index = current.findIndex((p) => p.id === updatedPalette.id);
+      if (index === -1) {
+        return [...current, updatedPalette];
       }
-
-      const newPalettes = [...currentPalettes];
-      newPalettes[existingPaletteIndex] = updatedPalette;
+      const newPalettes = [...current];
+      newPalettes[index] = updatedPalette;
       return newPalettes;
     });
-
     setSelectedPalette(updatedPalette);
     setIsEditModalOpen(false);
     setEditingPalette(null);
@@ -201,70 +223,73 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     setEditingPalette(null);
   };
 
-  const filteredPalettes = palettes.filter((palette) =>
-    palette.name.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredPalettes = palettes.filter((p) =>
+    p.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   return (
     <TooltipProvider>
       <div className="relative">
-        <div className="relative w-full">
-          <button
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="w-full flex items-center p-3 bg-background border border-border rounded-md shadow-sm hover:bg-secondary transition-colors"
-          >
-            <span className="text-sm truncate mr-2 text-foreground">
-              {selectedPalette.name}
-            </span>
-            <div className="flex items-center justify-end gap-2 flex-1">
-              <div
-                ref={previewContainerRef}
-                className="flex items-center justify-end min-w-0 flex-1"
-              >
-                <div className="flex -space-x-1">
-                  {selectedPalette.colors
-                    .slice(0, maxVisibleColors)
-                    .map((color: Color, i: number) => (
-                      <div
-                        key={i}
-                        className="w-color-square h-color-square rounded-sm ring-1 ring-border bg-background"
-                        style={{ backgroundColor: rgbToHex(color) }}
-                      />
-                    ))}
-                  {selectedPalette.colors.length > maxVisibleColors && (
-                    <div className="w-color-square h-color-square rounded-sm ring-1 ring-border flex items-center justify-center bg-secondary">
-                      <span className="scale-90 text-tiny font-medium text-foreground-secondary">
-                        +{selectedPalette.colors.length - maxVisibleColors}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <ChevronDown
-                className={cn(
-                  "w-4 h-4 transition-transform flex-shrink-0 text-icon-inactive",
-                  isDropdownOpen && "rotate-180",
-                )}
-              />
-            </div>
-          </button>
-
-          {isDropdownOpen && (
-            <div className="absolute z-10 w-full mt-2 bg-background border border-border rounded-md shadow-md flex flex-col">
-              <div className="p-2 border-b border-border">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search palettes..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring bg-background placeholder-foreground-muted"
+        <button
+          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+          className="w-full flex items-center p-3 bg-background border border-border rounded-md shadow-sm hover:bg-secondary transition-colors"
+        >
+          <span className="text-sm truncate mr-2 text-foreground">
+            {selectedPalette.name}
+          </span>
+          <div className="flex items-center justify-end gap-2 flex-1">
+            <div
+              ref={previewContainerRef}
+              className="flex items-center justify-end min-w-0 flex-1"
+            >
+              <div className="flex -space-x-1">
+                {getDisplayedColors(
+                  selectedPalette,
+                  maxVisibleColors,
+                  previewColorIndex,
+                ).map((color: Color, i: number) => (
+                  <div
+                    key={i}
+                    className="w-color-square h-color-square rounded-sm ring-1 ring-border bg-background transition-all duration-300 ease-in-out"
+                    style={{ backgroundColor: rgbToHex(color) }}
                   />
-                  <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 transform -translate-y-1/2 text-icon-inactive" />
-                </div>
+                ))}
+                {selectedPalette.colors.length > maxVisibleColors && (
+                  <div className="w-color-square h-color-square rounded-sm ring-1 ring-border flex items-center justify-center bg-secondary">
+                    <span className="scale-90 text-tiny font-medium text-foreground-secondary">
+                      +{selectedPalette.colors.length - maxVisibleColors}
+                    </span>
+                  </div>
+                )}
               </div>
-              <div className="overflow-y-auto flex-1 max-h-[175px]">
-                {filteredPalettes.map((palette) => (
+            </div>
+            <ChevronDown
+              className={cn(
+                "w-4 h-4 transition-transform flex-shrink-0 text-icon-inactive",
+                isDropdownOpen && "rotate-180",
+              )}
+            />
+          </div>
+        </button>
+
+        {isDropdownOpen && (
+          <div className="absolute z-10 w-full mt-2 bg-background border border-border rounded-md shadow-md flex flex-col">
+            <div className="p-2 border-b border-border">
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search palettes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-ring bg-background placeholder-foreground-muted"
+                />
+                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 transform -translate-y-1/2 text-icon-inactive" />
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1 max-h-[175px]">
+              {filteredPalettes.map((palette) => {
+                const startIndex = hoveredColorIndices[palette.id] ?? 0;
+                return (
                   <div
                     key={palette.id}
                     className="flex items-center justify-between p-3 hover:bg-secondary cursor-pointer"
@@ -272,6 +297,8 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                       setSelectedPalette(palette);
                       setIsDropdownOpen(false);
                     }}
+                    onMouseEnter={() => setHoveredPaletteId(palette.id)}
+                    onMouseLeave={() => setHoveredPaletteId(null)}
                   >
                     <div className="flex items-center min-w-0">
                       <span className="truncate text-sm text-foreground">
@@ -304,15 +331,15 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex -space-x-1">
-                        {palette.colors
-                          .slice(0, 3)
-                          .map((color: Color, i: number) => (
+                        {getDisplayedColors(palette, 3, startIndex).map(
+                          (color: Color, i: number) => (
                             <div
                               key={i}
-                              className="w-color-square h-color-square rounded-sm ring-1 ring-border bg-background"
+                              className="w-color-square h-color-square rounded-sm ring-1 ring-border bg-background transition-all duration-300 ease-in-out"
                               style={{ backgroundColor: rgbToHex(color) }}
                             />
-                          ))}
+                          ),
+                        )}
                       </div>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -376,21 +403,20 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                       </Tooltip>
                     </div>
                   </div>
-                ))}
-              </div>
-
-              <div
-                className="flex items-center justify-center p-2.5 border-t border-border hover:bg-secondary cursor-pointer"
-                onClick={handleCreatePalette}
-              >
-                <Plus className="w-4.5 h-4.5 mr-1.5 text-icon-inactive" />
-                <span className="text-sm text-foreground">
-                  Create New Palette
-                </span>
-              </div>
+                );
+              })}
             </div>
-          )}
-        </div>
+            <div
+              className="flex items-center justify-center p-2.5 border-t border-border hover:bg-secondary cursor-pointer"
+              onClick={handleCreatePalette}
+            >
+              <Plus className="w-4.5 h-4.5 mr-1.5 text-icon-inactive" />
+              <span className="text-sm text-foreground">
+                Create New Palette
+              </span>
+            </div>
+          </div>
+        )}
 
         {isEditModalOpen && editingPalette && (
           <PaletteEditor

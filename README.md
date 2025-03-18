@@ -4,6 +4,10 @@ Palettum is a tool for applying color palettes to static images and GIFs.
 
 Try it out on https://palettum.com
 
+## NOTE
+
+Proper documentation & build instructions not yet there.
+
 ## Project Structure
 
 ```

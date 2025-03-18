@@ -12,7 +12,7 @@ import ImageTransparency from "@/components/ImageTransparency";
 if (import.meta.env.MODE === "development") {
   import("react-scan").then(({ scan }) => {
     scan({
-      enabled: true,
+      enabled: false,
     });
   });
 }

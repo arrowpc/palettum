@@ -1,6 +1,6 @@
 #pragma once
 
-#include <image/fpng.h>
+#include <fpng.h>
 #include <mtpng.h>
 #include <cstring>
 #include <memory>

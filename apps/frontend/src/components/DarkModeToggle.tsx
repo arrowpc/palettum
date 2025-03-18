@@ -1,7 +1,14 @@
 import { useState, useEffect } from "react";
 
 export default function DarkModeToggle() {
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(false);
+  const LOCAL_STORAGE_KEY = "isDarkMode";
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    const saveMode = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (saveMode) {
+      return saveMode === "true";
+    }
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  });
 
   const toggleDarkMode = () => {
     document.documentElement.classList.add("disable-transitions");
@@ -19,6 +26,8 @@ export default function DarkModeToggle() {
     } else {
       document.body.classList.remove("dark");
     }
+
+    localStorage.setItem(LOCAL_STORAGE_KEY, isDarkMode.toString());
   }, [isDarkMode]);
 
   return (

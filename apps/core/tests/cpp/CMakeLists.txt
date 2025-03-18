@@ -19,6 +19,7 @@ target_include_directories(palettum_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/external/mtpng/c
+  ${CMAKE_SOURCE_DIR}/external/fpng
   ${OpenMP_CXX_INCLUDE_DIR}
   ${Stb_INCLUDE_DIR}
 )

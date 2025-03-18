@@ -170,7 +170,8 @@ endif()
 set(MTPNG_LIBRARY mtpng_lib)
 
 file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp")
-list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/bindings.cpp")
+list(REMOVE_ITEM SRC_FILES  "${CMAKE_SOURCE_DIR}/src/bindings.cpp")
+list(APPEND SRC_FILES       "${CMAKE_SOURCE_DIR}/external/fpng/fpng.cpp")
 add_subdirectory(src)
 
 option(BUILD_TESTS "Build the tests" ON)

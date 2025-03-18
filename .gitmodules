@@ -4,3 +4,6 @@
 [submodule "apps/core/external/mtpng"]
 	path = apps/core/external/mtpng
 	url = https://github.com/bvibber/mtpng
+[submodule "apps/core/external/fpng"]
+	path = apps/core/external/fpng
+	url = https://github.com/arrowpc/fpng

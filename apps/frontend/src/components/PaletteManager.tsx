@@ -1,5 +1,13 @@
 import { useState, useRef, useEffect } from "react";
-import { ChevronDown, Edit2, Plus, Search, Copy, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  Edit2,
+  Plus,
+  Search,
+  Copy,
+  Trash2,
+  ExternalLink,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import PaletteEditor from "@/components/PaletteEditor";
 import {
@@ -127,9 +135,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
 
   const handleCopyPalette = (palette: Palette) => {
     const baseName = palette.name.replace(/\s*\(copy(-\d+)?\)$/, "");
-
     const truncatedBaseName = baseName.slice(0, LIMITS.MAX_NAME_LENGTH - 12);
-
     const copyPattern = new RegExp(
       `^${truncatedBaseName}\\s*\\(copy(?:-(\\d+))?\\)$`,
     );
@@ -267,14 +273,35 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                       setIsDropdownOpen(false);
                     }}
                   >
-                    <span className="truncate text-sm text-foreground">
-                      {palette.name}
+                    <div className="flex items-center min-w-0">
+                      <span className="truncate text-sm text-foreground">
+                        {palette.name}
+                      </span>
                       {palette.isDefault && (
-                        <span className="ml-1.5 text-tiny font-normal text-foreground-muted">
+                        <span className="ml-1.5 text-tiny font-normal text-foreground-muted flex-shrink-0">
                           (default)
                         </span>
                       )}
-                    </span>
+                      {palette.source && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <a
+                              href={palette.source}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="ml-1.5 text-icon-inactive hover:text-icon-active flex-shrink-0"
+                              title="View palette source"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className="text-xs">View source</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
                     <div className="flex items-center gap-2">
                       <div className="flex -space-x-1">
                         {palette.colors
@@ -296,7 +323,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                             }}
                             className="p-1.5 text-icon-inactive hover:text-icon-active"
                           >
-                            <Copy className="w-5 h-4" />
+                            <Copy className="w-4 h-4" />
                           </button>
                         </TooltipTrigger>
                         <TooltipContent>

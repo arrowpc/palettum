@@ -101,6 +101,9 @@ PYBIND11_MODULE(palettum, m)
              py::overload_cast<const std::string &>(&Image::write, py::const_))
         .def("write",
              py::overload_cast<const char *>(&Image::write, py::const_))
+
+        .def("setPalette", &Image::setPalette)
+
         .def("resize", &Image::resize)
         .def("get", &Image::get)
         .def("set", py::overload_cast<int, int, const RGBA &>(&Image::set))

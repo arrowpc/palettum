@@ -99,6 +99,8 @@ Image palettify(Image &image, Config &config)
     const size_t height = image.height();
     Image result(width, height, image.hasAlpha());
 
+    result.setPalette(config.palette);
+
     const size_t palette_size = config.palette.size();
     std::vector<Lab> labPalette(palette_size);
 

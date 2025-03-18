@@ -11,15 +11,27 @@ target_link_libraries(palettum_tests PUBLIC
   pybind11::embed 
   OpenMP::OpenMP_CXX 
   GIF::GIF
+  mtpng_lib
 )
 
 target_include_directories(palettum_tests PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}/external/mtpng/c
   ${OpenMP_CXX_INCLUDE_DIR}
   ${Stb_INCLUDE_DIR}
 )
+
+if(WIN32)
+  add_custom_command(TARGET palettum_tests POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${MTPNG_DLL}"
+    "$<TARGET_FILE_DIR:palettum_tests>"
+    COMMENT "Copying mtpng.dll to test output directory"
+    VERBATIM
+  )
+endif()
 
 file(COPY ${CMAKE_SOURCE_DIR}/tests/test_images/
   DESTINATION ${CMAKE_BINARY_DIR}/test_images/)

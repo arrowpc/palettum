@@ -15,6 +15,7 @@ export { LIMITS, DEFAULTS };
 export { rgbToHex, hexToRgb, normalizeColor, isSameColor, validatePalette };
 
 import { gruvbox } from "./palettes/gruvbox";
+import { rplace_22 } from "./palettes/rplace_22";
 import { catppuccin_latte } from "./palettes/catppuccin-latte";
 import { catppuccin_frappe } from "./palettes/catppuccin-frappe";
 import { catppuccin_macchiato } from "./palettes/catppuccin-macchiato";
@@ -24,6 +25,7 @@ import { nord } from "./palettes/nord";
 
 export const defaultPalettes = [
   gruvbox,
+  rplace_22,
   catppuccin_mocha,
   catppuccin_latte,
   catppuccin_frappe,
@@ -34,6 +36,7 @@ export const defaultPalettes = [
 
 export {
   gruvbox,
+  rplace_22,
   catppuccin_mocha,
   catppuccin_latte,
   catppuccin_frappe,

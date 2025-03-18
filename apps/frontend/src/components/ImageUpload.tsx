@@ -1,23 +1,23 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const MAX_DIMENSION = 7680;
+import { LIMITS } from "@/lib/palettes";
 
 interface ImageUploadProps {
   onFileSelect: (file: File | null) => void;
 }
 
 function ImageUpload({ onFileSelect }: ImageUploadProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedImage, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [shake, setShake] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isActive, setIsActive] = useState(false);
+  const uploadAreaRef = useRef<HTMLDivElement>(null);
 
   const validTypes = ["image/jpeg", "image/png", "image/gif"];
-  const maxFileSize = 100 * 1024 * 1024; // 100MB
 
   const validateFile = useCallback(
     (file: File | null) => {
@@ -35,9 +35,11 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         return false;
       }
 
-      if (file.size > maxFileSize) {
+      if (file.size > LIMITS.MAX_FILE_SIZE) {
         setShake(true);
-        setError(`File size exceeds 100 MB. Please upload a smaller image.`);
+        setError(
+          `File size exceeds ${LIMITS.MAX_FILE_SIZE / 1024 / 1024} MB. Please upload a smaller image.`,
+        );
         setTimeout(() => setShake(false), 300);
         return false;
       }
@@ -48,10 +50,13 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
       img.onload = () => {
         URL.revokeObjectURL(url);
 
-        if (img.width > MAX_DIMENSION || img.height > MAX_DIMENSION) {
+        if (
+          img.width > LIMITS.MAX_DIMENSION ||
+          img.height > LIMITS.MAX_DIMENSION
+        ) {
           setShake(true);
           setError(
-            `Image dimensions cannot exceed ${MAX_DIMENSION}px. Please upload a smaller image.`,
+            `Image dimensions cannot exceed ${LIMITS.MAX_DIMENSION}px. Please upload a smaller image.`,
           );
           setTimeout(() => setShake(false), 300);
           setSelectedFile(null);
@@ -112,62 +117,138 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
     [validateFile],
   );
 
+  const handlePaste = useCallback(
+    (event: ClipboardEvent) => {
+      const activeElement = document.activeElement;
+
+      const isInputActive =
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement?.getAttribute("contenteditable") === "true";
+
+      const isBackgroundActive =
+        activeElement === document.body ||
+        activeElement?.id === "root" ||
+        activeElement?.tagName === "MAIN" ||
+        activeElement?.tagName === "DIV" ||
+        isActive;
+
+      if (isInputActive && !isActive) {
+        return;
+      }
+
+      if (isBackgroundActive) {
+        const items = event.clipboardData?.items;
+
+        if (!items) return;
+
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf("image") !== -1) {
+            const file = items[i].getAsFile();
+            if (file) {
+              validateFile(file);
+              event.preventDefault();
+              return;
+            }
+          }
+        }
+
+        if (
+          isActive &&
+          items.length > 0 &&
+          event.clipboardData?.getData("text")
+        ) {
+          setShake(true);
+          setError(
+            "No valid image found in clipboard. Try copying an image instead of text.",
+          );
+          setTimeout(() => setShake(false), 300);
+        }
+      }
+    },
+    [validateFile, isActive],
+  );
+
+  useEffect(() => {
+    document.addEventListener("paste", handlePaste);
+    return () => {
+      document.removeEventListener("paste", handlePaste);
+    };
+  }, [handlePaste]);
+
   return (
     <div className="space-y-2">
       <div
+        ref={uploadAreaRef}
         className={cn(
           "flex flex-col items-center justify-center w-full h-64",
           "border-2 border-dashed rounded-lg",
           "transition-all duration-300",
           isDragging
-            ? "border-upload-active-border bg-upload-active-bg"
-            : "border-upload-300 bg-upload-50",
+            ? "border-primary bg-primary/5"
+            : "border-border bg-background-secondary",
           shake && "animate-shake",
         )}
         onDragOver={(e) => handleDragEvents(e, true)}
         onDragLeave={(e) => handleDragEvents(e, false)}
         onDrop={handleDrop}
+        onFocus={() => setIsActive(true)}
+        onBlur={() => setIsActive(false)}
+        onMouseEnter={() => setIsActive(true)}
+        onMouseLeave={() => setIsActive(false)}
+        tabIndex={0}
       >
         <ImageIcon
           className={cn(
             "w-16 h-16 mb-4",
             "transition-all duration-300",
-            isDragging
-              ? "text-upload-active-text scale-110"
-              : "text-upload-400",
+            isDragging ? "icon-active scale-110" : "text-foreground-secondary",
           )}
         />
-        <p className="mb-4 text-sm text-upload-400">
-          Drag and drop an image to palettify
-        </p>
-        <p className="mb-2 text-sm text-upload-400">or</p>
-        <input
-          type="file"
-          id="file-upload"
-          className="hidden"
-          accept={validTypes.join(",")}
-          onChange={handleFileChange}
-        />
-        <Button
-          onClick={() => document.getElementById("file-upload")?.click()}
-          disabled={isDragging}
-          className={cn(
-            "bg-neutral-600 hover:bg-neutral-700 text-white",
-            "transition-all duration-300",
-            isDragging && "opacity-50 scale-95 cursor-not-allowed",
-          )}
+        <div
+          className={`flex flex-col items-center transition-all duration-200 ${isDragging ? "opacity-50" : ""}`}
         >
-          Browse images
-        </Button>
+          <div className="flex items-center gap-3 mb-3">
+            <p className="text-sm text-foreground-secondary">Drag</p>
+            <div className="h-px w-10 bg-border"></div>
+            <p className="text-sm text-foreground-secondary">Paste</p>
+          </div>
+
+          <input
+            type="file"
+            id="file-upload"
+            className="hidden"
+            accept={validTypes.join(",")}
+            onChange={handleFileChange}
+          />
+
+          <div className="flex items-center gap-3 mb-3">
+            <div className="h-px w-16 bg-border"></div>
+            <p className="text-sm text-foreground-secondary">or</p>
+            <div className="h-px w-16 bg-border"></div>
+          </div>
+
+          <Button
+            onClick={() => document.getElementById("file-upload")?.click()}
+            disabled={isDragging}
+            className={cn(
+              "bg-primary hover:bg-primary-hover text-primary-foreground",
+              "transition-all duration-200",
+              isDragging && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            Choose image
+          </Button>
+        </div>
       </div>
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      {selectedFile && !error && (
-        <p className="text-sm text-upload-400">
-          Selected file: {selectedFile.name}
+      {selectedImage && !error && (
+        <p className="text-sm text-foreground-secondary">
+          Selected image: {selectedImage.name}
         </p>
       )}
     </div>

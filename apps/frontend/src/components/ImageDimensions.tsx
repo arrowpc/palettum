@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link, Unlink } from "lucide-react";
+import { RotateCcw, Link, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const MAX_DIMENSION = 7680;
+import { LIMITS } from "@/lib/palettes";
 
 interface ImageDimensionsProps {
   file: File | null;
@@ -16,6 +15,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
     originalWidth: null as number | null,
     originalHeight: null as number | null,
     originalAspectRatio: null as number | null,
+    currentAspectRatio: null as number | null,
   });
   const [keepAspectRatio, setKeepAspectRatio] = useState(true);
 
@@ -27,6 +27,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         originalWidth: null,
         originalHeight: null,
         originalAspectRatio: null,
+        currentAspectRatio: null,
       });
       onChange(null, null);
       return;
@@ -36,12 +37,14 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
     const url = URL.createObjectURL(file);
 
     image.onload = () => {
+      const aspectRatio = image.width / image.height;
       setDimensions({
         width: String(image.width),
         height: String(image.height),
         originalWidth: image.width,
         originalHeight: image.height,
-        originalAspectRatio: image.width / image.height,
+        originalAspectRatio: aspectRatio,
+        currentAspectRatio: aspectRatio,
       });
       onChange(image.width, image.height);
       URL.revokeObjectURL(url);
@@ -54,8 +57,22 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
     };
   }, [file, onChange]);
 
+  useEffect(() => {
+    const widthNum = dimensions.width ? parseInt(dimensions.width, 10) : null;
+    const heightNum = dimensions.height
+      ? parseInt(dimensions.height, 10)
+      : null;
+
+    if (widthNum && heightNum && widthNum > 0 && heightNum > 0) {
+      setDimensions((prev) => ({
+        ...prev,
+        currentAspectRatio: widthNum / heightNum,
+      }));
+    }
+  }, [dimensions.width, dimensions.height]);
+
   const clampDimension = (value: number): number => {
-    return Math.min(Math.max(1, value), MAX_DIMENSION);
+    return Math.min(Math.max(1, value), LIMITS.MAX_DIMENSION);
   };
 
   const handleWidthChange = useCallback(
@@ -71,15 +88,19 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
           const clampedWidth = clampDimension(numericValue);
           newWidth = String(clampedWidth);
 
-          if (keepAspectRatio && dimensions.originalAspectRatio) {
+          if (
+            keepAspectRatio &&
+            dimensions.currentAspectRatio &&
+            dimensions.height
+          ) {
             const calculatedHeight = Math.round(
-              clampedWidth / dimensions.originalAspectRatio,
+              clampedWidth / dimensions.currentAspectRatio,
             );
             const clampedHeight = clampDimension(calculatedHeight);
 
             if (calculatedHeight !== clampedHeight) {
               const recalculatedWidth = Math.round(
-                clampedHeight * dimensions.originalAspectRatio,
+                clampedHeight * dimensions.currentAspectRatio,
               );
               newWidth = String(clampDimension(recalculatedWidth));
             }
@@ -101,7 +122,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       }
     },
     [
-      dimensions.originalAspectRatio,
+      dimensions.currentAspectRatio,
       dimensions.height,
       keepAspectRatio,
       onChange,
@@ -121,15 +142,19 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
           const clampedHeight = clampDimension(numericValue);
           newHeight = String(clampedHeight);
 
-          if (keepAspectRatio && dimensions.originalAspectRatio) {
+          if (
+            keepAspectRatio &&
+            dimensions.currentAspectRatio &&
+            dimensions.width
+          ) {
             const calculatedWidth = Math.round(
-              clampedHeight * dimensions.originalAspectRatio,
+              clampedHeight * dimensions.currentAspectRatio,
             );
             const clampedWidth = clampDimension(calculatedWidth);
 
             if (calculatedWidth !== clampedWidth) {
               const recalculatedHeight = Math.round(
-                clampedWidth / dimensions.originalAspectRatio,
+                clampedWidth / dimensions.currentAspectRatio,
               );
               newHeight = String(clampDimension(recalculatedHeight));
             }
@@ -151,7 +176,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       }
     },
     [
-      dimensions.originalAspectRatio,
+      dimensions.currentAspectRatio,
       dimensions.width,
       keepAspectRatio,
       onChange,
@@ -164,6 +189,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         ...prev,
         width: String(dimensions.originalWidth),
         height: String(dimensions.originalHeight),
+        currentAspectRatio: dimensions.originalAspectRatio,
       }));
       onChange(dimensions.originalWidth, dimensions.originalHeight);
     }
@@ -196,29 +222,31 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
 
   return (
     <div>
-      <div className="flex items-center space-x-1">
-        <h3 className="text-lg font-medium text-gray-800">Dimensions</h3>
+      <div className="flex items-center space-x-2">
+        <h3 className="text-lg font-medium text-foreground">Dimensions</h3>
         <button
           onClick={resetDimensions}
           className={cn(
-            "flex items-center justify-center w-8 h-8 rounded-full",
-            "bg-control text-gray-600 transition-all",
+            "inline-flex items-center justify-center w-6 h-6 rounded-full",
+            "text-foreground-secondary transition-colors",
             isReset
               ? "opacity-50 cursor-not-allowed"
-              : "hover:bg-control-hover",
+              : "hover:bg-secondary hover:text-foreground",
           )}
           aria-label="Reset dimensions"
           disabled={isReset}
         >
-          <span className="text-xl">↻</span>
+          <RotateCcw size={20} />
         </button>
       </div>
-
       {file ? (
         <div className="mt-4">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center bg-control border border-control-border shadow-control px-2 py-1 rounded-lg focus-within:ring-2 focus-within:ring-control-focus">
-              <label htmlFor="width" className="text-control-label mr-2">
+            <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
+              <label
+                htmlFor="width"
+                className="text-base text-foreground-secondary px-3 py-2"
+              >
                 W
               </label>
               <input
@@ -228,13 +256,16 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 onChange={handleWidthChange}
                 onBlur={handleBlur}
                 min="1"
-                max={MAX_DIMENSION}
+                max={LIMITS.MAX_DIMENSION}
                 placeholder="Width"
-                className="w-20 p-1 text-sm text-left focus:outline-none bg-control rounded-lg overflow-hidden text-ellipsis"
+                className="w-20 p-2 text-xs text-foreground focus:outline-none bg-background rounded-r-md"
               />
             </div>
-            <div className="flex items-center bg-control border border-control-border shadow-control px-2 py-1 rounded-lg focus-within:ring-2 focus-within:ring-control-focus">
-              <label htmlFor="height" className="text-control-label mr-2">
+            <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
+              <label
+                htmlFor="height"
+                className="text-base text-foreground-secondary px-3 py-2"
+              >
                 H
               </label>
               <input
@@ -244,25 +275,25 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 onChange={handleHeightChange}
                 onBlur={handleBlur}
                 min="1"
-                max={MAX_DIMENSION}
+                max={LIMITS.MAX_DIMENSION}
                 placeholder="Height"
-                className="w-20 p-1 text-sm text-left focus:outline-none bg-control rounded-lg overflow-hidden text-ellipsis"
+                className="w-20 p-2 text-xs text-foreground focus:outline-none bg-background rounded-r-md"
               />
             </div>
             <button
               onClick={() => setKeepAspectRatio(!keepAspectRatio)}
               className={cn(
-                "flex items-center justify-center w-10 h-10 border rounded-lg shadow-control focus:outline-none transition-all",
+                "flex items-center justify-center w-10 h-10 border rounded-md shadow-sm focus:outline-none transition-all",
                 keepAspectRatio
-                  ? "bg-action-primary hover:bg-action-primary-hover border-action-primary"
-                  : "bg-control hover:bg-control-hover border-control-border",
+                  ? "bg-primary text-primary-foreground border-primary hover:bg-primary-hover"
+                  : "text-foreground border-border hover:bg-secondary-hover",
               )}
               aria-label={
                 keepAspectRatio ? "Unlock aspect ratio" : "Lock aspect ratio"
               }
             >
               {keepAspectRatio ? (
-                <Link size={20} className="text-icon-active" />
+                <Link size={20} className="text-foreground" />
               ) : (
                 <Unlink size={20} className="text-icon-inactive" />
               )}
@@ -271,9 +302,12 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         </div>
       ) : (
         <div className="mt-4">
-          <div className="flex items-center space-x-4 opacity-50 cursor-not-allowed">
-            <div className="flex items-center bg-control-disabled border border-control-border shadow-control px-2 py-1 rounded-lg">
-              <label htmlFor="width" className="text-control-label mr-2">
+          <div className="flex items-center space-x-4 opacity-60 cursor-not-allowed">
+            <div className="flex items-center bg-input-disabled border border-border rounded-md shadow-sm">
+              <label
+                htmlFor="width"
+                className="text-foreground-muted px-3 py-2"
+              >
                 W
               </label>
               <input
@@ -282,11 +316,14 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 disabled
                 value=""
                 placeholder="Width"
-                className="w-20 p-1 text-sm text-left bg-control-disabled cursor-not-allowed rounded-lg"
+                className="w-20 p-2 text-xs text-foreground-muted bg-input-disabled cursor-not-allowed rounded-r-md"
               />
             </div>
-            <div className="flex items-center bg-control-disabled border border-control-border shadow-control px-2 py-1 rounded-lg">
-              <label htmlFor="height" className="text-control-label mr-2">
+            <div className="flex items-center bg-input-disabled border border-border rounded-md shadow-sm">
+              <label
+                htmlFor="height"
+                className="text-foreground-muted px-3 py-2"
+              >
                 H
               </label>
               <input
@@ -295,15 +332,15 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 disabled
                 value=""
                 placeholder="Height"
-                className="w-20 p-1 text-sm text-left bg-control-disabled cursor-not-allowed rounded-lg"
+                className="w-20 p-2 text-xs text-foreground-muted bg-input-disabled cursor-not-allowed rounded-r-md"
               />
             </div>
             <button
-              className="flex items-center justify-center w-10 h-10 border rounded-lg bg-control-disabled shadow-control opacity-50 cursor-not-allowed"
+              className="flex items-center justify-center w-10 h-10 border rounded-md bg-input-disabled shadow-sm cursor-not-allowed"
               disabled
               aria-label="Lock aspect ratio"
             >
-              <Unlink className="text-icon-disabled" />
+              <Unlink className="text-icon-disabled " />
             </button>
           </div>
         </div>

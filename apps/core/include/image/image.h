@@ -1,7 +1,10 @@
 #pragma once
 
 #include <image/fpng.h>
+#include <mtpng.h>
+#include <cstring>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 #include "color/rgb.h"
 
@@ -38,8 +41,24 @@ public:
     bool operator==(const Image &other) const;
     bool operator!=(const Image &other) const;
 
+    void setPalette(const std::vector<RGB> &palette);
+    bool hasPalette() const
+    {
+        return m_hasPalette;
+    }
+    const std::vector<RGB> &getPalette() const
+    {
+        return m_palette;
+    }
+
+    bool writeIndexed(const std::string &filename) const;
+    std::vector<unsigned char> writeIndexedToMemory() const;
+
 private:
     void validateCoordinates(int x, int y) const;
     int m_width{0}, m_height{0}, m_channels{3};
     std::vector<uint8_t> m_data;
+
+    std::vector<RGB> m_palette;
+    bool m_hasPalette = false;
 };

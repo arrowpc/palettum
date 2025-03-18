@@ -59,7 +59,6 @@ const ImageTransparency: React.FC<ImageTransparencyProps> = ({
           setEnabled(false);
           setChecked(false);
         } else {
-          console.log("hi");
           setEnabled(true);
           transThreshold(checked ? 255 : 0);
         }
@@ -87,21 +86,22 @@ const ImageTransparency: React.FC<ImageTransparencyProps> = ({
   };
 
   return (
-    <div className="flex items-start space-x-2">
+    <div className="flex items-start space-x-3">
       <Checkbox
         id="transparency"
         checked={checked}
         onCheckedChange={handleCheckedChange}
         disabled={!enabled}
+        className="mt-1"
       />
       <div className="flex flex-col peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
         <label
           htmlFor="transparency"
-          className="text-lg font-medium text-gray-800 leading-none"
+          className="text-lg font-medium text-foreground leading-none cursor-pointer"
         >
           Preserve Transparency
         </label>
-        <p className="text-sm text-muted-foreground mt-1.5">
+        <p className="text-xs text-foreground-secondary mt-1.5">
           Transparent pixels will not be palettified
         </p>
       </div>

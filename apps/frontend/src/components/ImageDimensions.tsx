@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { RotateCcw, Link, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const MAX_DIMENSION = 7680;
+import { LIMITS } from "@/lib/palettes";
 
 interface ImageDimensionsProps {
   file: File | null;
@@ -73,7 +72,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
   }, [dimensions.width, dimensions.height]);
 
   const clampDimension = (value: number): number => {
-    return Math.min(Math.max(1, value), MAX_DIMENSION);
+    return Math.min(Math.max(1, value), LIMITS.MAX_DIMENSION);
   };
 
   const handleWidthChange = useCallback(
@@ -257,7 +256,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 onChange={handleWidthChange}
                 onBlur={handleBlur}
                 min="1"
-                max={MAX_DIMENSION}
+                max={LIMITS.MAX_DIMENSION}
                 placeholder="Width"
                 className="w-20 p-2 text-xs text-foreground focus:outline-none bg-background rounded-r-md"
               />
@@ -276,7 +275,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
                 onChange={handleHeightChange}
                 onBlur={handleBlur}
                 min="1"
-                max={MAX_DIMENSION}
+                max={LIMITS.MAX_DIMENSION}
                 placeholder="Height"
                 className="w-20 p-2 text-xs text-foreground focus:outline-none bg-background rounded-r-md"
               />

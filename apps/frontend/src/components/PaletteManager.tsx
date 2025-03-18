@@ -7,6 +7,8 @@ import {
   Copy,
   Trash2,
   ExternalLink,
+  Download,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PaletteEditor from "@/components/PaletteEditor";
@@ -81,6 +83,8 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     [key: string]: number;
   }>({});
   const previewContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const userPalettes = palettes.filter((p) => !p.isDefault);
@@ -141,13 +145,28 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
         const interval = setInterval(() => {
           setHoveredColorIndices((prev) => ({
             ...prev,
-            [hoveredPaletteId]: (prev[hoveredPaletteId] ?? 0) + 1,
+            [hoveredPaletteId]:
+              ((prev[hoveredPaletteId] ?? 0) + 1) % palette.colors.length,
           }));
         }, HOVER_CYCLE_INTERVAL);
         return () => clearInterval(interval);
       }
     }
   }, [hoveredPaletteId, palettes]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        isDropdownOpen &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isDropdownOpen]);
 
   const getDisplayedColors = (
     palette: Palette,
@@ -186,14 +205,12 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
       }
       return newPalettes;
     });
-    setIsDropdownOpen(false);
   };
 
   const handleEditPalette = (palette: Palette) => {
     if (palette.isDefault) return;
     setEditingPalette({ ...palette });
     setIsEditModalOpen(true);
-    setIsDropdownOpen(false);
   };
 
   const handleCopyPalette = (palette: Palette) => {
@@ -223,7 +240,65 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     };
     setPalettes((current) => [...current, newPalette]);
     setSelectedPalette(newPalette);
-    setIsDropdownOpen(false);
+  };
+
+  const handleExportPalette = (palette: Palette) => {
+    const json = JSON.stringify(palette, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${palette.name}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportPalette = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e: ProgressEvent<FileReader>) => {
+        try {
+          const json = e.target?.result as string;
+          if (!json) throw new Error("Failed to read file");
+
+          const imported = JSON.parse(json);
+
+          if (!imported.name || !Array.isArray(imported.colors)) {
+            throw new Error("Invalid palette format");
+          }
+
+          const importedPalette: Palette = {
+            ...imported,
+            id: crypto.randomUUID(),
+            isDefault: false,
+          };
+
+          const existingNames = palettes.map((p) => p.name);
+          if (existingNames.includes(importedPalette.name)) {
+            let counter = 1;
+            let newName = `${importedPalette.name} (${counter})`;
+            while (existingNames.includes(newName)) {
+              counter++;
+              newName = `${importedPalette.name} (${counter})`;
+            }
+            importedPalette.name = newName;
+          }
+
+          setPalettes((current) => [...current, importedPalette]);
+          setSelectedPalette(importedPalette);
+          setIsDropdownOpen(false);
+        } catch (error) {
+          console.error("Failed to import palette:", error);
+          alert("Failed to import palette. Please check the file format.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    if (event.target) {
+      event.target.value = "";
+    }
   };
 
   const handleSavePalette = async (updatedPalette: Palette) => {
@@ -254,7 +329,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
 
   return (
     <TooltipProvider>
-      <div className="relative">
+      <div ref={dropdownRef} className="relative">
         <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
           className="w-full flex items-center p-3 bg-background border border-border rounded-md shadow-sm hover:bg-secondary transition-colors"
@@ -311,13 +386,17 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                 <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 transform -translate-y-1/2 text-icon-inactive" />
               </div>
             </div>
+
             <div className="overflow-y-auto flex-1 max-h-[175px]">
               {filteredPalettes.map((palette) => {
                 const startIndex = hoveredColorIndices[palette.id] ?? 0;
                 return (
                   <div
                     key={palette.id}
-                    className="flex items-center justify-between p-3 hover:bg-secondary cursor-pointer"
+                    className={cn(
+                      "grid grid-cols-[1fr,80px,auto] items-center p-3 hover:bg-secondary cursor-pointer",
+                      palette.id === selectedPalette.id && "bg-secondary/50",
+                    )}
                     onClick={() => {
                       setSelectedPalette(palette);
                       setIsDropdownOpen(false);
@@ -326,14 +405,16 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                     onMouseLeave={() => setHoveredPaletteId(null)}
                   >
                     <div className="flex items-center min-w-0">
-                      <span className="truncate text-sm text-foreground">
-                        {palette.name}
-                      </span>
-                      {palette.isDefault && (
-                        <span className="ml-1.5 text-tiny font-normal text-foreground-muted flex-shrink-0">
-                          (default)
+                      <div className="flex flex-col">
+                        <span className="truncate text-sm text-foreground">
+                          {palette.name}
                         </span>
-                      )}
+                        {palette.isDefault && (
+                          <span className="text-tiny font-normal text-foreground-muted">
+                            (default)
+                          </span>
+                        )}
+                      </div>
                       {palette.source && (
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -343,7 +424,6 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
                               className="ml-1.5 text-icon-inactive hover:text-icon-active flex-shrink-0"
-                              title="View palette source"
                             >
                               <ExternalLink className="w-4 h-4" />
                             </a>
@@ -354,7 +434,8 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                         </Tooltip>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
+
+                    <div className="flex justify-center items-center w-[80px]">
                       <div className="flex -space-x-1">
                         {getDisplayedColors(palette, 3, startIndex).map(
                           (color: Color, i: number) => (
@@ -366,6 +447,9 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                           ),
                         )}
                       </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
@@ -382,6 +466,24 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                           <p className="text-xs">Duplicate</p>
                         </TooltipContent>
                       </Tooltip>
+
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleExportPalette(palette);
+                            }}
+                            className="p-1.5 text-icon-inactive hover:text-icon-active"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">Export</p>
+                        </TooltipContent>
+                      </Tooltip>
+
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
@@ -393,9 +495,10 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                             className={cn(
                               "p-1.5",
                               palette.isDefault
-                                ? "text-icon-disabled opacity-50 cursor-not-allowed line-through"
+                                ? "text-icon-disabled opacity-50 cursor-not-allowed"
                                 : "text-icon-inactive hover:text-icon-active",
                             )}
+                            disabled={palette.isDefault}
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -404,6 +507,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                           <p className="text-xs">Edit</p>
                         </TooltipContent>
                       </Tooltip>
+
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <button
@@ -415,9 +519,10 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                             className={cn(
                               "p-1.5",
                               palette.isDefault
-                                ? "text-icon-disabled opacity-50 cursor-not-allowed line-through"
-                                : "text-icon-inactive hover:text-icon-active",
+                                ? "text-icon-disabled opacity-50 cursor-not-allowed"
+                                : "text-icon-inactive hover:text-destructive",
                             )}
+                            disabled={palette.isDefault}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -431,17 +536,35 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                 );
               })}
             </div>
-            <div
-              className="flex items-center justify-center p-2.5 border-t border-border hover:bg-secondary cursor-pointer"
-              onClick={handleCreatePalette}
-            >
-              <Plus className="w-4.5 h-4.5 mr-1.5 text-icon-inactive" />
-              <span className="text-sm text-foreground">
-                Create New Palette
-              </span>
+            <div className="border-t border-border p-2 flex justify-between">
+              <button
+                className="flex items-center justify-center px-3 py-1.5 text-sm hover:bg-secondary rounded"
+                onClick={handleCreatePalette}
+                type="button"
+              >
+                <Plus className="w-4 h-4 mr-1.5 text-icon-inactive" />
+                <span>New Palette</span>
+              </button>
+
+              <button
+                className="flex items-center justify-center px-3 py-1.5 text-sm hover:bg-secondary rounded"
+                onClick={() => fileInputRef.current?.click()}
+                type="button"
+              >
+                <Upload className="w-4 h-4 mr-1.5 text-icon-inactive" />
+                <span>Import</span>
+              </button>
             </div>
           </div>
         )}
+
+        <input
+          type="file"
+          accept=".json"
+          ref={fileInputRef}
+          className="hidden"
+          onChange={handleImportPalette}
+        />
 
         {isEditModalOpen && editingPalette && (
           <PaletteEditor

@@ -33,14 +33,3 @@ export const defaultPalettes = [
   dracula,
   nord,
 ] as const;
-
-export {
-  gruvbox,
-  rplace_22,
-  catppuccin_mocha,
-  catppuccin_latte,
-  catppuccin_frappe,
-  catppuccin_macchiato,
-  dracula,
-  nord,
-};

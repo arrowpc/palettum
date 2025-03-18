@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/tooltip";
 
 const LOCAL_STORAGE_KEY = "userPalettes";
+const SELECTED_PALETTE_KEY = "selectedPaletteId";
 const PREVIEW_CYCLE_INTERVAL = 500; // ms
 const HOVER_CYCLE_INTERVAL = 300; // ms
 
@@ -48,11 +49,27 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     }
   };
 
+  const loadSelectedPalette = () => {
+    try {
+      const savedId = localStorage.getItem(SELECTED_PALETTE_KEY);
+      const allPalettes = [...initialPalettes, ...loadSavedPalettes()];
+      const savedPalette = savedId
+        ? allPalettes.find((p) => p.id === savedId)
+        : allPalettes[0];
+      return savedPalette || allPalettes[0];
+    } catch (error) {
+      console.error("Failed to load selected palette:", error);
+      return initialPalettes[0];
+    }
+  };
+
   const [palettes, setPalettes] = useState<Palette[]>(() => [
     ...initialPalettes,
     ...loadSavedPalettes(),
   ]);
-  const [selectedPalette, setSelectedPalette] = useState<Palette>(palettes[0]);
+  const [selectedPalette, setSelectedPalette] = useState<Palette>(
+    loadSelectedPalette(),
+  );
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
@@ -75,7 +92,12 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   }, [palettes]);
 
   useEffect(() => {
-    onPaletteSelect(selectedPalette);
+    try {
+      localStorage.setItem(SELECTED_PALETTE_KEY, selectedPalette.id);
+      onPaletteSelect(selectedPalette);
+    } catch (error) {
+      console.error("Failed to save selected palette:", error);
+    }
   }, [selectedPalette, onPaletteSelect]);
 
   useEffect(() => {
@@ -159,7 +181,8 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
     setPalettes((current) => {
       const newPalettes = current.filter((p) => p.id !== paletteId);
       if (selectedPalette.id === paletteId) {
-        setSelectedPalette(newPalettes[0]);
+        const newSelected = newPalettes[0];
+        setSelectedPalette(newSelected);
       }
       return newPalettes;
     });
@@ -213,7 +236,9 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
       newPalettes[index] = updatedPalette;
       return newPalettes;
     });
-    setSelectedPalette(updatedPalette);
+    if (selectedPalette.id === updatedPalette.id) {
+      setSelectedPalette(updatedPalette);
+    }
     setIsEditModalOpen(false);
     setEditingPalette(null);
   };

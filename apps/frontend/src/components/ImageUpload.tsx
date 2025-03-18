@@ -3,8 +3,7 @@ import { Image as ImageIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-const MAX_DIMENSION = 7680;
+import { LIMITS } from "@/lib/palettes";
 
 interface ImageUploadProps {
   onFileSelect: (file: File | null) => void;
@@ -19,7 +18,6 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const uploadAreaRef = useRef<HTMLDivElement>(null);
 
   const validTypes = ["image/jpeg", "image/png", "image/gif"];
-  const maxFileSize = 100 * 1024 * 1024; // 100MB
 
   const validateFile = useCallback(
     (file: File | null) => {
@@ -37,9 +35,11 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         return false;
       }
 
-      if (file.size > maxFileSize) {
+      if (file.size > LIMITS.MAX_FILE_SIZE) {
         setShake(true);
-        setError(`File size exceeds 100 MB. Please upload a smaller image.`);
+        setError(
+          `File size exceeds ${LIMITS.MAX_FILE_SIZE / 1024 / 1024} MB. Please upload a smaller image.`,
+        );
         setTimeout(() => setShake(false), 300);
         return false;
       }
@@ -50,10 +50,13 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
       img.onload = () => {
         URL.revokeObjectURL(url);
 
-        if (img.width > MAX_DIMENSION || img.height > MAX_DIMENSION) {
+        if (
+          img.width > LIMITS.MAX_DIMENSION ||
+          img.height > LIMITS.MAX_DIMENSION
+        ) {
           setShake(true);
           setError(
-            `Image dimensions cannot exceed ${MAX_DIMENSION}px. Please upload a smaller image.`,
+            `Image dimensions cannot exceed ${LIMITS.MAX_DIMENSION}px. Please upload a smaller image.`,
           );
           setTimeout(() => setShake(false), 300);
           setSelectedFile(null);

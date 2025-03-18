@@ -1,3 +1,6 @@
 [submodule "apps/core/external/vcpkg"]
 	path = apps/core/external/vcpkg
   url = https://github.com/microsoft/vcpkg
+[submodule "apps/core/external/mtpng"]
+	path = apps/core/external/mtpng
+	url = https://github.com/bvibber/mtpng

@@ -45,7 +45,9 @@ export function validatePalette(palette: Palette): string[] {
   }
 
   if (palette.colors.length < LIMITS.MIN_COLORS) {
-    errors.push(`Palette must have at least ${LIMITS.MIN_COLORS} color`);
+    errors.push(
+      `Palette must have at least ${LIMITS.MIN_COLORS} color${LIMITS.MIN_COLORS > 1 ? "s" : ""}`,
+    );
   }
 
   if (palette.colors.length > LIMITS.MAX_COLORS) {

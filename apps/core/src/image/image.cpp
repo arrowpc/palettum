@@ -2,11 +2,7 @@
 #include <stdexcept>
 
 #define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include <stb_image.h>
-#include <stb_image_resize2.h>
-#include <stb_image_write.h>
 
 Image::Image(const unsigned char *buffer, int length)
 {
@@ -92,8 +88,27 @@ int Image::operator-(const Image &other) const
     return differentPixels;
 }
 
+void Image::setPalette(const std::vector<RGB> &palette)
+{
+    if (palette.empty())
+    {
+        m_hasPalette = false;
+        m_palette.clear();
+    }
+    else
+    {
+        m_palette = palette;
+        m_hasPalette = true;
+    }
+}
+
 std::vector<unsigned char> Image::write() const
 {
+    if (m_hasPalette)
+    {
+        return writeIndexedToMemory();
+    }
+
     std::vector<uint8_t> result;
     bool success = fpng::fpng_encode_image_to_memory(
         m_data.data(), m_width, m_height, m_channels, result);
@@ -107,13 +122,199 @@ std::vector<unsigned char> Image::write() const
     return result;
 }
 
+std::vector<unsigned char> Image::writeIndexedToMemory() const
+{
+    if (!m_hasPalette)
+    {
+        return write();
+    }
+
+    std::vector<unsigned char> buffer;
+    auto write_callback = [](void *user_data, const uint8_t *p_bytes,
+                             size_t len) -> size_t {
+        auto *buf = static_cast<std::vector<unsigned char> *>(user_data);
+        const size_t old_size = buf->size();
+        buf->resize(old_size + len);
+        std::memcpy(buf->data() + old_size, p_bytes, len);
+        return len;
+    };
+
+    auto flush_callback = [](void *user_data) -> bool {
+        return true;
+    };
+
+    mtpng_encoder *encoder = nullptr;
+    mtpng_encoder_options *options = nullptr;
+    mtpng_header *header = nullptr;
+
+    if (mtpng_encoder_options_new(&options) != MTPNG_RESULT_OK)
+    {
+        throw std::runtime_error("Failed to create PNG encoder options");
+    }
+
+    if (mtpng_encoder_new(&encoder, write_callback, flush_callback, &buffer,
+                          options) != MTPNG_RESULT_OK)
+    {
+        mtpng_encoder_options_release(&options);
+        throw std::runtime_error("Failed to create PNG encoder");
+    }
+    mtpng_encoder_options_release(&options);
+
+    if (mtpng_header_new(&header) != MTPNG_RESULT_OK ||
+        mtpng_header_set_size(header, m_width, m_height) != MTPNG_RESULT_OK ||
+        mtpng_header_set_color(header, MTPNG_COLOR_INDEXED_COLOR, 8) !=
+            MTPNG_RESULT_OK)
+    {
+        mtpng_encoder_release(&encoder);
+        throw std::runtime_error("Failed to configure PNG header");
+    }
+
+    if (mtpng_encoder_write_header(encoder, header) != MTPNG_RESULT_OK)
+    {
+        mtpng_header_release(&header);
+        mtpng_encoder_release(&encoder);
+        throw std::runtime_error("Failed to write PNG header");
+    }
+    mtpng_header_release(&header);
+
+    bool needsTransparency = false;
+    uint8_t transparentIndex = 0;
+
+    if (m_channels == 4)
+    {
+        for (int i = 0; i < m_width * m_height; ++i)
+        {
+            if (m_data[i * 4 + 3] == 0)
+            {
+                needsTransparency = true;
+                break;
+            }
+        }
+    }
+
+    std::unordered_map<uint32_t, uint8_t> colorMap;
+    colorMap.reserve(m_palette.size());
+
+    for (size_t j = 0; j < m_palette.size(); ++j)
+    {
+        uint32_t key = (m_palette[j].red() << 16) |
+                       (m_palette[j].green() << 8) | m_palette[j].blue();
+        colorMap[key] = j;
+    }
+
+    std::vector<uint8_t> palette;
+    palette.reserve((m_palette.size() + (needsTransparency ? 1 : 0)) * 3);
+
+    for (const auto &color : m_palette)
+    {
+        palette.push_back(color.red());
+        palette.push_back(color.green());
+        palette.push_back(color.blue());
+    }
+
+    if (needsTransparency && m_channels == 4)
+    {
+        palette.push_back(0);
+        palette.push_back(0);
+        palette.push_back(0);
+
+        transparentIndex = m_palette.size();
+    }
+
+    if (mtpng_encoder_write_palette(encoder, palette.data(), palette.size()) !=
+        MTPNG_RESULT_OK)
+    {
+        mtpng_encoder_release(&encoder);
+        throw std::runtime_error("Failed to write palette chunk");
+    }
+
+    if (needsTransparency && m_channels == 4)
+    {
+        std::vector<uint8_t> transparency(m_palette.size() + 1, 255);
+
+        transparency[transparentIndex] = 0;
+
+        if (mtpng_encoder_write_transparency(encoder, transparency.data(),
+                                             transparency.size()) !=
+            MTPNG_RESULT_OK)
+        {
+            mtpng_encoder_release(&encoder);
+            throw std::runtime_error("Failed to write transparency");
+        }
+    }
+
+    std::vector<uint8_t> indexed_data(m_width * m_height);
+
+    if (m_channels == 3)
+    {
+        for (int i = 0; i < m_width * m_height; ++i)
+        {
+            uint32_t colorKey = (m_data[i * 3] << 16) |
+                                (m_data[i * 3 + 1] << 8) | m_data[i * 3 + 2];
+            indexed_data[i] = colorMap[colorKey];
+        }
+    }
+    else
+    {
+        for (int i = 0; i < m_width * m_height; ++i)
+        {
+            if (m_data[i * 4 + 3] == 0)
+            {
+                indexed_data[i] = transparentIndex;
+            }
+            else
+            {
+                uint32_t colorKey = (m_data[i * 4] << 16) |
+                                    (m_data[i * 4 + 1] << 8) |
+                                    m_data[i * 4 + 2];
+                indexed_data[i] = colorMap[colorKey];
+            }
+        }
+    }
+
+    if (mtpng_encoder_write_image_rows(encoder, indexed_data.data(),
+                                       indexed_data.size()) != MTPNG_RESULT_OK)
+    {
+        mtpng_encoder_release(&encoder);
+        throw std::runtime_error("Failed to write image data");
+    }
+
+    mtpng_result result = mtpng_encoder_finish(&encoder);
+
+    if (result != MTPNG_RESULT_OK)
+    {
+        throw std::runtime_error("Failed to finalize PNG encoding");
+    }
+
+    return buffer;
+}
+
 bool Image::write(const std::string &filename) const
 {
-    return write(filename.c_str());
+    if (m_hasPalette)
+    {
+        return writeIndexed(filename);
+    }
+
+    bool written = fpng::fpng_encode_image_to_file(
+        filename.c_str(), m_data.data(), m_width, m_height, m_channels);
+
+    if (!written)
+    {
+        throw std::runtime_error(
+            std::string("Failed to write image using fpng"));
+    }
+
+    return written;
 }
 
 bool Image::write(const char *filename) const
 {
+    if (m_hasPalette)
+    {
+        return writeIndexed(filename);
+    }
+
     bool written = fpng::fpng_encode_image_to_file(
         filename, m_data.data(), m_width, m_height, m_channels);
 
@@ -124,6 +325,32 @@ bool Image::write(const char *filename) const
     }
 
     return written;
+}
+
+bool Image::writeIndexed(const std::string &filename) const
+{
+    if (!m_hasPalette)
+    {
+        return write(filename.c_str());
+    }
+
+    std::vector<unsigned char> buffer = writeIndexedToMemory();
+
+    FILE *fp = std::fopen(filename.c_str(), "wb");
+    if (!fp)
+    {
+        throw std::runtime_error("Failed to open file for writing");
+    }
+
+    size_t written = fwrite(buffer.data(), 1, buffer.size(), fp);
+    fclose(fp);
+
+    if (written != buffer.size())
+    {
+        throw std::runtime_error("Failed to write complete image data to file");
+    }
+
+    return true;
 }
 
 bool Image::resize(int width, int height)

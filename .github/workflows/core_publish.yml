@@ -48,6 +48,12 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup MSVC (Windows)
+        uses: ilammy/msvc-dev-cmd@v1
+
       - name: Move core into root
         if: runner.os == 'Linux' || runner.os == 'macOS'
         run: |
@@ -63,6 +69,20 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           brew install libomp ninja
+
+      - name: Build mtpng (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          cd external/mtpng
+          make
+
+      - name: Build mtpng (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          cd external\mtpng
+          build-win.bat x64
 
       - name: Setup vcpkg
         if: runner.os != 'Linux' || runner.arch != 'ARM64'
@@ -89,10 +109,14 @@ jobs:
           CIBW_SKIP: "*musllinux*"
           CIBW_BEFORE_ALL_LINUX: |
             yum -y install zip ninja-build
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+            source "$HOME/.cargo/env"
+            cd external/mtpng && make
           CIBW_BEFORE_BUILD: |
             pip install "pybind11[global]"
           CIBW_ENVIRONMENT_LINUX: |
             VCPKG_FORCE_SYSTEM_BINARIES=1
+            PATH="$HOME/.cargo/bin:$PATH"
           CIBW_ENVIRONMENT_MACOS: >
             OpenMP_ROOT=$(brew --prefix)/opt/libomp
             MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }}
@@ -134,14 +158,3 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_PASSWORD }}
-
-      - name: Create GitHub Release
-        if: github.event.inputs.publish_target == 'production'
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: false

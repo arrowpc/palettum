@@ -7,10 +7,6 @@ import {
   isSameColor,
   validatePalette,
 } from "./utils";
-import { catppuccin } from "./palettes/catppuccin-mocha";
-import { dracula } from "./palettes/dracula";
-import { nord } from "./palettes/nord";
-import { gruvbox } from "./palettes/gruvbox";
 
 export type { Color, Palette };
 
@@ -18,6 +14,30 @@ export { LIMITS, DEFAULTS };
 
 export { rgbToHex, hexToRgb, normalizeColor, isSameColor, validatePalette };
 
-export const defaultPalettes = [catppuccin, dracula, gruvbox, nord] as const;
+import { gruvbox } from "./palettes/gruvbox";
+import { catppuccin_latte } from "./palettes/catppuccin-latte";
+import { catppuccin_frappe } from "./palettes/catppuccin-frappe";
+import { catppuccin_macchiato } from "./palettes/catppuccin-macchiato";
+import { catppuccin_mocha } from "./palettes/catppuccin-mocha";
+import { dracula } from "./palettes/dracula";
+import { nord } from "./palettes/nord";
 
-export { catppuccin, dracula, gruvbox, nord };
+export const defaultPalettes = [
+  gruvbox,
+  catppuccin_mocha,
+  catppuccin_latte,
+  catppuccin_frappe,
+  catppuccin_macchiato,
+  dracula,
+  nord,
+] as const;
+
+export {
+  gruvbox,
+  catppuccin_mocha,
+  catppuccin_latte,
+  catppuccin_frappe,
+  catppuccin_macchiato,
+  dracula,
+  nord,
+};

@@ -1,9 +1,9 @@
 import type { Palette } from "../types";
 
-export const catppuccin: Palette = {
+export const catppuccin_mocha: Palette = {
   id: "catppuccin-mocha",
   name: "Catppuccin Mocha",
-  source: "https://github.com/catppuccin/catppuccin",
+  source: "https://catppuccin.com/palette/",
   colors: [
     { r: 205, g: 214, b: 244 },
     { r: 186, g: 194, b: 222 },

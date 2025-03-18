@@ -8,6 +8,7 @@ import DarkModeToggle from "@/components/DarkModeToggle";
 import GitHubButton from "@/components/GitHubButton";
 import type { Palette } from "@/lib/palettes/types";
 import ImageTransparency from "@/components/ImageTransparency";
+import Footer from "@/components/Footer";
 
 if (import.meta.env.MODE === "development") {
   import("react-scan").then(({ scan }) => {
@@ -111,7 +112,7 @@ function App() {
                 .catch(() => setApiAvailable(false))
                 .finally(() => setIsCheckingApi(false));
             }}
-            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+            className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white rounded-md transition-colors"
           >
             Retry Connection
           </button>
@@ -121,25 +122,39 @@ function App() {
   }
 
   return (
-    <div className="max-w-xl mx-auto p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="max-w-xl mx-auto p-6 space-y-6 min-h-screen flex flex-col">
+      <header className="text-center">
+        <h1 className="text-2xl font-bold">Palettum</h1>
+      </header>
+
+      <div className="flex items-center justify-between">
         <GitHubButton />
+        <p className="text-foreground-muted text-sm text-center flex-1 mx-4">
+          Match every pixel in your image or GIF to a custom palette. Upload,
+          choose a palette, tweak settings, and download!
+        </p>
         <DarkModeToggle />
       </div>
 
-      <ImageUpload onFileSelect={handleFileSelect} />
-      <ImageDimensions file={uploadedFile} onChange={handleDimensionsChange} />
-      <ImageTransparency
-        file={uploadedFile}
-        transThreshold={handleThresholdChange}
-      />
-      <PaletteManager onPaletteSelect={handlePaletteSelect} />
-      <PalettifyImage
-        file={uploadedFile}
-        dimensions={dimensions}
-        transparentThreshold={transparentThreshold}
-        palette={selectedPalette!}
-      />
+      <div className="flex-1 space-y-6">
+        <ImageUpload onFileSelect={handleFileSelect} />
+        <ImageDimensions
+          file={uploadedFile}
+          onChange={handleDimensionsChange}
+        />
+        <ImageTransparency
+          file={uploadedFile}
+          transThreshold={handleThresholdChange}
+        />
+        <PaletteManager onPaletteSelect={handlePaletteSelect} />
+        <PalettifyImage
+          file={uploadedFile}
+          dimensions={dimensions}
+          transparentThreshold={transparentThreshold}
+          palette={selectedPalette!}
+        />
+      </div>
+      <Footer />
     </div>
   );
 }

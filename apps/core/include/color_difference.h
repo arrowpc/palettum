@@ -161,7 +161,7 @@ inline std::vector<float> deltaE(const Lab &reference,
         case Formula::EUCLIDEAN:
             return CIEDE2000::calculate_vectorized(reference, colors, arch);
         case Formula::CIE76:
-            return CIEDE2000::calculate_vectorized(reference, colors, arch);
+            return CIE76::calculate_vectorized(reference, colors, arch);
         case Formula::CIE94:
             return CIE94::calculate_vectorized(reference, colors, arch);
         case Formula::CIEDE2000:

@@ -26,7 +26,6 @@ PYBIND11_MODULE(palettum, m)
     m.def("validate", &palettum::validate, py::arg("image"), py::arg("config"));
 
     py::enum_<Formula>(m, "Formula")
-        .value("EUCLIDEAN", Formula::EUCLIDEAN)
         .value("CIE76", Formula::CIE76)
         .value("CIE94", Formula::CIE94)
         .value("CIEDE2000", Formula::CIEDE2000)

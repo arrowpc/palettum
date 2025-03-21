@@ -2,6 +2,7 @@
 
 #include <simde/arm/neon.h>
 #include <simde/x86/avx2.h>
+#include <simde/x86/fma.h>
 #include <vector>
 #include "color/lab.h"
 #include "simd_math.h"
@@ -16,7 +17,7 @@ constexpr Architecture DEFAULT_ARCH = Architecture::AVX2;
 constexpr Architecture DEFAULT_ARCH = Architecture::SCALAR;
 #endif
 
-enum class Formula { EUCLIDEAN, CIE76, CIE94, CIEDE2000 };
+enum class Formula { CIE76, CIE94, CIEDE2000 };
 constexpr Formula DEFAULT_FORMULA = Formula::CIEDE2000;
 
 constexpr int get_lane_width(Architecture arch)
@@ -38,7 +39,6 @@ constexpr int get_lane_width(Architecture arch)
 }
 
 // Forward declarations for formula structs
-struct EUCLIDEAN;
 struct CIE76;
 struct CIE94;
 struct CIEDE2000;
@@ -111,14 +111,6 @@ struct BaseFormula {
     }
 };
 
-struct EUCLIDEAN : BaseFormula<EUCLIDEAN> {
-    static float calculate(const Lab &color1, const Lab &color2);
-    static void calculate_neon(const Lab &reference, const Lab *colors,
-                               float *results);
-    static void calculate_avx2(const Lab &reference, const Lab *colors,
-                               float *results);
-};
-
 struct CIE76 : BaseFormula<CIE76> {
     static float calculate(const Lab &color1, const Lab &color2);
     static void calculate_neon(const Lab &reference, const Lab *colors,
@@ -157,12 +149,10 @@ inline std::vector<float> deltaE(const Lab &reference,
 {
     switch (formula)
     {
-        case Formula::EUCLIDEAN:
-            return CIEDE2000::calculate_vectorized(reference, colors, arch);
         case Formula::CIE76:
-            return CIEDE2000::calculate_vectorized(reference, colors, arch);
+            return CIE76::calculate_vectorized(reference, colors, arch);
         case Formula::CIE94:
-            return CIEDE2000::calculate_vectorized(reference, colors, arch);
+            return CIE94::calculate_vectorized(reference, colors, arch);
         case Formula::CIEDE2000:
             return CIEDE2000::calculate_vectorized(reference, colors, arch);
         default:
@@ -174,11 +164,6 @@ inline std::vector<float> deltaE(const Lab &reference,
 // Traits to map Formula enum to formula struct
 template <Formula F>
 struct FormulaType;
-
-template <>
-struct FormulaType<Formula::EUCLIDEAN> {
-    using type = EUCLIDEAN;
-};
 
 template <>
 struct FormulaType<Formula::CIE76> {

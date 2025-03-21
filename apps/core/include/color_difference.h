@@ -2,6 +2,7 @@
 
 #include <simde/arm/neon.h>
 #include <simde/x86/avx2.h>
+#include <simde/x86/fma.h>
 #include <vector>
 #include "color/lab.h"
 #include "simd_math.h"
@@ -162,7 +163,7 @@ inline std::vector<float> deltaE(const Lab &reference,
         case Formula::CIE76:
             return CIEDE2000::calculate_vectorized(reference, colors, arch);
         case Formula::CIE94:
-            return CIEDE2000::calculate_vectorized(reference, colors, arch);
+            return CIE94::calculate_vectorized(reference, colors, arch);
         case Formula::CIEDE2000:
             return CIEDE2000::calculate_vectorized(reference, colors, arch);
         default:

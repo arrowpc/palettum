@@ -363,11 +363,14 @@ def palettum(
 
     if output is None:
         base, ext = os.path.splitext(input_file)
-        output = (
-            f"{base}_palettified.jpg"
-            if mapping.lower() == "rbf-i"
-            else f"{base}_palettified.png"
-        )
+        if is_gif_file:
+            output = f"{base}_palettified.gif"
+        else:
+            output = (
+                f"{base}_palettified.jpg"
+                if mapping.lower() == "rbf-i"
+                else f"{base}_palettified.png"
+            )
 
     if not silent:
         console.print("\n[bold]Processing...[/bold]")
@@ -377,9 +380,7 @@ def palettum(
             start_time = time.perf_counter()
             try:
                 if is_gif_file:
-                    with open(input_file, "rb") as f:
-                        gif_data = f.read()
-                    gif = GIF(gif_data)
+                    gif = GIF(input_file)
                     original_width, original_height = gif.width(), gif.height()
                     if resize_requested:
                         target_width, target_height = calculate_dimensions(
@@ -428,9 +429,7 @@ def palettum(
         start_time = time.perf_counter()
         try:
             if is_gif_file:
-                with open(input_file, "rb") as f:
-                    gif_data = f.read()
-                gif = GIF(gif_data)
+                gif = GIF(input_file)
                 original_width, original_height = gif.width(), gif.height()
                 if resize_requested:
                     target_width, target_height = calculate_dimensions(

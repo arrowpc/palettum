@@ -1,29 +1,49 @@
+import importlib.resources as resources
+import json
 import os
+import sys
 import time
 from typing import List, Optional, Tuple
 
 import rich_click as click
-from palettum import (GIF, RGB, Architecture, Config, Formula, Image, Mapping,
-                      palettify)
 from rich.console import Console
 from rich.status import Status
 from rich.table import Table
 
+from palettum import GIF, RGB, Architecture, Config, Formula, Image, Mapping, palettify
+
 console = Console()
 
+PACKAGE_NAME = "palettum"
+DEFAULT_PALETTES_DIR = "palettes"
 
-def parse_palette_file(palette_path: str) -> List[Tuple[int, int, int]]:
-    """Parse a palette file with RGB values (one per line as 'R,G,B')"""
-    palette = []
+
+def parse_palette_json(palette_path: str) -> Tuple[List[RGB], str]:
+    """Parse a JSON palette file and return the list of RGB colors and palette name."""
     with open(palette_path, "r") as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                r, g, b = map(int, line.split(","))
-                if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
-                    raise ValueError(f"Invalid RGB value: {line}")
-                palette.append((r, g, b))
-    return palette
+        data = json.load(f)
+
+    if "name" not in data:
+        raise ValueError("JSON must contain a 'name' key")
+    if "colors" not in data:
+        raise ValueError("JSON must contain a 'colors' key")
+
+    name = data["name"]
+    colors = data["colors"]
+
+    if not isinstance(colors, list):
+        raise ValueError("'colors' must be a list")
+
+    palette = []
+    for color in colors:
+        if not isinstance(color, dict) or not all(k in color for k in ("r", "g", "b")):
+            raise ValueError("Each color must be a dictionary with 'r', 'g', 'b' keys")
+        r, g, b = color["r"], color["g"], color["b"]
+        if not all(isinstance(val, int) and 0 <= val <= 255 for val in (r, g, b)):
+            raise ValueError("RGB values must be integers between 0 and 255")
+        palette.append(RGB(r, g, b))
+
+    return palette, name
 
 
 def parse_scale(scale_str: str) -> float:
@@ -90,8 +110,65 @@ def format_size(size: float) -> str:
         return f"{size / (1024 * 1024):.2f} MB"
 
 
+def list_default_palettes() -> None:
+    """List and print all default palettes"""
+    with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
+        palette_files = [
+            fname for fname in os.listdir(dir_path) if fname.endswith(".json")
+        ]
+
+        if not palette_files:
+            console.print("[bold red]No default palettes found.[/bold red]")
+            sys.exit(1)
+
+        table = Table(title="Default Palettes")
+        table.add_column("ID", style="cyan", no_wrap=True)
+        table.add_column("Name", style="green")
+        table.add_column("Source", style="yellow")
+        for fname in palette_files:
+            palette_path = os.path.join(dir_path, fname)
+            try:
+                with open(palette_path, "r") as f:
+                    data = json.load(f)
+                    palette_id = data.get("id", fname.rstrip(".json"))
+                    palette_name = data.get("name", "Unknown")
+                    palette_source = data.get("source", "Unknown")
+                table.add_row(
+                    palette_id,
+                    palette_name,
+                    f"[link={palette_source}]{palette_source}[/link]",
+                )
+            except Exception as e:
+                table.add_row(fname.rstrip(".json"), f"Error reading file: {e}")
+        console.print(table)
+    sys.exit(0)
+
+
+def find_palette_by_id(palette_id: str) -> str:
+    """Search for a default palette JSON file by matching its 'id' field.
+    Returns the path to the palette if found; otherwise, raises ValueError."""
+    with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
+        for fname in os.listdir(dir_path):
+            if not fname.endswith(".json"):
+                continue
+            palette_path = os.path.join(dir_path, fname)
+            try:
+                with open(palette_path, "r") as f:
+                    data = json.load(f)
+                    if data.get("id", "").lower() == palette_id.lower():
+                        return palette_path
+            except Exception:
+                continue
+        raise ValueError(
+            f"[bold red]Palette '{palette_id}' not found in default palettes.[/bold red]\n"
+            f"Try running [bold green]palettum --list-palettes[/bold green] to see the available default palettes."
+        )
+
+
 @click.command()
-@click.argument("input_file", type=click.Path(exists=True, readable=True))
+@click.argument(
+    "input_file", type=click.Path(exists=True, readable=True), required=False
+)
 @click.option(
     "-o",
     "--output",
@@ -102,9 +179,7 @@ def format_size(size: float) -> str:
 @click.option(
     "-p",
     "--palette",
-    type=click.Path(exists=True, readable=True),
-    required=True,
-    help="Palette file with RGB colors, one per line as 'R,G,B'",
+    help="Palette ID or path to a JSON palette file",
 )
 @click.option(
     "-m",
@@ -174,10 +249,16 @@ def format_size(size: float) -> str:
     is_flag=True,
     help="Run in silent mode (no terminal output)",
 )
+@click.option(
+    "--list-palettes",
+    is_flag=True,
+    default=False,
+    help="List all default palettes and exit",
+)
 def palettum(
-    input_file: str,
+    input_file: Optional[str],
     output: str,
-    palette: str,
+    palette: Optional[str],
     mapping: str,
     quantization: int,
     alpha_threshold: int,
@@ -188,28 +269,47 @@ def palettum(
     height: Optional[int],
     scale: Optional[str],
     silent: bool,
+    list_palettes: bool,
 ):
     """
     Palettum: Map an image or GIF's colors to a custom RGB palette.
+
+    If --list-palettes is provided, the list of default palettes is printed and
+    the program exits.
     """
+    if list_palettes:
+        list_default_palettes()
+
+    if input_file is None:
+        raise click.UsageError("Missing argument 'INPUT_FILE'. See --help.")
+
     if silent:
         console.quiet = True
 
     is_gif_file = input_file.lower().endswith(".gif")
     file_type = "GIF" if is_gif_file else "Image"
     input_size = os.path.getsize(input_file)
-    if not silent:
-        console.print(f"[bold]Input:[/bold] {input_file}")
-        console.print(f"[bold]Size:[/bold] {format_size(input_size)}")
+
+    if palette and os.path.isfile(palette):
+        palette_path = palette
+    elif palette:
+        try:
+            palette_path = find_palette_by_id(palette)
+        except ValueError as e:
+            console.print(f"[bold red]Error:[/bold red] {e}")
+            sys.exit(1)
+    else:
+        console.print(
+            "[bold red]Error:[/bold red] Palette must be specified (via -p/--palette)."
+        )
+        sys.exit(1)
 
     try:
-        rgb_palette = parse_palette_file(palette)
+        rgb_palette, palette_name = parse_palette_json(palette_path)
     except Exception as e:
         if not silent:
-            console.print(
-                f"[bold red]Error:[/bold red] Failed to parse palette file: {e}"
-            )
-        raise click.Abort()
+            console.print(f"[bold red]Error:[/bold red] Failed to parse palette: {e}")
+        sys.exit(1)
 
     resize_requested = any(param is not None for param in [width, height, scale])
 
@@ -217,7 +317,7 @@ def palettum(
         details_table = Table(show_header=False, expand=False)
         details_table.add_column("Parameter", style="cyan")
         details_table.add_column("Value", style="green")
-        details_table.add_row("Palette", f"{palette} ({len(rgb_palette)} colors)")
+        details_table.add_row("Palette", f"{palette_name} ({len(rgb_palette)} colors)")
         details_table.add_row("Mapping", mapping)
         if mapping.lower() in ["rbf-i", "rbf-p"]:
             details_table.add_row("Sigma", str(sigma))
@@ -253,7 +353,7 @@ def palettum(
     }
 
     config = Config()
-    config.palette = [RGB(r, g, b) for r, g, b in rgb_palette]
+    config.palette = rgb_palette
     config.mapping = mapping_dict[mapping.lower()]
     config.quantLevel = quantization
     config.transparencyThreshold = alpha_threshold
@@ -321,7 +421,7 @@ def palettum(
                 result.write(output)
             except Exception as e:
                 console.print(f"[bold red]Error:[/bold red] Processing failed: {e}")
-                raise click.Abort()
+                sys.exit(1)
             end_time = time.perf_counter()
             processing_time = end_time - start_time
     else:
@@ -349,7 +449,7 @@ def palettum(
                 result = palettify(img, config)
             result.write(output)
         except Exception as e:
-            raise click.Abort()
+            sys.exit(1)
         end_time = time.perf_counter()
         processing_time = end_time - start_time
 

@@ -156,6 +156,7 @@ class CMakeBuild(build_ext):
 
 # The information here can also be placed in setup.cfg - better separation of
 # logic and declaration, and simpler if you include description/version in a file.
+
 setup(
     name="palettum",
     version="0.3.7",
@@ -165,13 +166,16 @@ setup(
     long_description_content_type="text/x-rst",
     url="https://github.com/ArrowPC/palettum/",
     license="GNU Affero General Public License v3.0",
-    py_modules=["cli"],
-    package_dir={"": "src"},
-    ext_modules=[CMakeExtension("palettum")],
+    packages=["palettum"],
+    package_dir={"palettum": "src/palettum"},
+    package_data={
+        "palettum": ["palettes/*.json"],
+    },
+    ext_modules=[CMakeExtension("palettum.palettum")],
     cmdclass={"build_ext": CMakeBuild},
     entry_points={
         "console_scripts": [
-            "palettum=cli:main",
+            "palettum=palettum.cli:main",
         ],
     },
     install_requires=["rich-click>=1.7.0"],

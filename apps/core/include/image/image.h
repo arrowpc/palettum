@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <vector>
 #include "color/rgb.h"
+#include "config.h"
 
 class Image
 {
@@ -41,6 +42,15 @@ public:
     bool operator==(const Image &other) const;
     bool operator!=(const Image &other) const;
 
+    void setMapping(Mapping type)
+    {
+        m_mapping = type;
+    }
+    Mapping getMapping() const
+    {
+        return m_mapping;
+    }
+
     void setPalette(const std::vector<RGB> &palette);
     bool hasPalette() const
     {
@@ -61,4 +71,5 @@ private:
 
     std::vector<RGB> m_palette;
     bool m_hasPalette = false;
+    Mapping m_mapping = Mapping::UNTOUCHED;
 };

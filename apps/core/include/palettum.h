@@ -4,20 +4,9 @@
 #include <unordered_map>
 #include <vector>
 #include "color_difference.h"
+#include "config.h"
 #include "image/gif.h"
 #include "image/image.h"
-
-enum class MappingMethod { CLOSEST, RBF_PALETTIZED, RBF_INTERPOLATED };
-
-struct Config {
-    std::vector<RGB> palette = {{255, 0, 0}, {0, 255, 0}, {0, 0, 255}};
-    size_t transparencyThreshold = 0;
-    Formula formula = DEFAULT_FORMULA;
-    Architecture architecture = DEFAULT_ARCH;
-    uint8_t quantLevel = 2;  // (0 to disable)
-    MappingMethod mappingMethod = MappingMethod::CLOSEST;
-    double sigma = 50.0;
-};
 
 namespace palettum {
 Image palettify(Image &image, Config &config);

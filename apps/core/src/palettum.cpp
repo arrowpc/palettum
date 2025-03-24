@@ -55,20 +55,20 @@ RGB findClosestPaletteColor(const Lab &lab, const std::vector<Lab> &labPalette,
 RGB computeMappedColor(const RGB &target, const Config &config,
                        const std::vector<Lab> &labPalette)
 {
-    if (config.mappingMethod == MappingMethod::CLOSEST)
+    if (config.mapping == Mapping::CIEDE_PALETTIZED)
     {
         Lab lab = target.toLab();
         return findClosestPaletteColor(lab, labPalette, config);
     }
-    else if (config.mappingMethod == MappingMethod::RBF_PALETTIZED)
+    else if (config.mapping == Mapping::RBF_PALETTIZED)
     {
         RGB interpolated =
             rbfInterpolation(target, config.palette, config.sigma);
         Lab lab = interpolated.toLab();
         return findClosestPaletteColor(lab, labPalette, config);
     }
-    else
-    {  // RBF_INTERPOLATED
+    else if (config.mapping == Mapping::RBF_INTERPOLATED)
+    {
         return rbfInterpolation(target, config.palette, config.sigma);
     }
 }
@@ -163,8 +163,10 @@ Image palettify(Image &image, Config &config)
     const size_t width = image.width();
     const size_t height = image.height();
     Image result(width, height, image.hasAlpha());
+    result.setMapping(config.mapping);
 
-    if (config.mappingMethod != MappingMethod::RBF_INTERPOLATED)
+    if (config.mapping == Mapping::RBF_PALETTIZED ||
+        config.mapping == Mapping::CIEDE_PALETTIZED)
     {
         result.setPalette(config.palette);
     }
@@ -192,7 +194,8 @@ Image palettify(Image &image, Config &config)
 
 GIF palettify(GIF &gif, Config &config)
 {
-    if (config.mappingMethod == MappingMethod::RBF_INTERPOLATED)
+    if (config.mapping == Mapping::UNTOUCHED ||
+        config.mapping == Mapping::RBF_INTERPOLATED)
     {
         throw std::runtime_error(
             "GIFs are inherently palettized, can't use interpolation.");
@@ -233,7 +236,7 @@ GIF palettify(GIF &gif, Config &config)
 
 bool validate(Image &image, Config &config)
 {
-    if (config.mappingMethod == MappingMethod::RBF_INTERPOLATED)
+    if (config.mapping == Mapping::RBF_INTERPOLATED)
     {
         return true;  // Skip validation as output is not palettized
     }

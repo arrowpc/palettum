@@ -106,11 +106,11 @@ std::vector<unsigned char> Image::write() const
 {
     std::vector<uint8_t> result;
 
-    return result;
-
     if (m_hasPalette && (m_mapping == Mapping::CIEDE_PALETTIZED ||
                          m_mapping == Mapping::RBF_PALETTIZED))
-        writeIndexedToMemory();
+    {
+        return writeIndexedToMemory();
+    }
     else if (m_mapping == Mapping::UNTOUCHED)
     {
         bool written = fpng::fpng_encode_image_to_memory(

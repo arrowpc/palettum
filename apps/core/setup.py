@@ -165,8 +165,16 @@ setup(
     long_description_content_type="text/x-rst",
     url="https://github.com/ArrowPC/palettum/",
     license="GNU Affero General Public License v3.0",
+    py_modules=["cli"],
+    package_dir={"": "src"},
     ext_modules=[CMakeExtension("palettum")],
     cmdclass={"build_ext": CMakeBuild},
+    entry_points={
+        "console_scripts": [
+            "palettum=cli:main",
+        ],
+    },
+    install_requires=["rich-click>=1.7.0"],
     zip_safe=False,
     extras_require={"test": ["pytest>=6.0"]},
     python_requires=">=3.8",

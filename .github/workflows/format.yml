@@ -5,16 +5,16 @@ on:
 
   push:
     paths:
-      - '.github/workflows/format.yml'
-      - '**.cpp'
-      - '**.h'
-      - '**.py'
+      - ".github/workflows/format.yml"
+      - "**.cpp"
+      - "**.h"
+      - "**.py"
   pull_request:
     paths:
-      - '.github/workflows/format.yml'
-      - '**.cpp'
-      - '**.h'
-      - '**.py'
+      - ".github/workflows/format.yml"
+      - "**.cpp"
+      - "**.h"
+      - "**.py"
 
 jobs:
   python-lint:
@@ -33,5 +33,4 @@ jobs:
       - name: Check C++ formatting with clang-format
         uses: jidicula/clang-format-action@v4.13.0
         with:
-          clang-format-version: '15'
-          exclude-regex: '.*stb.*'
+          clang-format-version: "15"

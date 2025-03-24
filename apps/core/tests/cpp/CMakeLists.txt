@@ -12,6 +12,8 @@ target_link_libraries(palettum_tests PUBLIC
   OpenMP::OpenMP_CXX 
   GIF::GIF
   mtpng_lib
+  $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>
+  $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
 )
 
 target_include_directories(palettum_tests PRIVATE
@@ -19,9 +21,7 @@ target_include_directories(palettum_tests PRIVATE
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/external/mtpng/c
-  ${CMAKE_SOURCE_DIR}/external/fpng
   ${OpenMP_CXX_INCLUDE_DIR}
-  ${Stb_INCLUDE_DIR}
 )
 
 if(WIN32)

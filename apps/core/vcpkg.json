@@ -1,6 +1,6 @@
 {
   "name": "palettum",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "builtin-baseline": "b545373a9a536dc559dac8583467a21497a0e897",
   "dependencies": [
     "giflib",

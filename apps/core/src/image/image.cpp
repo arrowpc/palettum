@@ -1,26 +1,76 @@
 #include "image/image.h"
-#include <stdexcept>
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
 
 Image::Image(const unsigned char *buffer, int length)
 {
-    fpng::fpng_init();
-    int width, height, channels;
-    uint8_t *data =
-        stbi_load_from_memory(buffer, length, &width, &height, &channels, 0);
-    if (!data)
+    // Try PNG
+    spng_ctx *ctx = spng_ctx_new(0);
+    if (ctx && spng_set_png_buffer(ctx, buffer, length) == 0)
+    {
+        struct spng_ihdr ihdr;
+        if (spng_get_ihdr(ctx, &ihdr) == 0)
+        {
+            bool has_alpha =
+                (ihdr.color_type == SPNG_COLOR_TYPE_TRUECOLOR_ALPHA ||
+                 ihdr.color_type == SPNG_COLOR_TYPE_GRAYSCALE_ALPHA);
+            if (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED)
+            {
+                struct spng_trns trns;
+                has_alpha = (spng_get_trns(ctx, &trns) == 0);
+            }
+            int fmt = has_alpha ? SPNG_FMT_RGBA8 : SPNG_FMT_RGB8;
+            m_channels = has_alpha ? 4 : 3;
+
+            size_t image_size;
+            if (spng_decoded_image_size(ctx, fmt, &image_size) == 0)
+            {
+                m_data.resize(image_size);
+                if (spng_decode_image(ctx, m_data.data(), image_size, fmt, 0) ==
+                    0)
+                {
+                    m_width = ihdr.width;
+                    m_height = ihdr.height;
+                    spng_ctx_free(ctx);
+                    return;  // Success
+                }
+            }
+        }
+    }
+    spng_ctx_free(ctx);  // Clean up if PNG failed
+
+    // Try JPEG
+    tjhandle tjInstance = tjInitDecompress();
+    if (!tjInstance)
     {
         throw std::runtime_error(
-            std::string("Failed to load image from memory: ") +
-            stbi_failure_reason());
+            "Failed to initialize libjpeg-turbo decompressor");
     }
-    m_width = width;
-    m_height = height;
-    m_channels = channels;
-    m_data.assign(data, data + (width * height * channels));
-    stbi_image_free(data);
+
+    int width, height, subsamp, colorspace;
+    if (tjDecompressHeader3(tjInstance, buffer, length, &width, &height,
+                            &subsamp, &colorspace) == 0)
+    {
+        m_width = width;
+        m_height = height;
+        m_channels =
+            3;  // JPEG typically decodes to RGB; we'll use TJFLAG_FASTDCT for speed
+        m_data.resize(m_width * m_height * m_channels);
+
+        if (tjDecompress2(tjInstance, buffer, length, m_data.data(), m_width,
+                          0 /* pitch */, m_height, TJPF_RGB,
+                          TJFLAG_FASTDCT) != 0)
+        {
+            tjDestroy(tjInstance);
+            throw std::runtime_error(
+                std::string("Failed to decompress JPEG: ") +
+                tjGetErrorStr2(tjInstance));
+        }
+        tjDestroy(tjInstance);
+        return;  // Success
+    }
+
+    tjDestroy(tjInstance);
+    throw std::runtime_error(
+        "Failed to load image from memory: not a valid PNG or JPEG");
 }
 
 Image::Image(const std::string &filename)
@@ -30,15 +80,127 @@ Image::Image(const std::string &filename)
 
 Image::Image(const char *filename)
 {
-    unsigned char *data =
-        stbi_load(filename, &m_width, &m_height, &m_channels, 0);
-    if (!data)
+    std::string fname(filename);
+    std::transform(fname.begin(), fname.end(), fname.begin(), ::tolower);
+
+    if (fname.ends_with(".png"))
     {
-        throw std::runtime_error("Failed to load image: " +
+        FILE *png_file = fopen(filename, "rb");
+        if (!png_file)
+        {
+            throw std::runtime_error("Failed to open PNG file: " +
+                                     std::string(filename));
+        }
+
+        spng_ctx *ctx = spng_ctx_new(0);
+        if (!ctx || spng_set_png_file(ctx, png_file) != 0)
+        {
+            if (ctx)
+                spng_ctx_free(ctx);
+            fclose(png_file);
+            throw std::runtime_error("Failed to set up libspng context");
+        }
+
+        struct spng_ihdr ihdr;
+        if (spng_get_ihdr(ctx, &ihdr) != 0)
+        {
+            spng_ctx_free(ctx);
+            fclose(png_file);
+            throw std::runtime_error("Failed to get PNG IHDR");
+        }
+
+        bool has_alpha = (ihdr.color_type == SPNG_COLOR_TYPE_TRUECOLOR_ALPHA ||
+                          ihdr.color_type == SPNG_COLOR_TYPE_GRAYSCALE_ALPHA);
+        if (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED)
+        {
+            struct spng_trns trns;
+            has_alpha = (spng_get_trns(ctx, &trns) == 0);
+        }
+        int fmt = has_alpha ? SPNG_FMT_RGBA8 : SPNG_FMT_RGB8;
+        m_channels = has_alpha ? 4 : 3;
+
+        size_t image_size;
+        if (spng_decoded_image_size(ctx, fmt, &image_size) != 0)
+        {
+            spng_ctx_free(ctx);
+            fclose(png_file);
+            throw std::runtime_error("Failed to calculate decoded PNG size");
+        }
+
+        m_data.resize(image_size);
+        if (spng_decode_image(ctx, m_data.data(), image_size, fmt, 0) != 0)
+        {
+            spng_ctx_free(ctx);
+            fclose(png_file);
+            throw std::runtime_error("Failed to decode PNG");
+        }
+
+        m_width = ihdr.width;
+        m_height = ihdr.height;
+        spng_ctx_free(ctx);
+        fclose(png_file);
+    }
+    else if (fname.ends_with(".jpg") || fname.ends_with(".jpeg"))
+    {
+        tjhandle tjInstance = tjInitDecompress();
+        if (!tjInstance)
+        {
+            throw std::runtime_error(
+                "Failed to initialize libjpeg-turbo decompressor");
+        }
+
+        FILE *jpg_file = fopen(filename, "rb");
+        if (!jpg_file)
+        {
+            tjDestroy(tjInstance);
+            throw std::runtime_error("Failed to open JPEG file: " +
+                                     std::string(filename));
+        }
+
+        fseek(jpg_file, 0, SEEK_END);
+        unsigned long size = ftell(jpg_file);
+        fseek(jpg_file, 0, SEEK_SET);
+        std::vector<unsigned char> buffer(size);
+        if (fread(buffer.data(), 1, size, jpg_file) != size)
+        {
+            fclose(jpg_file);
+            tjDestroy(tjInstance);
+            throw std::runtime_error("Failed to read JPEG file");
+        }
+        fclose(jpg_file);
+
+        int width, height, subsamp, colorspace;
+        if (tjDecompressHeader3(tjInstance, buffer.data(), size, &width,
+                                &height, &subsamp, &colorspace) != 0)
+        {
+            tjDestroy(tjInstance);
+            throw std::runtime_error(
+                std::string("Failed to parse JPEG header: ") +
+                tjGetErrorStr2(tjInstance));
+        }
+
+        m_width = width;
+        m_height = height;
+        m_channels = 3;  // RGB output
+        m_data.resize(m_width * m_height * m_channels);
+
+        if (tjDecompress2(tjInstance, buffer.data(), size, m_data.data(),
+                          m_width, 0 /* pitch */, m_height, TJPF_RGB,
+                          TJFLAG_FASTDCT) != 0)
+        {
+            tjDestroy(tjInstance);
+            throw std::runtime_error(
+                std::string("Failed to decompress JPEG: ") +
+                tjGetErrorStr2(tjInstance));
+        }
+
+        tjDestroy(tjInstance);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported file format: " +
                                  std::string(filename));
     }
-    m_data.assign(data, data + size());
-    stbi_image_free(data);
 }
 
 Image::Image(int width, int height)
@@ -46,7 +208,6 @@ Image::Image(int width, int height)
     , m_height(height)
     , m_data(size())
 {
-    fpng::fpng_init();
 }
 
 Image::Image(int width, int height, bool withAlpha)
@@ -55,7 +216,6 @@ Image::Image(int width, int height, bool withAlpha)
     , m_channels(withAlpha ? 4 : 3)
     , m_data(width * height * (withAlpha ? 4 : 3))
 {
-    fpng::fpng_init();
 }
 
 int Image::operator-(const Image &other) const
@@ -108,31 +268,39 @@ std::vector<unsigned char> Image::write() const
 
     if (m_hasPalette && (m_mapping == Mapping::CIEDE_PALETTIZED ||
                          m_mapping == Mapping::RBF_PALETTIZED))
-    {
         return writeIndexedToMemory();
-    }
-    else if (m_mapping == Mapping::UNTOUCHED)
-    {
-        bool written = fpng::fpng_encode_image_to_memory(
-            m_data.data(), m_width, m_height, m_channels, result);
+    else
+    {  // write as JPEG as fallback for UNTOUCHED, intended for INTERPOLATED
+        if (m_mapping == Mapping::UNTOUCHED)
+            std::cout << "Nothing done with file, writing as JPEG as fallback"
+                      << std::endl;
 
-        if (!written)
+        tjhandle tjInstance = tjInitCompress();
+        if (!tjInstance)
         {
             throw std::runtime_error(
-                std::string("Failed to write image to memory using fpng"));
+                "Failed to initialize libjpeg-turbo compressor");
         }
-    }
-    else if (m_mapping == Mapping::RBF_INTERPOLATED)
-    {
-        //TODO: Use JPEG for smaller file sizes as pixel accuracy isn't required
-        bool written = fpng::fpng_encode_image_to_memory(
-            m_data.data(), m_width, m_height, m_channels, result);
 
-        if (!written)
+        unsigned char *jpegBuf = nullptr;
+        unsigned long jpegSize = 0;
+        int quality = 75;
+        int subsamp = TJSAMP_420;
+        int pixel_format = (m_channels == 4) ? TJPF_RGBA : TJPF_RGB;
+
+        if (tjCompress2(tjInstance, m_data.data(), m_width, 0 /* pitch */,
+                        m_height, pixel_format, &jpegBuf, &jpegSize, subsamp,
+                        quality, TJFLAG_FASTDCT) != 0)
         {
-            throw std::runtime_error(
-                std::string("Failed to write image to memory using fpng"));
+            tjFree(jpegBuf);
+            tjDestroy(tjInstance);
+            throw std::runtime_error(std::string("Failed to compress JPEG: ") +
+                                     tjGetErrorStr2(tjInstance));
         }
+
+        result.assign(jpegBuf, jpegBuf + jpegSize);
+        tjFree(jpegBuf);
+        tjDestroy(tjInstance);
     }
     return result;
 }
@@ -314,30 +482,56 @@ bool Image::write(const char *filename) const
     if (m_hasPalette && (m_mapping == Mapping::CIEDE_PALETTIZED ||
                          m_mapping == Mapping::RBF_PALETTIZED))
         writeIndexed(filename);
-    else if (m_mapping == Mapping::UNTOUCHED)
-    {
-        bool written = fpng::fpng_encode_image_to_file(
-            filename, m_data.data(), m_width, m_height, m_channels);
+    else
+    {  // write as JPEG as fallback for UNTOUCHED, intended for INTERPOLATED
+        if (m_mapping == Mapping::UNTOUCHED)
+            std::cout << "Nothing done with file, writing as JPEG as fallback"
+                      << std::endl;
 
-        if (!written)
+        tjhandle tjInstance = tjInitCompress();
+        if (!tjInstance)
         {
             throw std::runtime_error(
-                std::string("Failed to write image using fpng"));
+                "Failed to initialize libjpeg-turbo compressor");
         }
-        return written;
-    }
-    else if (m_mapping == Mapping::RBF_INTERPOLATED)
-    {
-        //TODO: Use JPEG for smaller file sizes as pixel accuracy isn't required
-        bool written = fpng::fpng_encode_image_to_file(
-            filename, m_data.data(), m_width, m_height, m_channels);
 
-        if (!written)
+        FILE *fp = fopen(filename, "wb");
+        if (!fp)
         {
-            throw std::runtime_error(
-                std::string("Failed to write image using fpng"));
+            tjDestroy(tjInstance);
+            throw std::runtime_error("Failed to open file for writing: " +
+                                     std::string(filename));
         }
-        return written;
+
+        unsigned char *jpegBuf = nullptr;
+        unsigned long jpegSize = 0;
+        int quality = 75;
+        int subsamp = TJSAMP_420;
+        int pixel_format = (m_channels == 4) ? TJPF_RGBA : TJPF_RGB;
+
+        if (tjCompress2(tjInstance, m_data.data(), m_width, 0 /* pitch */,
+                        m_height, pixel_format, &jpegBuf, &jpegSize, subsamp,
+                        quality, TJFLAG_FASTDCT) != 0)
+        {
+            tjFree(jpegBuf);
+            tjDestroy(tjInstance);
+            fclose(fp);
+            throw std::runtime_error(std::string("Failed to compress JPEG: ") +
+                                     tjGetErrorStr2(tjInstance));
+        }
+
+        if (fwrite(jpegBuf, 1, jpegSize, fp) != jpegSize)
+        {
+            tjFree(jpegBuf);
+            tjDestroy(tjInstance);
+            fclose(fp);
+            throw std::runtime_error("Failed to write JPEG to file");
+        }
+
+        tjFree(jpegBuf);
+        tjDestroy(tjInstance);
+        fclose(fp);
+        return true;
     }
     return false;
 }

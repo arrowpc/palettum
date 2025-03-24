@@ -5,8 +5,9 @@
   "dependencies": [
     "giflib",
     "gtest",
+    "libjpeg-turbo",
     "libspng",
     "simde",
-    "libjpeg-turbo"
+    "libwebp"
   ]
 }

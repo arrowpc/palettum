@@ -60,17 +60,36 @@ Image::Image(const unsigned char *buffer, int length)
                           TJFLAG_FASTDCT) != 0)
         {
             tjDestroy(tjInstance);
-            throw std::runtime_error(
-                std::string("Failed to decompress JPEG: ") +
-                tjGetErrorStr2(tjInstance));
+            return;  // Success
         }
-        tjDestroy(tjInstance);
-        return;  // Success
+    }
+    tjDestroy(tjInstance);
+
+    // Try WebP
+    WebPBitstreamFeatures features;
+    VP8StatusCode status = WebPGetFeatures(buffer, length, &features);
+    if (status == VP8_STATUS_OK)
+    {
+        m_width = features.width;
+        m_height = features.height;
+        m_channels = features.has_alpha ? 4 : 3;
+
+        m_data.resize(m_width * m_height * m_channels);
+        uint8_t *output =
+            m_channels == 4
+                ? WebPDecodeRGBA(buffer, length, &m_width, &m_height)
+                : WebPDecodeRGB(buffer, length, &m_width, &m_height);
+
+        if (output)
+        {
+            std::memcpy(m_data.data(), output, m_width * m_height * m_channels);
+            WebPFree(output);  // Free the buffer allocated by WebPDecode*
+            return;            // Success
+        }
     }
 
-    tjDestroy(tjInstance);
     throw std::runtime_error(
-        "Failed to load image from memory: not a valid PNG or JPEG");
+        "Failed to load image from memory: not a valid PNG, JPEG, or WebP");
 }
 
 Image::Image(const std::string &filename)
@@ -195,6 +214,51 @@ Image::Image(const char *filename)
         }
 
         tjDestroy(tjInstance);
+    }
+    else if (fname.ends_with(".webp"))
+    {
+        FILE *webp_file = fopen(filename, "rb");
+        if (!webp_file)
+        {
+            throw std::runtime_error("Failed to open WebP file: " +
+                                     std::string(filename));
+        }
+
+        fseek(webp_file, 0, SEEK_END);
+        size_t size = ftell(webp_file);
+        fseek(webp_file, 0, SEEK_SET);
+        std::vector<unsigned char> buffer(size);
+        if (fread(buffer.data(), 1, size, webp_file) != size)
+        {
+            fclose(webp_file);
+            throw std::runtime_error("Failed to read WebP file");
+        }
+        fclose(webp_file);
+
+        WebPBitstreamFeatures features;
+        VP8StatusCode status = WebPGetFeatures(buffer.data(), size, &features);
+        if (status != VP8_STATUS_OK)
+        {
+            throw std::runtime_error("Failed to parse WebP features");
+        }
+
+        m_width = features.width;
+        m_height = features.height;
+        m_channels = features.has_alpha ? 4 : 3;
+        m_data.resize(m_width * m_height * m_channels);
+
+        uint8_t *output =
+            m_channels == 4
+                ? WebPDecodeRGBA(buffer.data(), size, &m_width, &m_height)
+                : WebPDecodeRGB(buffer.data(), size, &m_width, &m_height);
+
+        if (!output)
+        {
+            throw std::runtime_error("Failed to decode WebP image");
+        }
+
+        std::memcpy(m_data.data(), output, m_width * m_height * m_channels);
+        WebPFree(output);
     }
     else
     {

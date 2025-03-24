@@ -14,6 +14,8 @@ target_link_libraries(palettum_tests PUBLIC
   mtpng_lib
   $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>
   $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
+  WebP::webp
+  WebP::webpdecoder
 )
 
 target_include_directories(palettum_tests PRIVATE

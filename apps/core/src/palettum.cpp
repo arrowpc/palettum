@@ -223,12 +223,40 @@ GIF palettify(GIF &gif, Config &config)
         lookup = generateLookupTable(config, labPalette);
     }
 
+    std::unordered_map<RGB, GifByteType> colorToIndex;
+    for (size_t i = 0; i < config.palette.size(); ++i)
+    {
+        colorToIndex[config.palette[i]] = static_cast<GifByteType>(i);
+    }
+
     for (size_t frameIndex = 0; frameIndex < gif.frameCount(); ++frameIndex)
     {
         const auto &sourceFrame = gif.getFrame(frameIndex);
         auto &targetFrame = result.getFrame(frameIndex);
-        processPixels(sourceFrame.image, targetFrame.image, config, labPalette,
-                      cache, config.quantLevel > 0 ? &lookup : nullptr);
+        const size_t width = sourceFrame.image.width();
+        const size_t height = sourceFrame.image.height();
+
+#pragma omp parallel for collapse(2) schedule(dynamic)
+        for (size_t y = 0; y < height; ++y)
+        {
+            for (size_t x = 0; x < width; ++x)
+            {
+                RGBA currentPixel = sourceFrame.image.get(x, y);
+                if (currentPixel.alpha() < config.transparencyThreshold)
+                {
+                    targetFrame.setPixel(x, y, RGBA(0, 0, 0, 0),
+                                         targetFrame.transparent_index);
+                }
+                else
+                {
+                    RGB closestColor = getClosestColor(
+                        currentPixel, config, labPalette, cache,
+                        config.quantLevel > 0 ? &lookup : nullptr);
+                    GifByteType index = colorToIndex[closestColor];
+                    targetFrame.setPixel(x, y, closestColor, index);
+                }
+            }
+        }
     }
 
     return result;

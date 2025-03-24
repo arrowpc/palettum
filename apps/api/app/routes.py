@@ -9,7 +9,7 @@ from flask import Response, jsonify, request, send_file
 
 from palettum import GIF, RGB, Config, Image, palettify
 
-VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg"}
+VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg", "image/webp"}
 MAX_DIMENSION = 3840
 MAX_THRESHOLD = 255
 

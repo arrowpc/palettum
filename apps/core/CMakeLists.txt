@@ -6,7 +6,7 @@ project(Palettum_Core
         DESCRIPTION "Core library for Palettum"
         LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -110,7 +110,9 @@ endif ()
 
 find_package(GIF REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
-find_package(Stb REQUIRED)
+find_package(SPNG CONFIG REQUIRED)
+find_package(libjpeg-turbo CONFIG REQUIRED)
+find_package(WebP CONFIG REQUIRED)
 
 set(MTPNG_BINARY_DIR "${CMAKE_SOURCE_DIR}/external/mtpng/build")
 
@@ -171,7 +173,6 @@ set(MTPNG_LIBRARY mtpng_lib)
 
 file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 list(REMOVE_ITEM SRC_FILES "${CMAKE_SOURCE_DIR}/src/bindings.cpp")
-list(APPEND SRC_FILES "${CMAKE_SOURCE_DIR}/external/fpng/fpng.cpp")
 add_subdirectory(src)
 
 option(BUILD_TESTS "Build the tests" ON)

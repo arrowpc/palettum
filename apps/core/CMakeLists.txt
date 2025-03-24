@@ -112,6 +112,7 @@ find_package(GIF REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
 find_package(SPNG CONFIG REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
+find_package(WebP CONFIG REQUIRED)
 
 set(MTPNG_BINARY_DIR "${CMAKE_SOURCE_DIR}/external/mtpng/build")
 

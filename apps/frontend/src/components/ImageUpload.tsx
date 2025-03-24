@@ -17,7 +17,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const [isActive, setIsActive] = useState(false);
   const uploadAreaRef = useRef<HTMLDivElement>(null);
 
-  const validTypes = ["image/jpeg", "image/png", "image/gif"];
+  const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
   const validateFile = useCallback(
     (file: File | null) => {

@@ -1,7 +1,9 @@
 #pragma once
 
-#include <fpng.h>
 #include <mtpng.h>
+#include <spng.h>
+#include <turbojpeg.h>
+#include <webp/decode.h>
 #include <cstring>
 #include <memory>
 #include <unordered_map>

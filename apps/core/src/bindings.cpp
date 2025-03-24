@@ -1,6 +1,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+#include "config.h"
 #include "palettum.h"
 
 namespace py = pybind11;
@@ -37,13 +38,21 @@ PYBIND11_MODULE(palettum, m)
         .value("AVX2", Architecture::AVX2)
         .export_values();
 
+    py::enum_<Mapping>(m, "Mapping")
+        .value("CIEDE_PALETTIZED", Mapping::CIEDE_PALETTIZED)
+        .value("RBF_PALETTIZED", Mapping::RBF_PALETTIZED)
+        .value("RBF_INTERPOLATED", Mapping::RBF_INTERPOLATED)
+        .export_values();
+
     py::class_<Config>(m, "Config")
         .def(py::init<>())
         .def_readwrite("palette", &Config::palette)
         .def_readwrite("transparencyThreshold", &Config::transparencyThreshold)
         .def_readwrite("formula", &Config::formula)
         .def_readwrite("architecture", &Config::architecture)
-        .def_readwrite("quantLevel", &Config::quantLevel);
+        .def_readwrite("quantLevel", &Config::quantLevel)
+        .def_readwrite("mapping", &Config::mapping)
+        .def_readwrite("sigma", &Config::sigma);
 
     py::class_<RGB>(m, "RGB")
         .def(py::init<unsigned char, unsigned char, unsigned char>())

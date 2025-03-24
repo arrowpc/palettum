@@ -104,21 +104,36 @@ void Image::setPalette(const std::vector<RGB> &palette)
 
 std::vector<unsigned char> Image::write() const
 {
-    if (m_hasPalette)
-    {
-        return writeIndexedToMemory();
-    }
-
     std::vector<uint8_t> result;
-    bool success = fpng::fpng_encode_image_to_memory(
-        m_data.data(), m_width, m_height, m_channels, result);
 
-    if (!success)
+    return result;
+
+    if (m_hasPalette && (m_mapping == Mapping::CIEDE_PALETTIZED ||
+                         m_mapping == Mapping::RBF_PALETTIZED))
+        writeIndexedToMemory();
+    else if (m_mapping == Mapping::UNTOUCHED)
     {
-        throw std::runtime_error(
-            std::string("Failed to write image to memory using fpng"));
-    }
+        bool written = fpng::fpng_encode_image_to_memory(
+            m_data.data(), m_width, m_height, m_channels, result);
 
+        if (!written)
+        {
+            throw std::runtime_error(
+                std::string("Failed to write image to memory using fpng"));
+        }
+    }
+    else if (m_mapping == Mapping::RBF_INTERPOLATED)
+    {
+        //TODO: Use JPEG for smaller file sizes as pixel accuracy isn't required
+        bool written = fpng::fpng_encode_image_to_memory(
+            m_data.data(), m_width, m_height, m_channels, result);
+
+        if (!written)
+        {
+            throw std::runtime_error(
+                std::string("Failed to write image to memory using fpng"));
+        }
+    }
     return result;
 }
 
@@ -291,40 +306,40 @@ std::vector<unsigned char> Image::writeIndexedToMemory() const
 
 bool Image::write(const std::string &filename) const
 {
-    if (m_hasPalette)
-    {
-        return writeIndexed(filename);
-    }
-
-    bool written = fpng::fpng_encode_image_to_file(
-        filename.c_str(), m_data.data(), m_width, m_height, m_channels);
-
-    if (!written)
-    {
-        throw std::runtime_error(
-            std::string("Failed to write image using fpng"));
-    }
-
-    return written;
+    return write(filename.c_str());
 }
 
 bool Image::write(const char *filename) const
 {
-    if (m_hasPalette)
+    if (m_hasPalette && (m_mapping == Mapping::CIEDE_PALETTIZED ||
+                         m_mapping == Mapping::RBF_PALETTIZED))
+        writeIndexed(filename);
+    else if (m_mapping == Mapping::UNTOUCHED)
     {
-        return writeIndexed(filename);
+        bool written = fpng::fpng_encode_image_to_file(
+            filename, m_data.data(), m_width, m_height, m_channels);
+
+        if (!written)
+        {
+            throw std::runtime_error(
+                std::string("Failed to write image using fpng"));
+        }
+        return written;
     }
-
-    bool written = fpng::fpng_encode_image_to_file(
-        filename, m_data.data(), m_width, m_height, m_channels);
-
-    if (!written)
+    else if (m_mapping == Mapping::RBF_INTERPOLATED)
     {
-        throw std::runtime_error(
-            std::string("Failed to write image using fpng"));
-    }
+        //TODO: Use JPEG for smaller file sizes as pixel accuracy isn't required
+        bool written = fpng::fpng_encode_image_to_file(
+            filename, m_data.data(), m_width, m_height, m_channels);
 
-    return written;
+        if (!written)
+        {
+            throw std::runtime_error(
+                std::string("Failed to write image using fpng"));
+        }
+        return written;
+    }
+    return false;
 }
 
 bool Image::writeIndexed(const std::string &filename) const

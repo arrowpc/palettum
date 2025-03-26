@@ -57,11 +57,12 @@ Image::Image(const unsigned char *buffer, int length)
 
         if (tjDecompress2(tjInstance, buffer, length, m_data.data(), m_width,
                           0 /* pitch */, m_height, TJPF_RGB,
-                          TJFLAG_FASTDCT) != 0)
+                          TJFLAG_FASTDCT) == 0)  // Check for success
         {
             tjDestroy(tjInstance);
             return;  // Success
         }
+        tjDestroy(tjInstance);
     }
     tjDestroy(tjInstance);
 

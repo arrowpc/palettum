@@ -159,7 +159,7 @@ class CMakeBuild(build_ext):
 
 setup(
     name="palettum",
-    version="0.3.8",
+    version="0.3.9",
     author="ArrowPC",
     description="Core functionality for the Palettum project.",
     long_description="Core functionality for the Palettum project.",

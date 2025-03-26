@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import rich_click as click
@@ -16,24 +17,24 @@ console = Console()
 
 PACKAGE_NAME = "palettum"
 DEFAULT_PALETTES_DIR = "palettes"
+CUSTOM_PALETTES_DIR = Path.home() / ".palettum" / "palettes"
+
+
+def ensure_custom_palettes_dir():
+    CUSTOM_PALETTES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def parse_palette_json(palette_path: str) -> Tuple[List[RGB], str]:
-    """Parse a JSON palette file and return the list of RGB colors and palette name."""
     with open(palette_path, "r") as f:
         data = json.load(f)
-
     if "name" not in data:
         raise ValueError("JSON must contain a 'name' key")
     if "colors" not in data:
         raise ValueError("JSON must contain a 'colors' key")
-
     name = data["name"]
     colors = data["colors"]
-
     if not isinstance(colors, list):
         raise ValueError("'colors' must be a list")
-
     palette = []
     for color in colors:
         if not isinstance(color, dict) or not all(k in color for k in ("r", "g", "b")):
@@ -42,12 +43,10 @@ def parse_palette_json(palette_path: str) -> Tuple[List[RGB], str]:
         if not all(isinstance(val, int) and 0 <= val <= 255 for val in (r, g, b)):
             raise ValueError("RGB values must be integers between 0 and 255")
         palette.append(RGB(r, g, b))
-
     return palette, name
 
 
 def parse_scale(scale_str: str) -> float:
-    """Parse scale input as either 'Nx' (e.g., 0.5x) or 'N%' (e.g., 50%)"""
     try:
         if scale_str.endswith("x"):
             return float(scale_str[:-1])
@@ -68,22 +67,18 @@ def calculate_dimensions(
     height: Optional[int] = None,
     scale: Optional[str] = None,
 ) -> Tuple[int, int]:
-    """Calculate new dimensions based on width, height, and scale"""
     original_aspect = original_width / original_height
     target_width, target_height = original_width, original_height
-
     if scale is not None:
         scale_factor = parse_scale(scale)
         target_width = int(original_width * scale_factor)
         target_height = int(original_height * scale_factor)
-
     if width is not None and height is not None:
         return (width, height)
     elif width is not None:
         return (width, int(width / original_aspect))
     elif height is not None:
         return (int(height * original_aspect), height)
-
     return (target_width, target_height)
 
 
@@ -95,13 +90,11 @@ ARCH_TO_STR = {
 
 
 def get_default_architecture() -> str:
-    """Return the default system architecture as a string"""
     config = Config()
     return ARCH_TO_STR.get(config.architecture, "SCALAR")
 
 
 def format_size(size: float) -> str:
-    """Format file size in bytes to a human-readable string"""
     if size < 1024:
         return f"{size:.2f} B"
     elif size < 1024 * 1024:
@@ -110,43 +103,16 @@ def format_size(size: float) -> str:
         return f"{size / (1024 * 1024):.2f} MB"
 
 
-def list_default_palettes() -> None:
-    """List and print all default palettes"""
-    with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
-        palette_files = [
-            fname for fname in os.listdir(dir_path) if fname.endswith(".json")
-        ]
-
-        if not palette_files:
-            console.print("[bold red]No default palettes found.[/bold red]")
-            sys.exit(1)
-
-        table = Table(title="Default Palettes")
-        table.add_column("ID", style="cyan", no_wrap=True)
-        table.add_column("Name", style="green")
-        table.add_column("Source", style="yellow")
-        for fname in palette_files:
-            palette_path = os.path.join(dir_path, fname)
-            try:
-                with open(palette_path, "r") as f:
-                    data = json.load(f)
-                    palette_id = data.get("id", fname.rstrip(".json"))
-                    palette_name = data.get("name", "Unknown")
-                    palette_source = data.get("source", "Unknown")
-                table.add_row(
-                    palette_id,
-                    palette_name,
-                    f"[link={palette_source}]{palette_source}[/link]",
-                )
-            except Exception as e:
-                table.add_row(fname.rstrip(".json"), f"Error reading file: {e}")
-        console.print(table)
-    sys.exit(0)
-
-
 def find_palette_by_id(palette_id: str) -> str:
-    """Search for a default palette JSON file by matching its 'id' field.
-    Returns the path to the palette if found; otherwise, raises ValueError."""
+    custom_palette_path = CUSTOM_PALETTES_DIR / f"{palette_id}.json"
+    if custom_palette_path.exists():
+        try:
+            with open(custom_palette_path, "r") as f:
+                data = json.load(f)
+                if data.get("id", "").lower() == palette_id.lower():
+                    return str(custom_palette_path)
+        except Exception:
+            pass
     with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
         for fname in os.listdir(dir_path):
             if not fname.endswith(".json"):
@@ -160,15 +126,91 @@ def find_palette_by_id(palette_id: str) -> str:
             except Exception:
                 continue
         raise ValueError(
-            f"[bold red]Palette '{palette_id}' not found in default palettes.[/bold red]\n"
-            f"Try running [bold green]palettum --list-palettes[/bold green] to see the available default palettes."
+            f"[bold red]Palette '{palette_id}' not found.[/bold red]\n"
+            f"Try running [bold green]palettum list-palettes[/bold green] to see available palettes.\n"
+            f"You can also create custom palettes at https://palettum.com and save them using 'palettum save-palette'."
         )
 
 
-@click.command()
-@click.argument(
-    "input_file", type=click.Path(exists=True, readable=True), required=False
-)
+def list_palettes() -> None:
+    palettes = []
+    with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
+        for fname in os.listdir(dir_path):
+            if fname.endswith(".json"):
+                palette_path = os.path.join(dir_path, fname)
+                try:
+                    with open(palette_path, "r") as f:
+                        data = json.load(f)
+                        palette_id = data.get("id", fname.rstrip(".json"))
+                        palette_name = data.get("name", "Unknown")
+                        palette_source = data.get("source", "Unknown")
+                        palette_type = (
+                            "Default" if data.get("isDefault", True) else "Custom"
+                        )
+                        palettes.append(
+                            (palette_id, palette_name, palette_source, palette_type)
+                        )
+                except Exception as e:
+                    palettes.append(
+                        (
+                            fname.rstrip(".json"),
+                            f"Error reading file: {e}",
+                            "",
+                            "Default",
+                        )
+                    )
+    if CUSTOM_PALETTES_DIR.exists():
+        for fname in os.listdir(CUSTOM_PALETTES_DIR):
+            if fname.endswith(".json"):
+                palette_path = os.path.join(CUSTOM_PALETTES_DIR, fname)
+                try:
+                    with open(palette_path, "r") as f:
+                        data = json.load(f)
+                        palette_id = data.get("id", fname.rstrip(".json"))
+                        palette_name = data.get("name", "Unknown")
+                        palette_source = data.get("source", "Unknown")
+                        palette_type = (
+                            "Default" if data.get("isDefault", False) else "Custom"
+                        )
+                        palettes.append(
+                            (palette_id, palette_name, palette_source, palette_type)
+                        )
+                except Exception as e:
+                    palettes.append(
+                        (
+                            fname.rstrip(".json"),
+                            f"Error reading file: {e}",
+                            "",
+                            "Custom",
+                        )
+                    )
+    if not palettes:
+        console.print("[bold red]No palettes found.[/bold red]")
+        sys.exit(1)
+    table = Table(title="Palettes")
+    table.add_column("ID", style="cyan", no_wrap=True)
+    table.add_column("Name", style="green")
+    table.add_column("Source", style="yellow")
+    table.add_column("Type", style="magenta")
+    for palette in palettes:
+        table.add_row(
+            palette[0],
+            palette[1],
+            f"[link={palette[2]}]{palette[2]}[/link]",
+            palette[3],
+        )
+    console.print(table)
+    console.print("\nYou can create and export custom palettes at https://palettum.com")
+    sys.exit(0)
+
+
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+@click.argument("input_file", type=click.Path(exists=True, readable=True))
 @click.option(
     "-o",
     "--output",
@@ -249,14 +291,8 @@ def find_palette_by_id(palette_id: str) -> str:
     is_flag=True,
     help="Run in silent mode (no terminal output)",
 )
-@click.option(
-    "--list-palettes",
-    is_flag=True,
-    default=False,
-    help="List all default palettes and exit",
-)
-def palettum(
-    input_file: Optional[str],
+def process(
+    input_file: str,
     output: str,
     palette: Optional[str],
     mapping: str,
@@ -269,27 +305,12 @@ def palettum(
     height: Optional[int],
     scale: Optional[str],
     silent: bool,
-    list_palettes: bool,
 ):
-    """
-    Palettum: Map an image or GIF's colors to a custom RGB palette.
-
-    If --list-palettes is provided, the list of default palettes is printed and
-    the program exits.
-    """
-    if list_palettes:
-        list_default_palettes()
-
-    if input_file is None:
-        raise click.UsageError("Missing argument 'INPUT_FILE'. See --help.")
-
     if silent:
         console.quiet = True
-
     is_gif_file = input_file.lower().endswith(".gif")
     file_type = "GIF" if is_gif_file else "Image"
     input_size = os.path.getsize(input_file)
-
     if palette and os.path.isfile(palette):
         palette_path = palette
     elif palette:
@@ -303,16 +324,13 @@ def palettum(
             "[bold red]Error:[/bold red] Palette must be specified (via -p/--palette)."
         )
         sys.exit(1)
-
     try:
         rgb_palette, palette_name = parse_palette_json(palette_path)
     except Exception as e:
         if not silent:
             console.print(f"[bold red]Error:[/bold red] Failed to parse palette: {e}")
         sys.exit(1)
-
     resize_requested = any(param is not None for param in [width, height, scale])
-
     if not silent:
         details_table = Table(show_header=False, expand=False)
         details_table.add_column("Parameter", style="cyan")
@@ -335,7 +353,6 @@ def palettum(
                 details_table.add_row("Height", f"{height}px")
         console.print("\n[bold]Processing Configuration:[/bold]")
         console.print(details_table)
-
     mapping_dict = {
         "ciede": Mapping.CIEDE_PALETTIZED,
         "rbf-i": Mapping.RBF_INTERPOLATED,
@@ -351,7 +368,6 @@ def palettum(
         "neon": Architecture.NEON,
         "avx2": Architecture.AVX2,
     }
-
     config = Config()
     config.palette = rgb_palette
     config.mapping = mapping_dict[mapping.lower()]
@@ -360,7 +376,6 @@ def palettum(
     config.sigma = sigma
     config.formula = formula_dict[formula.lower()]
     config.architecture = arch_dict[architecture.lower()]
-
     if output is None:
         base, ext = os.path.splitext(input_file)
         if is_gif_file:
@@ -371,7 +386,6 @@ def palettum(
                 if mapping.lower() == "rbf-i"
                 else f"{base}_palettified.png"
             )
-
     if not silent:
         console.print("\n[bold]Processing...[/bold]")
         with Status(
@@ -451,7 +465,6 @@ def palettum(
             sys.exit(1)
         end_time = time.perf_counter()
         processing_time = end_time - start_time
-
     if not silent:
         output_size = os.path.getsize(output)
         size_change = input_size - output_size
@@ -482,8 +495,68 @@ def palettum(
         console.print(f"[bold]Time Taken:[/bold] {processing_time:.2f} seconds")
 
 
+@cli.command(name="list-palettes")
+def list_palettes_cmd():
+    list_palettes()
+
+
+@cli.command(name="save-palette")
+@click.argument("json_file", type=click.Path(exists=True))
+@click.option("--id", help="ID for the palette (optional, defaults to 'id' in JSON)")
+def save_palette(json_file: str, id: Optional[str]):
+    ensure_custom_palettes_dir()
+    try:
+        with open(json_file, "r") as f:
+            data = json.load(f)
+            if "id" not in data:
+                raise ValueError("JSON must contain an 'id' key")
+            palette_id = id if id else data["id"]
+            if not palette_id:
+                raise ValueError("ID must be provided or present in JSON")
+
+            # Check if the ID matches a default palette
+            with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
+                for fname in os.listdir(dir_path):
+                    if not fname.endswith(".json"):
+                        continue
+                    palette_path = os.path.join(dir_path, fname)
+                    try:
+                        with open(palette_path, "r") as default_f:
+                            default_data = json.load(default_f)
+                            default_id = default_data.get("id", fname.rstrip(".json"))
+                            if default_id.lower() == palette_id.lower():
+                                console.print(
+                                    f"[bold red]Error:[/bold red] Palette ID '{palette_id}' conflicts with a default palette. "
+                                    f"Default palette IDs cannot be overridden by custom palettes."
+                                )
+                                console.print(
+                                    "Please choose a different ID using the --id option or modify the 'id' in your JSON."
+                                )
+                                sys.exit(1)
+                    except Exception:
+                        continue
+
+            custom_palette_path = CUSTOM_PALETTES_DIR / f"{palette_id}.json"
+            if custom_palette_path.exists():
+                console.print(
+                    f"[bold yellow]Warning:[/bold yellow] Palette '{palette_id}' already exists in custom palettes."
+                )
+                if not click.confirm("Do you want to overwrite it?"):
+                    console.print("Operation cancelled.")
+                    sys.exit(0)
+            data["isDefault"] = False
+            with open(custom_palette_path, "w") as out_f:
+                json.dump(data, out_f, indent=4)
+            console.print(
+                f"[bold green]Palette '{palette_id}' saved successfully.[/bold green]"
+            )
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] Failed to save palette: {e}")
+        sys.exit(1)
+
+
 def main():
-    palettum()
+    cli()
 
 
 if __name__ == "__main__":

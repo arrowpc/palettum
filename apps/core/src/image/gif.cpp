@@ -391,6 +391,8 @@ void GIF::setPalette(size_t frameIndex, const std::vector<RGB> &palette)
 
     Frame &frame = m_frames[frameIndex];
 
+    frame.image.setPalette(palette);
+
     ColorMapObject *newMap = GifMakeMapObject(256, nullptr);
     if (!newMap)
     {
@@ -438,18 +440,22 @@ void GIF::setPixel(size_t frameIndex, int x, int y, const RGBA &color)
         return;
     }
 
+    // Find closest color in palette
+    int bestIndex = 0;
+    double minDistance = DBL_MAX;
     for (int i = 0; i < colorMap->ColorCount; i++)
     {
-        if (colorMap->Colors[i].Red == color.red() &&
-            colorMap->Colors[i].Green == color.green() &&
-            colorMap->Colors[i].Blue == color.blue())
+        double dr = color.red() - colorMap->Colors[i].Red;
+        double dg = color.green() - colorMap->Colors[i].Green;
+        double db = color.blue() - colorMap->Colors[i].Blue;
+        double distance = dr * dr + dg * dg + db * db;
+        if (distance < minDistance)
         {
-            frame.setPixel(x, y, color, i);
-            return;
+            minDistance = distance;
+            bestIndex = i;
         }
     }
-
-    throw std::runtime_error("Color not found in palette");
+    frame.setPixel(x, y, color, bestIndex);
 }
 
 void GIF::setPixel(size_t frameIndex, int x, int y, const RGB &color)
@@ -467,20 +473,23 @@ void GIF::setPixel(size_t frameIndex, int x, int y, const RGB &color)
         throw std::runtime_error("No color map available");
     }
 
+    // Find closest color in palette
+    int bestIndex = 0;
+    double minDistance = DBL_MAX;
     for (int i = 0; i < colorMap->ColorCount; i++)
     {
-        if (colorMap->Colors[i].Red == color.red() &&
-            colorMap->Colors[i].Green == color.green() &&
-            colorMap->Colors[i].Blue == color.blue())
+        double dr = color.red() - colorMap->Colors[i].Red;
+        double dg = color.green() - colorMap->Colors[i].Green;
+        double db = color.blue() - colorMap->Colors[i].Blue;
+        double distance = dr * dr + dg * dg + db * db;
+        if (distance < minDistance)
         {
-            frame.setPixel(x, y, color, i);
-            return;
+            minDistance = distance;
+            bestIndex = i;
         }
     }
-
-    throw std::runtime_error("Color not found in palette");
+    frame.setPixel(x, y, color, bestIndex);
 }
-
 bool GIF::write(const std::string &filename) const
 {
     return write(filename.c_str());
@@ -589,12 +598,10 @@ void GIF::write(GifFileType *gif) const
                                      std::string(GifErrorString(gif->Error)));
         }
 
-        // Determine frame bounds
+        // Determine frame bounds with validation
         int frameMinX = frame.hasVisiblePixels ? frame.minX : 0;
         int frameMinY = frame.hasVisiblePixels ? frame.minY : 0;
-        int frameMaxX = frame.hasVisiblePixels
-                            ? frame.maxX
-                            : 0;  // Single pixel if no visible pixels
+        int frameMaxX = frame.hasVisiblePixels ? frame.maxX : 0;
         int frameMaxY = frame.hasVisiblePixels ? frame.maxY : 0;
 
         bool hasChanges = false;
@@ -611,14 +618,14 @@ void GIF::write(GifFileType *gif) const
             }
         }
 
-        if (!hasChanges)
+        if (!hasChanges || !frame.hasVisiblePixels)
         {
             frameMinX = frameMinY = 0;
-            frameMaxX = frameMaxY = 0;  // Minimal 1x1 frame if no changes
+            frameMaxX = frameMaxY = 0;  // Ensure 1x1 frame
         }
 
-        int frameWidth = frameMaxX - frameMinX + 1;
-        int frameHeight = frameMaxY - frameMinY + 1;
+        int frameWidth = std::max(1, frameMaxX - frameMinX + 1);
+        int frameHeight = std::max(1, frameMaxY - frameMinY + 1);
 
         // Write image descriptor
         if (EGifPutImageDesc(gif, frameMinX, frameMinY, frameWidth, frameHeight,
@@ -663,7 +670,6 @@ void GIF::write(GifFileType *gif) const
             }
         }
     }
-
     // Note: Caller is responsible for closing the GifFileType
 }
 

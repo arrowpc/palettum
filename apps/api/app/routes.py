@@ -7,11 +7,12 @@ from app import app, limiter
 from app.auth import require_api_key
 from flask import Response, jsonify, request, send_file
 
-from palettum import GIF, RGB, Config, Image, palettify
+from palettum import GIF, RGB, Config, Image, Mapping, palettify
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg", "image/webp"}
 MAX_DIMENSION = 3840
 MAX_THRESHOLD = 255
+MAX_QUANT_LEVEL = 5
 
 
 @app.errorhandler(ValueError)
@@ -61,6 +62,13 @@ def validate_threshold(transparent_threshold: int) -> None:
         raise ValueError("Transparency threshold must be positive")
     if transparent_threshold > MAX_THRESHOLD:
         raise ValueError(f"Transparency threshold cannot exceed {MAX_THRESHOLD}")
+
+
+def validate_quant_level(quant_level: int) -> None:
+    if quant_level < 0:
+        raise ValueError("Quantization level must be nonnegative")
+    if quant_level > MAX_QUANT_LEVEL:
+        raise ValueError(f"Quantization level cannot exceed {MAX_QUANT_LEVEL}")
 
 
 def parse_palette(palette_file):
@@ -148,15 +156,19 @@ def upload_image():
         width = request.form.get("width", type=int)
         height = request.form.get("height", type=int)
 
+        conf = Config()
+
         transparent_threshold = request.form.get("transparent_threshold", type=int)
         if transparent_threshold:
             validate_threshold(transparent_threshold)
-        else:
-            transparent_threshold = 0
+            conf.transparencyThreshold = transparent_threshold
 
-        conf = Config()
+        quant_level = request.form.get("quant_level", type=int)
+        if quant_level:
+            validate_quant_level(quant_level)
+            conf.quantLevel = quant_level
+
         conf.palette = palette
-        conf.transparencyThreshold = transparent_threshold
 
         try:
             if is_gif(img_data):

@@ -198,6 +198,11 @@ def upload_image():
             validate_mapping(mapping.upper())
             conf.mapping = VALID_MAPPINGS[mapping.upper()]
 
+        # TODO: Validate sigma value, probably from 1 to 100?
+        sigma = request.form.get("sigma", type=float)
+        if sigma:
+            conf.sigma = sigma
+
         conf.palette = palette
 
         try:

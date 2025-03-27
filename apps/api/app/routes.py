@@ -18,6 +18,11 @@ VALID_FORMULAS = {
     "CIE94": Formula.CIE94,
     "CIE76": Formula.CIE76,
 }
+VALID_MAPPINGS = {
+    "CIEDE-PALETTIZED": Mapping.CIEDE_PALETTIZED,
+    "RBF-INTERPOLATED": Mapping.RBF_INTERPOLATED,
+    "RBF-PALETTIZED": Mapping.RBF_PALETTIZED,
+}
 
 
 @app.errorhandler(ValueError)
@@ -79,6 +84,11 @@ def validate_quant_level(quant_level: int) -> None:
 def validate_formula(formula: str) -> None:
     if formula not in VALID_FORMULAS:
         raise ValueError("Not a valid formula. Choose from:", VALID_FORMULAS.keys())
+
+
+def validate_mapping(mapping: str) -> None:
+    if mapping not in VALID_MAPPINGS:
+        raise ValueError("Not a valid mapping. Choose from:", VALID_MAPPINGS.keys())
 
 
 def parse_palette(palette_file):
@@ -182,6 +192,11 @@ def upload_image():
         if formula:
             validate_formula(formula.upper())
             conf.formula = VALID_FORMULAS[formula.upper()]
+
+        mapping = request.form.get("mapping", type=str)
+        if mapping:
+            validate_mapping(mapping.upper())
+            conf.mapping = VALID_MAPPINGS[mapping.upper()]
 
         conf.palette = palette
 

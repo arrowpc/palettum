@@ -7,12 +7,17 @@ from app import app, limiter
 from app.auth import require_api_key
 from flask import Response, jsonify, request, send_file
 
-from palettum import GIF, RGB, Config, Image, Mapping, palettify
+from palettum import GIF, RGB, Config, Formula, Image, Mapping, palettify
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg", "image/webp"}
 MAX_DIMENSION = 3840
 MAX_THRESHOLD = 255
 MAX_QUANT_LEVEL = 5
+VALID_FORMULAS = {
+    "CIEDE2000": Formula.CIEDE2000,
+    "CIE94": Formula.CIE94,
+    "CIE76": Formula.CIE76,
+}
 
 
 @app.errorhandler(ValueError)
@@ -69,6 +74,11 @@ def validate_quant_level(quant_level: int) -> None:
         raise ValueError("Quantization level must be nonnegative")
     if quant_level > MAX_QUANT_LEVEL:
         raise ValueError(f"Quantization level cannot exceed {MAX_QUANT_LEVEL}")
+
+
+def validate_formula(formula: str) -> None:
+    if formula not in VALID_FORMULAS:
+        raise ValueError("Not a valid formula. Choose from:", VALID_FORMULAS.keys())
 
 
 def parse_palette(palette_file):
@@ -167,6 +177,11 @@ def upload_image():
         if quant_level:
             validate_quant_level(quant_level)
             conf.quantLevel = quant_level
+
+        formula = request.form.get("formula", type=str)
+        if formula:
+            validate_formula(formula.upper())
+            conf.formula = VALID_FORMULAS[formula.upper()]
 
         conf.palette = palette
 

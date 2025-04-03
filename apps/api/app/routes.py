@@ -19,7 +19,7 @@ from palettum import (
 )
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg", "image/webp"}
-MAX_DIMENSION = 3840
+MAX_DIMENSION = 7680
 MAX_THRESHOLD = 255
 MAX_QUANT_LEVEL = 5
 VALID_FORMULAS = {

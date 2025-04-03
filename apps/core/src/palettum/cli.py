@@ -1,3 +1,4 @@
+import importlib.metadata
 import importlib.resources as resources
 import json
 import os
@@ -41,6 +42,11 @@ VALID_WEIGHTING_KERNELS = {
     "GAUSSIAN": WeightingKernelType.GAUSSIAN,
     "INVERSE_DISTANCE_POWER": WeightingKernelType.INVERSE_DISTANCE_POWER,
 }
+
+try:
+    __version__ = importlib.metadata.version(PACKAGE_NAME)
+except importlib.metadata.PackageNotFoundError:
+    __version__ = "0.0.0"
 
 
 def ensure_custom_palettes_dir():
@@ -349,6 +355,7 @@ click.rich_click.OPTION_GROUPS = {
 
 
 @click.group()
+@click.version_option(__version__, package_name=PACKAGE_NAME)
 def cli():
     pass
 
@@ -722,6 +729,7 @@ def palettify(
 
 @cli.command(name="list-palettes")
 def list_palettes_cmd():
+    """Lists all available default and custom palettes."""
     list_palettes()
 
 
@@ -734,6 +742,7 @@ def list_palettes_cmd():
     help="Override the 'id' field from the JSON file with this value. Must be unique and not conflict with default palettes.",
 )
 def save_palette(json_file: str, id: Optional[str]):
+    """Saves a custom palette JSON file to the user directory."""
     ensure_custom_palettes_dir()
     try:
         with open(json_file, "r") as f:

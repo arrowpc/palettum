@@ -115,6 +115,7 @@ public:
     {
         return m_a;
     }
+    friend std::ostream &operator<<(std::ostream &os, const RGBA &RGBA);
 
 private:
     unsigned char m_a;

@@ -1,7 +1,8 @@
 #pragma once
 
 #include <mtpng.h>
-#include <spng.h>
+#include <png.h>
+#include <pngconf.h>
 #include <turbojpeg.h>
 #include <webp/decode.h>
 #include <cstring>
@@ -75,3 +76,23 @@ private:
     bool m_hasPalette = false;
     Mapping m_mapping = Mapping::UNTOUCHED;
 };
+
+// LIBPNG STUFFS
+struct PngMemoryReader {
+    const unsigned char *data;
+    size_t size;
+    size_t offset;
+};
+
+static void png_memory_read(png_structp png_ptr, png_bytep outBytes,
+                            png_size_t byteCountToRead)
+{
+    PngMemoryReader *reader =
+        reinterpret_cast<PngMemoryReader *>(png_get_io_ptr(png_ptr));
+    if (reader->offset + byteCountToRead > reader->size)
+    {
+        png_error(png_ptr, "Read Error");
+    }
+    std::memcpy(outBytes, reader->data + reader->offset, byteCountToRead);
+    reader->offset += byteCountToRead;
+}

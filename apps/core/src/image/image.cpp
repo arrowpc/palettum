@@ -3,40 +3,90 @@
 Image::Image(const unsigned char *buffer, int length)
 {
     // Try PNG
-    spng_ctx *ctx = spng_ctx_new(0);
-    if (ctx && spng_set_png_buffer(ctx, buffer, length) == 0)
+    if (length >= 8 && !png_sig_cmp(buffer, 0, 8))
     {
-        struct spng_ihdr ihdr;
-        if (spng_get_ihdr(ctx, &ihdr) == 0)
+        png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+                                                     nullptr, nullptr, nullptr);
+        if (!png_ptr)
         {
-            bool has_alpha =
-                (ihdr.color_type == SPNG_COLOR_TYPE_TRUECOLOR_ALPHA ||
-                 ihdr.color_type == SPNG_COLOR_TYPE_GRAYSCALE_ALPHA);
-            if (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED)
-            {
-                struct spng_trns trns;
-                has_alpha = (spng_get_trns(ctx, &trns) == 0);
-            }
-            int fmt = has_alpha ? SPNG_FMT_RGBA8 : SPNG_FMT_RGB8;
-            m_channels = has_alpha ? 4 : 3;
-
-            size_t image_size;
-            if (spng_decoded_image_size(ctx, fmt, &image_size) == 0)
-            {
-                m_data.resize(image_size);
-                if (spng_decode_image(ctx, m_data.data(), image_size, fmt, 0) ==
-                    0)
-                {
-                    m_width = ihdr.width;
-                    m_height = ihdr.height;
-                    spng_ctx_free(ctx);
-                    return;  // Success
-                }
-            }
+            throw std::runtime_error("png_create_read_struct failed");
         }
-    }
-    spng_ctx_free(ctx);  // Clean up if PNG failed
+        png_infop info_ptr = png_create_info_struct(png_ptr);
+        if (!info_ptr)
+        {
+            png_destroy_read_struct(&png_ptr, nullptr, nullptr);
+            throw std::runtime_error("png_create_info_struct failed");
+        }
+        if (setjmp(png_jmpbuf(png_ptr)))
+        {
+            png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+            throw std::runtime_error("Error during PNG processing");
+        }
 
+        PngMemoryReader reader{buffer, static_cast<size_t>(length), 8};
+        png_set_read_fn(png_ptr, &reader, png_memory_read);
+
+        png_set_sig_bytes(png_ptr, 8);
+
+        png_read_info(png_ptr, info_ptr);
+
+        png_uint_32 width, height;
+        int bit_depth, color_type, interlace_method, compression_method,
+            filter_method;
+        png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth,
+                     &color_type, &interlace_method, &compression_method,
+                     &filter_method);
+
+        m_width = width;
+        m_height = height;
+
+        // Expand paletted images to RGB
+        if (color_type == PNG_COLOR_TYPE_PALETTE)
+        {
+            png_set_palette_to_rgb(png_ptr);
+        }
+        // Expand grayscale images with less than 8-bit depth to 8-bit
+        if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
+        {
+            png_set_expand_gray_1_2_4_to_8(png_ptr);
+        }
+        // Expand transparency to a full alpha channel
+        if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS))
+        {
+            png_set_tRNS_to_alpha(png_ptr);
+        }
+        // Reduce 16-bit depth images to 8-bit
+        if (bit_depth == 16)
+        {
+            png_set_strip_16(png_ptr);
+        }
+        // Convert grayscale to RGB
+        if (color_type == PNG_COLOR_TYPE_GRAY ||
+            color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+        {
+            png_set_gray_to_rgb(png_ptr);
+        }
+
+        bool has_alpha = ((color_type & PNG_COLOR_MASK_ALPHA) ||
+                          png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS));
+        m_channels = has_alpha ? 4 : 3;
+
+        png_read_update_info(png_ptr, info_ptr);
+
+        png_size_t row_bytes = png_get_rowbytes(png_ptr, info_ptr);
+        m_data.resize(row_bytes * m_height);
+
+        // libpng requires an array of pointers to each row
+        std::vector<png_bytep> row_pointers(m_height);
+        for (int y = 0; y < m_height; ++y)
+            row_pointers[y] = m_data.data() + y * row_bytes;
+
+        png_read_image(png_ptr, row_pointers.data());
+
+        png_read_end(png_ptr, nullptr);
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        return;  // Success
+    }
     // Try JPEG
     tjhandle tjInstance = tjInitDecompress();
     if (!tjInstance)
@@ -105,60 +155,92 @@ Image::Image(const char *filename)
 
     if (fname.ends_with(".png"))
     {
-        FILE *png_file = fopen(filename, "rb");
-        if (!png_file)
+        FILE *fp = fopen(filename, "rb");
+        if (!fp)
         {
             throw std::runtime_error("Failed to open PNG file: " +
                                      std::string(filename));
         }
 
-        spng_ctx *ctx = spng_ctx_new(0);
-        if (!ctx || spng_set_png_file(ctx, png_file) != 0)
+        unsigned char header[8];
+        if (fread(header, 1, 8, fp) != 8 || png_sig_cmp(header, 0, 8))
         {
-            if (ctx)
-                spng_ctx_free(ctx);
-            fclose(png_file);
-            throw std::runtime_error("Failed to set up libspng context");
+            fclose(fp);
+            throw std::runtime_error("File is not a valid PNG: " +
+                                     std::string(filename));
         }
 
-        struct spng_ihdr ihdr;
-        if (spng_get_ihdr(ctx, &ihdr) != 0)
+        png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+                                                     nullptr, nullptr, nullptr);
+        if (!png_ptr)
         {
-            spng_ctx_free(ctx);
-            fclose(png_file);
-            throw std::runtime_error("Failed to get PNG IHDR");
+            fclose(fp);
+            throw std::runtime_error("png_create_read_struct failed");
         }
 
-        bool has_alpha = (ihdr.color_type == SPNG_COLOR_TYPE_TRUECOLOR_ALPHA ||
-                          ihdr.color_type == SPNG_COLOR_TYPE_GRAYSCALE_ALPHA);
-        if (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED)
+        png_infop info_ptr = png_create_info_struct(png_ptr);
+        if (!info_ptr)
         {
-            struct spng_trns trns;
-            has_alpha = (spng_get_trns(ctx, &trns) == 0);
+            png_destroy_read_struct(&png_ptr, nullptr, nullptr);
+            fclose(fp);
+            throw std::runtime_error("png_create_info_struct failed");
         }
-        int fmt = has_alpha ? SPNG_FMT_RGBA8 : SPNG_FMT_RGB8;
+
+        if (setjmp(png_jmpbuf(png_ptr)))
+        {
+            png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+            fclose(fp);
+            throw std::runtime_error("Error during PNG read processing");
+        }
+
+        png_init_io(png_ptr, fp);
+        png_set_sig_bytes(png_ptr, 8);
+
+        png_read_info(png_ptr, info_ptr);
+
+        png_uint_32 width, height;
+        int bit_depth, color_type, interlace_method, compression_method,
+            filter_method;
+        png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth,
+                     &color_type, &interlace_method, &compression_method,
+                     &filter_method);
+
+        m_width = width;
+        m_height = height;
+
+        if (color_type == PNG_COLOR_TYPE_PALETTE)
+            png_set_palette_to_rgb(png_ptr);
+
+        if (color_type == PNG_COLOR_TYPE_GRAY && bit_depth < 8)
+            png_set_expand_gray_1_2_4_to_8(png_ptr);
+
+        if (png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS))
+            png_set_tRNS_to_alpha(png_ptr);
+
+        if (bit_depth == 16)
+            png_set_strip_16(png_ptr);
+
+        if (color_type == PNG_COLOR_TYPE_GRAY ||
+            color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+            png_set_gray_to_rgb(png_ptr);
+
+        bool has_alpha = ((color_type & PNG_COLOR_MASK_ALPHA) ||
+                          png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS));
         m_channels = has_alpha ? 4 : 3;
 
-        size_t image_size;
-        if (spng_decoded_image_size(ctx, fmt, &image_size) != 0)
-        {
-            spng_ctx_free(ctx);
-            fclose(png_file);
-            throw std::runtime_error("Failed to calculate decoded PNG size");
-        }
+        png_read_update_info(png_ptr, info_ptr);
 
-        m_data.resize(image_size);
-        if (spng_decode_image(ctx, m_data.data(), image_size, fmt, 0) != 0)
-        {
-            spng_ctx_free(ctx);
-            fclose(png_file);
-            throw std::runtime_error("Failed to decode PNG");
-        }
+        png_size_t row_bytes = png_get_rowbytes(png_ptr, info_ptr);
+        m_data.resize(row_bytes * m_height);
 
-        m_width = ihdr.width;
-        m_height = ihdr.height;
-        spng_ctx_free(ctx);
-        fclose(png_file);
+        std::vector<png_bytep> row_pointers(m_height);
+        for (int y = 0; y < m_height; ++y)
+            row_pointers[y] = m_data.data() + y * row_bytes;
+
+        png_read_image(png_ptr, row_pointers.data());
+        png_read_end(png_ptr, nullptr);
+        png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
+        fclose(fp);
     }
     else if (fname.ends_with(".jpg") || fname.ends_with(".jpeg"))
     {
@@ -331,8 +413,9 @@ std::vector<unsigned char> Image::write() const
 {
     std::vector<uint8_t> result;
 
-    if (m_hasPalette && (m_mapping == Mapping::CIEDE_PALETTIZED ||
-                         m_mapping == Mapping::RBF_PALETTIZED))
+    if (m_hasPalette &&
+        (m_mapping == Mapping::PALETTIZED || m_mapping == Mapping::SMOOTHED ||
+         m_mapping == Mapping::SMOOTHED_PALETTIZED))
         return writeIndexedToMemory();
     else
     {  // write as JPEG as fallback for UNTOUCHED, intended for INTERPOLATED
@@ -349,7 +432,7 @@ std::vector<unsigned char> Image::write() const
 
         unsigned char *jpegBuf = nullptr;
         unsigned long jpegSize = 0;
-        int quality = 75;
+        int quality = 100;
         int subsamp = TJSAMP_420;
         int pixel_format = (m_channels == 4) ? TJPF_RGBA : TJPF_RGB;
 
@@ -399,6 +482,9 @@ std::vector<unsigned char> Image::writeIndexedToMemory() const
     {
         throw std::runtime_error("Failed to create PNG encoder options");
     }
+
+    mtpng_encoder_options_set_compression_level(options,
+                                                MTPNG_COMPRESSION_LEVEL_FAST);
 
     if (mtpng_encoder_new(&encoder, write_callback, flush_callback, &buffer,
                           options) != MTPNG_RESULT_OK)
@@ -544,8 +630,9 @@ bool Image::write(const std::string &filename) const
 
 bool Image::write(const char *filename) const
 {
-    if (m_hasPalette && (m_mapping == Mapping::CIEDE_PALETTIZED ||
-                         m_mapping == Mapping::RBF_PALETTIZED))
+    if (m_hasPalette &&
+        (m_mapping == Mapping::PALETTIZED || m_mapping == Mapping::SMOOTHED ||
+         m_mapping == Mapping::SMOOTHED_PALETTIZED))
         writeIndexed(filename);
     else
     {  // write as JPEG as fallback for UNTOUCHED, intended for INTERPOLATED
@@ -570,7 +657,7 @@ bool Image::write(const char *filename) const
 
         unsigned char *jpegBuf = nullptr;
         unsigned long jpegSize = 0;
-        int quality = 75;
+        int quality = 100;
         int subsamp = TJSAMP_420;
         int pixel_format = (m_channels == 4) ? TJPF_RGBA : TJPF_RGB;
 
@@ -667,6 +754,9 @@ RGBA Image::get(int x, int y) const
     size_t pos = (y * m_width + x) * m_channels;
     if (m_channels == 4)
     {
+        // std::cout << "Alpha at (" << x << ", " << y << "): "
+        //             << RGBA(m_data[pos], m_data[pos + 1], m_data[pos + 2],
+        //                     m_data[pos + 3]) << std::endl;
         return RGBA(m_data[pos], m_data[pos + 1], m_data[pos + 2],
                     m_data[pos + 3]);
     }

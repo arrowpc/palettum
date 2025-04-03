@@ -42,11 +42,11 @@
     --popover-foreground: #463a34;
 
     --muted: #c1b5ae;
-    --muted-foreground: #ffffff;
+    --muted-foreground: #463a34;
 
-    --input: #ffffff;
+    --input: #f4ece4;
     --input-focus: #f9f4f0;
-    --input-disabled: #f1ebe6;
+    --input-disabled: #f3ebe3;
 
     --ring: #e7dbd3;
     --ring-focus: #d6bfb4;
@@ -58,7 +58,7 @@
 
   .dark {
     --background: #292220;
-    --background-secondary: #332b29;
+    --background-secondary: #2d2725;
     --background-tertiary: #3c3330;
 
     --foreground: #f4ede8;
@@ -125,6 +125,16 @@
     @apply bg-background text-foreground;
     font-family: "8-bit HUD", sans-serif;
   }
+
+ input[type="number"]::-webkit-inner-spin-button,
+ input[type="number"]::-webkit-outer-spin-button {
+   -webkit-appearance: none;
+   margin: 0;
+ }
+
+ input[type="number"] {
+   -moz-appearance: textfield;
+ }
 }
 
 .disable-transitions,

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.22)
 cmake_policy(SET CMP0074 NEW)
 
 project(Palettum_Core
-        VERSION 0.3.9
+        VERSION 0.4.0
         DESCRIPTION "Core library for Palettum"
         LANGUAGES CXX)
 

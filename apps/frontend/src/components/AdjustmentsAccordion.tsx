@@ -271,7 +271,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
     !isPalettizedActive || !imageSupportsTransparency;
 
   return (
-    <Accordion type="single" collapsible defaultValue="adjustments">
+    <Accordion type="single" collapsible>
       <AccordionItem value="adjustments">
         <AccordionTrigger className="text-lg font-medium hover:no-underline">
           Advanced Options

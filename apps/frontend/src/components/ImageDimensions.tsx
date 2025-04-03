@@ -1,12 +1,79 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { RotateCcw, Link, Unlink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LIMITS } from "@/lib/palettes";
+import { Input } from "@/components/ui/input";
 
 interface ImageDimensionsProps {
   file: File | null;
   onChange: (width: number | null, height: number | null) => void;
 }
+
+interface DraggableDimensionLabelProps {
+  id: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  className?: string;
+  children: React.ReactNode;
+}
+
+const DraggableDimensionLabel = ({
+  id,
+  value,
+  onChange,
+  className,
+  children,
+}: DraggableDimensionLabelProps) => {
+  const [dragging, setDragging] = useState(false);
+  const startX = useRef(0);
+  const startValue = useRef(0);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    setDragging(true);
+    startX.current = e.clientX;
+    startValue.current = parseInt(value) || 0;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLSpanElement>) => {
+    if (!dragging) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const deltaX = e.clientX - startX.current;
+    const sensitivity = 1;
+    let newValue = startValue.current + deltaX * sensitivity;
+    newValue = Math.round(newValue);
+    const syntheticEvent = {
+      target: { value: String(newValue), id },
+    } as React.ChangeEvent<HTMLInputElement>;
+    onChange(syntheticEvent);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLSpanElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragging(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+
+  return (
+    <span
+      className={className}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      style={{
+        cursor: dragging ? "ew-resize" : "col-resize",
+        userSelect: "none",
+      }}
+    >
+      {children}
+    </span>
+  );
+};
 
 function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
   const [dimensions, setDimensions] = useState({
@@ -54,9 +121,8 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
     };
   }, [file, onChange]);
 
-  const clampDimension = (value: number): number => {
-    return Math.min(Math.max(1, value), LIMITS.MAX_DIMENSION);
-  };
+  const clampDimension = (value: number): number =>
+    Math.min(Math.max(1, value), LIMITS.MAX_DIMENSION);
 
   const handleWidthChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,8 +159,8 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       }
     },
     [
-      dimensions.lockedAspectRatio,
       dimensions.height,
+      dimensions.lockedAspectRatio,
       keepAspectRatio,
       onChange,
     ],
@@ -134,11 +200,10 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         );
       }
     },
-    [dimensions.lockedAspectRatio, dimensions.width, keepAspectRatio, onChange],
+    [dimensions.width, dimensions.lockedAspectRatio, keepAspectRatio, onChange],
   );
 
   const resetDimensions = useCallback(() => {
-    // Add null check for originalWidth and originalHeight
     if (
       dimensions.originalWidth !== null &&
       dimensions.originalHeight !== null
@@ -162,19 +227,22 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
 
   const toggleAspectRatio = useCallback(() => {
     setKeepAspectRatio((prev) => {
-      const newState = !prev;
+      const newKeepAspectRatio = !prev;
+
       setDimensions((prevDimensions) => {
         const widthNum = parseInt(prevDimensions.width);
         const heightNum = parseInt(prevDimensions.height);
+        const validNumbers =
+          !isNaN(widthNum) && !isNaN(heightNum) && heightNum !== 0;
+
         return {
           ...prevDimensions,
           lockedAspectRatio:
-            newState && !isNaN(widthNum) && !isNaN(heightNum) && heightNum !== 0
-              ? widthNum / heightNum
-              : null,
+            newKeepAspectRatio && validNumbers ? widthNum / heightNum : null,
         };
       });
-      return newState;
+
+      return newKeepAspectRatio;
     });
   }, []);
 
@@ -191,11 +259,11 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
       if (numericValue !== null) {
         if (e.target.id === "width") {
           handleWidthChange({
-            target: { value: String(numericValue) },
+            target: { value: String(numericValue), id: "width" },
           } as React.ChangeEvent<HTMLInputElement>);
         } else {
           handleHeightChange({
-            target: { value: String(numericValue) },
+            target: { value: String(numericValue), id: "height" },
           } as React.ChangeEvent<HTMLInputElement>);
         }
       }
@@ -226,13 +294,15 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         <div className="mt-4">
           <div className="flex items-center space-x-4">
             <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
-              <label
-                htmlFor="width"
+              <DraggableDimensionLabel
+                id="width"
+                value={dimensions.width}
+                onChange={handleWidthChange}
                 className="text-base text-foreground-secondary px-3 py-2"
               >
                 W
-              </label>
-              <input
+              </DraggableDimensionLabel>
+              <Input
                 id="width"
                 type="number"
                 value={dimensions.width}
@@ -245,13 +315,15 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
               />
             </div>
             <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
-              <label
-                htmlFor="height"
+              <DraggableDimensionLabel
+                id="height"
+                value={dimensions.height}
+                onChange={handleHeightChange}
                 className="text-base text-foreground-secondary px-3 py-2"
               >
                 H
-              </label>
-              <input
+              </DraggableDimensionLabel>
+              <Input
                 id="height"
                 type="number"
                 value={dimensions.height}
@@ -287,13 +359,15 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
         <div className="mt-4">
           <div className="flex items-center space-x-4 opacity-60 cursor-not-allowed">
             <div className="flex items-center bg-input-disabled border border-border rounded-md shadow-sm">
-              <label
-                htmlFor="width"
+              <DraggableDimensionLabel
+                id="width"
+                value=""
+                onChange={handleWidthChange}
                 className="text-foreground-muted px-3 py-2"
               >
                 W
-              </label>
-              <input
+              </DraggableDimensionLabel>
+              <Input
                 id="width"
                 type="number"
                 disabled
@@ -303,13 +377,15 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
               />
             </div>
             <div className="flex items-center bg-input-disabled border border-border rounded-md shadow-sm">
-              <label
-                htmlFor="height"
+              <DraggableDimensionLabel
+                id="height"
+                value=""
+                onChange={handleHeightChange}
                 className="text-foreground-muted px-3 py-2"
               >
                 H
-              </label>
-              <input
+              </DraggableDimensionLabel>
+              <Input
                 id="height"
                 type="number"
                 disabled
@@ -323,7 +399,7 @@ function ImageDimensions({ file, onChange }: ImageDimensionsProps) {
               disabled
               aria-label="Lock aspect ratio"
             >
-              <Unlink className="text-icon-disabled " />
+              <Unlink className="text-icon-disabled" />
             </button>
           </div>
         </div>

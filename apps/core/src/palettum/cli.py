@@ -8,16 +8,39 @@ from typing import List, Optional, Tuple
 
 import rich_click as click
 from rich.console import Console
+from rich.panel import Panel
 from rich.status import Status
 from rich.table import Table
 
-from palettum import GIF, RGB, Architecture, Config, Formula, Image, Mapping, palettify
+from palettum import (
+    GIF,
+    RGB,
+    Architecture,
+    Config,
+    Formula,
+    Image,
+    Mapping,
+    WeightingKernelType,
+)
+from palettum import palettify as core_palettify
 
 console = Console()
 
 PACKAGE_NAME = "palettum"
 DEFAULT_PALETTES_DIR = "palettes"
 CUSTOM_PALETTES_DIR = Path.home() / ".palettum" / "palettes"
+
+MIN_SMOOTHED_SCALE = 0.1
+MAX_SMOOTHED_SCALE = 10.0
+MIN_SMOOTHED_SHAPE = 0.02
+MAX_SMOOTHED_SHAPE = 0.2
+MIN_SMOOTHED_POWER = 2.0
+MAX_SMOOTHED_POWER = 5.0
+
+VALID_WEIGHTING_KERNELS = {
+    "GAUSSIAN": WeightingKernelType.GAUSSIAN,
+    "INVERSE_DISTANCE_POWER": WeightingKernelType.INVERSE_DISTANCE_POWER,
+}
 
 
 def ensure_custom_palettes_dir():
@@ -28,9 +51,9 @@ def parse_palette_json(palette_path: str) -> Tuple[List[RGB], str]:
     with open(palette_path, "r") as f:
         data = json.load(f)
     if "name" not in data:
-        raise ValueError("JSON must contain a 'name' key")
+        raise ValueError("Palette JSON must contain a 'name' key")
     if "colors" not in data:
-        raise ValueError("JSON must contain a 'colors' key")
+        raise ValueError("Palette JSON must contain a 'colors' key")
     name = data["name"]
     colors = data["colors"]
     if not isinstance(colors, list):
@@ -67,18 +90,25 @@ def calculate_dimensions(
     height: Optional[int] = None,
     scale: Optional[str] = None,
 ) -> Tuple[int, int]:
-    original_aspect = original_width / original_height
+    if original_height == 0:
+        original_aspect = 1.0
+    else:
+        original_aspect = original_width / original_height
+
     target_width, target_height = original_width, original_height
+
     if scale is not None:
         scale_factor = parse_scale(scale)
-        target_width = int(original_width * scale_factor)
-        target_height = int(original_height * scale_factor)
+        target_width = max(1, int(original_width * scale_factor))
+        target_height = max(1, int(original_height * scale_factor))
+
     if width is not None and height is not None:
         return (width, height)
     elif width is not None:
-        return (width, int(width / original_aspect))
+        return (width, max(1, int(width / original_aspect)))
     elif height is not None:
-        return (int(height * original_aspect), height)
+        return (max(1, int(height * original_aspect)), height)
+
     return (target_width, target_height)
 
 
@@ -90,8 +120,11 @@ ARCH_TO_STR = {
 
 
 def get_default_architecture() -> str:
-    config = Config()
-    return ARCH_TO_STR.get(config.architecture, "SCALAR")
+    try:
+        config = Config()
+        return ARCH_TO_STR.get(config.architecture, "SCALAR")
+    except Exception:
+        return "SCALAR"
 
 
 def format_size(size: float) -> str:
@@ -103,6 +136,14 @@ def format_size(size: float) -> str:
         return f"{size / (1024 * 1024):.2f} MB"
 
 
+# TODO: Make more sophisticated by being able to display minutes with seconds
+def format_time(seconds: float) -> str:
+    if seconds < 1:
+        return f"{seconds * 1000:.2f} ms"
+    else:
+        return f"{seconds:.2f} s"
+
+
 def find_palette_by_id(palette_id: str) -> str:
     custom_palette_path = CUSTOM_PALETTES_DIR / f"{palette_id}.json"
     if custom_palette_path.exists():
@@ -111,54 +152,82 @@ def find_palette_by_id(palette_id: str) -> str:
                 data = json.load(f)
                 if data.get("id", "").lower() == palette_id.lower():
                     return str(custom_palette_path)
-        except Exception:
+        except Exception as e:
+            console.print(
+                f"[yellow]Warning:[/yellow] Could not read custom palette {custom_palette_path}: {e}"
+            )
             pass
-    with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
-        for fname in os.listdir(dir_path):
-            if not fname.endswith(".json"):
-                continue
-            palette_path = os.path.join(dir_path, fname)
-            try:
-                with open(palette_path, "r") as f:
-                    data = json.load(f)
-                    if data.get("id", "").lower() == palette_id.lower():
-                        return palette_path
-            except Exception:
-                continue
-        raise ValueError(
-            f"[bold red]Palette '{palette_id}' not found.[/bold red]\n"
-            f"Try running [bold green]palettum list-palettes[/bold green] to see available palettes.\n"
-            f"You can also create custom palettes at https://palettum.com and save them using 'palettum save-palette'."
-        )
 
-
-def list_palettes() -> None:
-    palettes = []
-    with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
-        for fname in os.listdir(dir_path):
-            if fname.endswith(".json"):
+    try:
+        with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
+            for fname in os.listdir(dir_path):
+                if not fname.endswith(".json"):
+                    continue
                 palette_path = os.path.join(dir_path, fname)
                 try:
                     with open(palette_path, "r") as f:
                         data = json.load(f)
-                        palette_id = data.get("id", fname.rstrip(".json"))
-                        palette_name = data.get("name", "Unknown")
-                        palette_source = data.get("source", "Unknown")
-                        palette_type = (
-                            "Default" if data.get("isDefault", True) else "Custom"
-                        )
+                        file_id = data.get("id", fname.rsplit(".", 1)[0])
+                        if file_id.lower() == palette_id.lower():
+                            return palette_path
+                except Exception:
+                    continue
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        console.print(
+            f"[yellow]Warning:[/yellow] Error accessing default palettes: {e}"
+        )
+
+    raise ValueError(
+        f"[bold red]Palette '{palette_id}' not found.[/bold red]\n"
+        f"Searched in custom path: {CUSTOM_PALETTES_DIR}\n"
+        f"And in default package palettes.\n"
+        f"Try running [bold green]palettum list-palettes[/bold green] to see available palettes.\n"
+        f"You can also create custom palettes at https://palettum.com and save them using 'palettum save-palette'."
+    )
+
+
+def list_palettes() -> None:
+    palettes = []
+
+    try:
+        with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
+            for fname in os.listdir(dir_path):
+                if fname.endswith(".json"):
+                    palette_path = os.path.join(dir_path, fname)
+                    try:
+                        with open(palette_path, "r") as f:
+                            data = json.load(f)
+                            palette_id = data.get("id", fname.rsplit(".", 1)[0])
+                            palette_name = data.get("name", "Unknown Name")
+                            palette_source = data.get("source", "Unknown Source")
+                            palette_type = "Default"
+                            palettes.append(
+                                (
+                                    palette_id,
+                                    palette_name,
+                                    palette_source,
+                                    palette_type,
+                                )
+                            )
+                    except Exception as e:
                         palettes.append(
-                            (palette_id, palette_name, palette_source, palette_type)
+                            (
+                                fname.rsplit(".", 1)[0],
+                                f"Error reading file: {e}",
+                                "",
+                                "Default (Error)",
+                            )
                         )
-                except Exception as e:
-                    palettes.append(
-                        (
-                            fname.rstrip(".json"),
-                            f"Error reading file: {e}",
-                            "",
-                            "Default",
-                        )
-                    )
+    except FileNotFoundError:
+        console.print("[yellow]Warning:[/yellow] Default palettes directory not found.")
+    except Exception as e:
+        console.print(
+            f"[yellow]Warning:[/yellow] Error accessing default palettes: {e}"
+        )
+
+    ensure_custom_palettes_dir()
     if CUSTOM_PALETTES_DIR.exists():
         for fname in os.listdir(CUSTOM_PALETTES_DIR):
             if fname.endswith(".json"):
@@ -166,42 +235,117 @@ def list_palettes() -> None:
                 try:
                     with open(palette_path, "r") as f:
                         data = json.load(f)
-                        palette_id = data.get("id", fname.rstrip(".json"))
-                        palette_name = data.get("name", "Unknown")
-                        palette_source = data.get("source", "Unknown")
+                        palette_id = data.get("id", fname.rsplit(".", 1)[0])
+                        palette_name = data.get("name", "Unknown Name")
+                        palette_source = data.get("source", "Unknown Source")
                         palette_type = (
                             "Default" if data.get("isDefault", False) else "Custom"
                         )
                         palettes.append(
-                            (palette_id, palette_name, palette_source, palette_type)
+                            (
+                                palette_id,
+                                palette_name,
+                                palette_source,
+                                palette_type,
+                            )
                         )
                 except Exception as e:
                     palettes.append(
                         (
-                            fname.rstrip(".json"),
+                            fname.rsplit(".", 1)[0],
                             f"Error reading file: {e}",
                             "",
-                            "Custom",
+                            "Custom (Error)",
                         )
                     )
+
     if not palettes:
         console.print("[bold red]No palettes found.[/bold red]")
+        console.print(
+            f"Default palettes should be in the package, custom palettes in {CUSTOM_PALETTES_DIR}"
+        )
         sys.exit(1)
-    table = Table(title="Palettes")
-    table.add_column("ID", style="cyan", no_wrap=True)
+
+    table = Table(title="Available Palettes")
+    table.add_column("ID", style="cyan")
     table.add_column("Name", style="green")
     table.add_column("Source", style="yellow")
     table.add_column("Type", style="magenta")
+
+    palettes.sort(key=lambda p: (p[3] != "Custom", p[0].lower()))
+
     for palette in palettes:
-        table.add_row(
-            palette[0],
-            palette[1],
-            f"[link={palette[2]}]{palette[2]}[/link]",
-            palette[3],
-        )
+        source_link = f"[link={palette[2]}]{palette[2]}[/link]" if palette[2] else ""
+        table.add_row(palette[0], palette[1], source_link, palette[3])
+
     console.print(table)
-    console.print("\nYou can create and export custom palettes at https://palettum.com")
+    console.print(
+        "\nUse the 'ID' with the -p/--palette option in the palettify command."
+    )
+    console.print("You can create and export custom palettes at https://palettum.com")
     sys.exit(0)
+
+
+def validate_smoothed_scale(scale: float) -> None:
+    if not (MIN_SMOOTHED_SCALE <= scale <= MAX_SMOOTHED_SCALE):
+        raise ValueError(
+            f"Smoothed Lab scale must be between {MIN_SMOOTHED_SCALE} and {MAX_SMOOTHED_SCALE}"
+        )
+
+
+def validate_smoothed_shape(shape: float) -> None:
+    if not (MIN_SMOOTHED_SHAPE <= shape <= MAX_SMOOTHED_SHAPE):
+        raise ValueError(
+            f"Smoothed shape parameter must be between {MIN_SMOOTHED_SHAPE} and {MAX_SMOOTHED_SHAPE}"
+        )
+
+
+def validate_smoothed_power(power: float) -> None:
+    if not (MIN_SMOOTHED_POWER <= power <= MAX_SMOOTHED_POWER):
+        raise ValueError(
+            f"Smoothed power parameter must be between {MIN_SMOOTHED_POWER} and {MAX_SMOOTHED_POWER}"
+        )
+
+
+def validate_weighting_kernel(kernel: str) -> None:
+    if kernel.upper() not in VALID_WEIGHTING_KERNELS:
+        raise ValueError(
+            f"Invalid weighting kernel '{kernel}'. Choose from: {', '.join(VALID_WEIGHTING_KERNELS.keys())}"
+        )
+
+
+click.rich_click.USE_RICH_MARKUP = True
+click.rich_click.OPTION_GROUPS = {
+    "palettum palettify": [
+        {
+            "name": "Input/Output Options",
+            "options": ["--output", "--palette", "--mapping"],
+        },
+        {
+            "name": "Smoothing Options (Used with --mapping smoothed* modes)",
+            "options": [
+                "--weighting-kernel",
+                "--smoothed-l-scale",
+                "--smoothed-a-scale",
+                "--smoothed-b-scale",
+                "--smoothed-shape-parameter",
+                "--smoothed-power-parameter",
+            ],
+        },
+        {
+            "name": "Palettization Options (Used with --mapping palettized* modes)",
+            "options": ["--formula", "--alpha-threshold"],
+        },
+        {
+            "name": "Output Resizing",
+            "options": ["--width", "--height", "--scale"],
+        },
+        {
+            "name": "Performance Tuning",
+            "options": ["--quantization", "--architecture"],
+        },
+    ]
+}
 
 
 @click.group()
@@ -214,46 +358,82 @@ def cli():
 @click.option(
     "-o",
     "--output",
-    type=click.Path(),
-    show_default=True,
-    help="Output file (defaults to '<input>_palettified.<ext>')",
+    type=click.Path(writable=True, dir_okay=False),
+    help="Output file path. If omitted, defaults to '<input>_palettified.<ext>' (png/jpg/webp/gif based on mapping).",
 )
 @click.option(
     "-p",
     "--palette",
-    help="Palette ID or path to a JSON palette file",
+    required=True,
+    help="[REQUIRED] Palette ID (see 'list-palettes') or path to a custom JSON palette file.",
 )
 @click.option(
     "-m",
     "--mapping",
-    type=click.Choice(["ciede", "rbf-i", "rbf-p"], case_sensitive=False),
-    default="ciede",
+    type=click.Choice(
+        ["palettized", "smoothed", "smoothed-palettized"], case_sensitive=False
+    ),
+    default="palettized",
     show_default=True,
-    help="Color mapping: 'ciede' (closest match), 'rbf-i' (smoothed direct), 'rbf-p' (smoothed then matched)",
+    help="'palettized' snaps colors to the nearest palette entry. 'smoothed' creates smooth gradients using palette colors as anchors (output is JPG). 'smoothed-palettized' applies smoothing then snaps to the palette.",
+)
+@click.option(
+    "--weighting-kernel",
+    type=click.Choice(list(VALID_WEIGHTING_KERNELS.keys()), case_sensitive=False),
+    default="INVERSE_DISTANCE_POWER",
+    show_default=True,
+    help="Determines how the smoothness is applied.",
+)
+@click.option(
+    "--smoothed-l-scale",
+    type=click.FloatRange(MIN_SMOOTHED_SCALE, MAX_SMOOTHED_SCALE),
+    default=1.0,
+    show_default=True,
+    help="Weighting scale factor for the L (lightness) channel.",
+)
+@click.option(
+    "--smoothed-a-scale",
+    type=click.FloatRange(MIN_SMOOTHED_SCALE, MAX_SMOOTHED_SCALE),
+    default=1.0,
+    show_default=True,
+    help="Weighting scale factor for the a (green-red) channel.",
+)
+@click.option(
+    "--smoothed-b-scale",
+    type=click.FloatRange(MIN_SMOOTHED_SCALE, MAX_SMOOTHED_SCALE),
+    default=1.0,
+    show_default=True,
+    help="Weighting scale factor for the b (blue-yellow) channel.",
+)
+@click.option(
+    "--smoothed-shape-parameter",
+    type=click.FloatRange(MIN_SMOOTHED_SHAPE, MAX_SMOOTHED_SHAPE),
+    default=0.10,
+    show_default=True,
+    help=f"Controls the sharpness of the smoothing. higher increases sharpness.",
+)
+@click.option(
+    "--smoothed-power-parameter",
+    type=click.FloatRange(MIN_SMOOTHED_POWER, MAX_SMOOTHED_POWER),
+    default=4.0,
+    show_default=True,
+    help=f"Controls the sharpness of the smoothing. higher increases sharpness.",
 )
 @click.option(
     "-q",
     "--quantization",
-    type=click.IntRange(0, 5),
+    type=click.IntRange(0, 4),
     default=2,
     show_default=True,
-    help="Quantization level: 0 = best quality, 5 = fastest",
+    help="Set color quantization level (0-4). Controls the trade-off between color accuracy and speed. 0=Exact colors (slowest, 0% error), 4=Fastest (~10% error). Default 2 is ~3% error.",
 )
 @click.option(
     "-t",
     "--alpha-threshold",
     type=click.IntRange(0, 255),
-    default=0,
+    default=128,
     show_default=True,
-    help="Alpha threshold: below this, pixels turn transparent",
-)
-@click.option(
-    "-s",
-    "--sigma",
-    type=float,
-    default=50.0,
-    show_default=True,
-    help="Smoothing factor for RBF mappings ('rbf-i' or 'rbf-p')",
+    help="Pixels with alpha below this value become fully transparent.",
 )
 @click.option(
     "-f",
@@ -261,7 +441,7 @@ def cli():
     type=click.Choice(["cie76", "cie94", "ciede2000"], case_sensitive=False),
     default="ciede2000",
     show_default=True,
-    help="Color formula: 'cie76' (fast), 'cie94' (balanced), 'ciede2000' (accurate)",
+    help="Color difference formula: 'cie76' (Most basic), 'cie94', 'ciede2000' (Most advanced).",
 )
 @click.option(
     "-a",
@@ -269,94 +449,90 @@ def cli():
     type=click.Choice(["scalar", "neon", "avx2"], case_sensitive=False),
     default=get_default_architecture(),
     show_default=True,
-    help="Processing architecture (auto-detected)",
+    help="SIMD instruction set for vectorization. 'scalar' = no vectorization. Auto-detected by default for best performance. Overriding with an unsupported set will port the instructions, usually less efficiently.",
 )
 @click.option(
     "--width",
-    type=click.IntRange(1),
-    help="Desired width in pixels (maintains aspect ratio if height unset)",
+    type=click.IntRange(min=1),
+    help="Resize output to this width (pixels). If --height is not set, aspect ratio is preserved.",
 )
 @click.option(
     "--height",
-    type=click.IntRange(1),
-    help="Desired height in pixels (maintains aspect ratio if width unset)",
+    type=click.IntRange(min=1),
+    help="Resize output to this height (pixels). If --width is not set, aspect ratio is preserved.",
 )
 @click.option(
     "--scale",
     type=str,
-    help="Scale factor (e.g., '0.5x' or '50%' for half size, '2x' for double size)",
+    help="Resize output by a scale factor. Use 'Nx' format (e.g., '0.5x', '2x') or 'N%' format (e.g., '50%', '200%'). Overridden by --width/--height if they are set.",
 )
 @click.option(
-    "--silent",
-    is_flag=True,
-    help="Run in silent mode (no terminal output)",
+    "--silent", is_flag=True, help="Suppress all terminal output except errors."
 )
-def process(
+def palettify(
     input_file: str,
-    output: str,
-    palette: Optional[str],
+    output: Optional[str],
+    palette: str,
     mapping: str,
     quantization: int,
     alpha_threshold: int,
-    sigma: float,
     formula: str,
     architecture: str,
     width: Optional[int],
     height: Optional[int],
     scale: Optional[str],
+    smoothed_l_scale: float,
+    smoothed_a_scale: float,
+    smoothed_b_scale: float,
+    smoothed_shape_parameter: float,
+    smoothed_power_parameter: float,
+    weighting_kernel: str,
     silent: bool,
 ):
     if silent:
         console.quiet = True
+
     is_gif_file = input_file.lower().endswith(".gif")
     file_type = "GIF" if is_gif_file else "Image"
-    input_size = os.path.getsize(input_file)
-    if palette and os.path.isfile(palette):
-        palette_path = palette
-    elif palette:
-        try:
+    try:
+        input_size = os.path.getsize(input_file)
+    except OSError:
+        input_size = 0
+
+    try:
+        if os.path.isfile(palette):
+            palette_path = palette
+        else:
             palette_path = find_palette_by_id(palette)
-        except ValueError as e:
-            console.print(f"[bold red]Error:[/bold red] {e}")
-            sys.exit(1)
-    else:
+        rgb_palette, palette_name = parse_palette_json(palette_path)
+    except (ValueError, FileNotFoundError, json.JSONDecodeError) as e:
+        console.print(f"[bold red]Error:[/bold red] Failed to load palette: {e}")
+        sys.exit(1)
+    except Exception as e:
         console.print(
-            "[bold red]Error:[/bold red] Palette must be specified (via -p/--palette)."
+            f"[bold red]Error:[/bold red] Unexpected error loading palette: {e}"
         )
         sys.exit(1)
-    try:
-        rgb_palette, palette_name = parse_palette_json(palette_path)
-    except Exception as e:
-        if not silent:
-            console.print(f"[bold red]Error:[/bold red] Failed to parse palette: {e}")
-        sys.exit(1)
-    resize_requested = any(param is not None for param in [width, height, scale])
-    if not silent:
-        details_table = Table(show_header=False, expand=False)
-        details_table.add_column("Parameter", style="cyan")
-        details_table.add_column("Value", style="green")
-        details_table.add_row("Palette", f"{palette_name} ({len(rgb_palette)} colors)")
-        details_table.add_row("Mapping", mapping)
-        if mapping.lower() in ["rbf-i", "rbf-p"]:
-            details_table.add_row("Sigma", str(sigma))
-        details_table.add_row("Quantization", str(quantization))
-        details_table.add_row("Alpha threshold", str(alpha_threshold))
-        if mapping.lower() in ["ciede", "rbf-p"]:
-            details_table.add_row("Formula", formula)
-        details_table.add_row("Architecture", architecture)
-        if resize_requested:
-            if scale:
-                details_table.add_row("Scale", scale)
-            if width:
-                details_table.add_row("Width", f"{width}px")
-            if height:
-                details_table.add_row("Height", f"{height}px")
-        console.print("\n[bold]Processing Configuration:[/bold]")
-        console.print(details_table)
+
+    if output is None:
+        base, _ = os.path.splitext(input_file)
+        if is_gif_file:
+            output_ext = ".gif"
+        elif mapping.lower() == "smoothed":
+            output_ext = ".jpg"
+        else:
+            output_ext = ".png"
+        output = f"{base}_palettified{output_ext}"
+
+    mapping_lower = mapping.lower()
+    kernel_lower = weighting_kernel.lower()
+    uses_smoothed = "smoothed" in mapping_lower
+    uses_palettized = "palettized" in mapping_lower
+
     mapping_dict = {
-        "ciede": Mapping.CIEDE_PALETTIZED,
-        "rbf-i": Mapping.RBF_INTERPOLATED,
-        "rbf-p": Mapping.RBF_PALETTIZED,
+        "palettized": Mapping.PALETTIZED,
+        "smoothed": Mapping.SMOOTHED,
+        "smoothed-palettized": Mapping.SMOOTHED_PALETTIZED,
     }
     formula_dict = {
         "cie76": Formula.CIE76,
@@ -368,131 +544,180 @@ def process(
         "neon": Architecture.NEON,
         "avx2": Architecture.AVX2,
     }
-    config = Config()
-    config.palette = rgb_palette
-    config.mapping = mapping_dict[mapping.lower()]
-    config.quantLevel = quantization
-    config.transparencyThreshold = alpha_threshold
-    config.sigma = sigma
-    config.formula = formula_dict[formula.lower()]
-    config.architecture = arch_dict[architecture.lower()]
-    if output is None:
-        base, ext = os.path.splitext(input_file)
-        if is_gif_file:
-            output = f"{base}_palettified.gif"
-        else:
-            output = (
-                f"{base}_palettified.jpg"
-                if mapping.lower() == "rbf-i"
-                else f"{base}_palettified.png"
+
+    try:
+        config = Config()
+        config.palette = rgb_palette
+        config.mapping = mapping_dict[mapping_lower]
+        config.quantLevel = quantization
+        config.transparencyThreshold = alpha_threshold
+        config.architecture = arch_dict[architecture.lower()]
+        if uses_palettized:
+            config.formula = formula_dict[formula.lower()]
+        if uses_smoothed:
+            validate_weighting_kernel(weighting_kernel)
+            config.anisotropic_kernel = VALID_WEIGHTING_KERNELS[
+                weighting_kernel.upper()
+            ]
+            validate_smoothed_scale(smoothed_l_scale)
+            validate_smoothed_scale(smoothed_a_scale)
+            validate_smoothed_scale(smoothed_b_scale)
+            config.anisotropic_labScales = (
+                smoothed_l_scale,
+                smoothed_a_scale,
+                smoothed_b_scale,
             )
+            if kernel_lower == "gaussian":
+                validate_smoothed_shape(smoothed_shape_parameter)
+                config.anisotropic_shapeParameter = smoothed_shape_parameter
+            elif kernel_lower == "inverse_distance_power":
+                validate_smoothed_power(smoothed_power_parameter)
+                config.anisotropic_powerParameter = smoothed_power_parameter
+    except ValueError as e:
+        console.print(f"[bold red]Configuration Error:[/bold red] {e}")
+        sys.exit(1)
+    except KeyError as e:
+        console.print(
+            f"[bold red]Configuration Error:[/bold red] Invalid choice for option: {e}"
+        )
+        sys.exit(1)
+
+    resize_requested = any(param is not None for param in [width, height, scale])
+    target_width, target_height = 0, 0
+
     if not silent:
-        console.print("\n[bold]Processing...[/bold]")
-        with Status(
-            f"Working on {file_type.lower()}...", console=console, spinner="dots"
-        ) as status:
-            start_time = time.perf_counter()
-            try:
-                if is_gif_file:
-                    gif = GIF(input_file)
-                    original_width, original_height = gif.width(), gif.height()
-                    if resize_requested:
-                        target_width, target_height = calculate_dimensions(
-                            original_width, original_height, width, height, scale
-                        )
-                        original_aspect = original_width / original_height
-                        new_aspect = target_width / target_height
-                        if abs(
-                            original_aspect - new_aspect
-                        ) / original_aspect > 0.05 and not (width and height):
-                            console.print(
-                                "[bold yellow]Warning:[/bold yellow] Aspect ratio change >5% detected."
-                            )
-                        status.update(
-                            f"Resizing GIF to {target_width}x{target_height}..."
-                        )
-                        gif.resize(target_width, target_height)
-                    result = palettify(gif, config)
-                else:
-                    img = Image(input_file)
-                    original_width, original_height = img.width(), img.height()
-                    if resize_requested:
-                        target_width, target_height = calculate_dimensions(
-                            original_width, original_height, width, height, scale
-                        )
-                        original_aspect = original_width / original_height
-                        new_aspect = target_width / target_height
-                        if abs(
-                            original_aspect - new_aspect
-                        ) / original_aspect > 0.05 and not (width and height):
-                            console.print(
-                                "[bold yellow]Warning:[/bold yellow] Aspect ratio change >5% detected."
-                            )
-                        status.update(
-                            f"Resizing image to {target_width}x{target_height}..."
-                        )
-                        img.resize(target_width, target_height)
-                    result = palettify(img, config)
-                result.write(output)
-            except Exception as e:
-                console.print(f"[bold red]Error:[/bold red] Processing failed: {e}")
-                sys.exit(1)
-            end_time = time.perf_counter()
-            processing_time = end_time - start_time
-    else:
-        start_time = time.perf_counter()
+        details_table = Table(show_header=False, expand=False, box=None)
+        details_table.add_column("Parameter", style="cyan", justify="right")
+        details_table.add_column("Value", style="green")
+        details_table.add_row("Input File", input_file)
+        details_table.add_row("Output File", output)
+        details_table.add_row("Palette", f"{palette_name} ({len(rgb_palette)} colors)")
+        details_table.add_row("Mapping", mapping)
+        details_table.add_row("Quantization", str(quantization))
+        details_table.add_row("Alpha Threshold", str(alpha_threshold))
+        details_table.add_row("Architecture", architecture.upper())
+        if uses_palettized:
+            details_table.add_row("Color Formula", formula)
+        if uses_smoothed:
+            details_table.add_row("Weighting Kernel", weighting_kernel.upper())
+            details_table.add_row(
+                "Smoothed Lab Scales",
+                f"L*: {smoothed_l_scale}, a*: {smoothed_a_scale}, b*: {smoothed_b_scale}",
+            )
+            if kernel_lower == "gaussian":
+                details_table.add_row(
+                    "Smoothed Shape (Gaussian)", str(smoothed_shape_parameter)
+                )
+            elif kernel_lower == "inverse_distance_power":
+                details_table.add_row(
+                    "Smoothed Power (InvDist)", str(smoothed_power_parameter)
+                )
+        if resize_requested:
+            resize_str = []
+            if scale:
+                resize_str.append(f"Scale: {scale}")
+            if width:
+                resize_str.append(f"Width: {width}px")
+            if height:
+                resize_str.append(f"Height: {height}px")
+            details_table.add_row("Resize Request", ", ".join(resize_str))
+        console.print(Panel(details_table, title="Configuration", style="bold blue"))
+
+    start_time = time.perf_counter()
+    original_width, original_height = 0, 0
+    media = None
+    with Status(
+        f"Palettifying {file_type.lower()}...", console=console, spinner="dots"
+    ) as status:
         try:
             if is_gif_file:
-                gif = GIF(input_file)
-                original_width, original_height = gif.width(), gif.height()
+                status.update(f"Loading GIF...")
+                media = GIF(input_file)
+                original_width, original_height = media.width(), media.height()
                 if resize_requested:
                     target_width, target_height = calculate_dimensions(
                         original_width, original_height, width, height, scale
                     )
-                    gif.resize(target_width, target_height)
-                result = palettify(gif, config)
+                    status.update(f"Resizing GIF to {target_width}x{target_height}...")
+                    media.resize(target_width, target_height)
+                else:
+                    target_width, target_height = original_width, original_height
+                status.update(f"Applying palette to GIF...")
+                result = core_palettify(media, config)
             else:
-                img = Image(input_file)
-                original_width, original_height = img.width(), img.height()
+                status.update(f"Loading image...")
+                media = Image(input_file)
+                original_width, original_height = media.width(), media.height()
                 if resize_requested:
                     target_width, target_height = calculate_dimensions(
                         original_width, original_height, width, height, scale
                     )
-                    img.resize(target_width, target_height)
-                result = palettify(img, config)
+                    status.update(
+                        f"Resizing image to {target_width}x{target_height}..."
+                    )
+                    media.resize(target_width, target_height)
+                else:
+                    target_width, target_height = original_width, original_height
+                status.update(f"Applying palette to image...")
+                result = core_palettify(media, config)
+            status.update(f"Writing output to {output}...")
             result.write(output)
         except Exception as e:
+            console.print(f"\n[bold red]Error:[/bold red] Processing failed: {e}")
             sys.exit(1)
-        end_time = time.perf_counter()
-        processing_time = end_time - start_time
-    if not silent:
+    end_time = time.perf_counter()
+    processing_time = end_time - start_time
+    complete_message = (
+        f"[bold green]Palettifying Complete![/bold green]\n"
+        f"[cyan]Time Taken:[/cyan] {format_time(processing_time)}"
+    )
+    console.print(Panel(complete_message, style="bold green"))
+    results_table = Table(show_header=False, header_style="bold magenta")
+    results_table.add_column("Metric", justify="right")
+    results_table.add_column("Value", style="bold green")
+    results_table.add_row("Output File", output)
+    try:
         output_size = os.path.getsize(output)
-        size_change = input_size - output_size
-        size_change_str = f"{format_size(abs(size_change))} ({'increased' if size_change < 0 else 'reduced'})"
-        console.print("\n[bold]Results:[/bold]")
-        console.print(f"[bold]Output:[/bold] {output}")
-        console.print(f"[bold]Size:[/bold] {format_size(output_size)}")
-        console.print(
-            f"[bold]Original Dimensions:[/bold] {original_width}x{original_height}"
+        size_change = output_size - input_size
+        size_change_percent = (size_change / input_size * 100) if input_size > 0 else 0
+        size_change_str = (
+            f"{format_size(abs(size_change))} "
+            f"({'increase' if size_change > 0 else 'reduction'}) "
+            f"({size_change_percent:+.1f}%)"
         )
-        if resize_requested:
-            width_change = (
-                ((target_width - original_width) / original_width * 100)
-                if original_width
-                else 0
-            )
-            height_change = (
-                ((target_height - original_height) / original_height * 100)
-                if original_height
-                else 0
-            )
-            console.print(
-                f"[bold]Resized To:[/bold] [green]{target_width}x{target_height}[/green] "
-                f"([green]{width_change:+.1f}%[/green] width, [green]{height_change:+.1f}%[/green] height)"
-            )
-        if is_gif_file and hasattr(gif, "frame_count"):
-            console.print(f"[bold]Frame Count:[/bold] {gif.frame_count()}")
-        console.print(f"[bold]Time Taken:[/bold] {processing_time:.2f} seconds")
+        results_table.add_row("Output Size", format_size(output_size))
+        results_table.add_row("Size Change", size_change_str)
+    except FileNotFoundError:
+        results_table.add_row(
+            "Output Size", "[red]Error reading output file size[/red]"
+        )
+    except Exception as e:
+        results_table.add_row("Output Size", f"[red]Error: {e}[/red]")
+    if resize_requested and (
+        target_width != original_width or target_height != original_height
+    ):
+        width_change = (
+            ((target_width - original_width) / original_width * 100)
+            if original_width > 0
+            else 0
+        )
+        height_change = (
+            ((target_height - original_height) / original_height * 100)
+            if original_height > 0
+            else 0
+        )
+        results_table.add_row(
+            "Output Dimensions",
+            f"{target_width}x{target_height} "
+            f"({width_change:+.1f}% W, {height_change:+.1f}% H)",
+        )
+    if is_gif_file and media and hasattr(media, "frame_count"):
+        try:
+            results_table.add_row("Frame Count", str(media.frame_count()))
+        except Exception:
+            results_table.add_row("Frame Count", "[red]N/A[/red]")
+    console.print("[bold]Results:[/bold]")
+    console.print(results_table)
 
 
 @cli.command(name="list-palettes")
@@ -501,33 +726,47 @@ def list_palettes_cmd():
 
 
 @cli.command(name="save-palette")
-@click.argument("json_file", type=click.Path(exists=True))
-@click.option("--id", help="ID for the palette (optional, defaults to 'id' in JSON)")
+@click.argument(
+    "json_file", type=click.Path(exists=True, readable=True, dir_okay=False)
+)
+@click.option(
+    "--id",
+    help="Override the 'id' field from the JSON file with this value. Must be unique and not conflict with default palettes.",
+)
 def save_palette(json_file: str, id: Optional[str]):
     ensure_custom_palettes_dir()
     try:
         with open(json_file, "r") as f:
             data = json.load(f)
-            if "id" not in data:
-                raise ValueError("JSON must contain an 'id' key")
-            palette_id = id if id else data["id"]
-            if not palette_id:
-                raise ValueError("ID must be provided or present in JSON")
 
-            # Check if the ID matches a default palette
+        json_id = data.get("id")
+        final_id = id if id else json_id
+
+        if not final_id:
+            raise ValueError(
+                "Palette ID must be provided via the --id option or exist as an 'id' key in the JSON file."
+            )
+        if not isinstance(final_id, str) or not final_id.strip():
+            raise ValueError("Palette ID cannot be empty.")
+
+        final_id = final_id.strip()
+
+        _, _ = parse_palette_json(json_file)
+
+        try:
             with resources.path(PACKAGE_NAME, DEFAULT_PALETTES_DIR) as dir_path:
                 for fname in os.listdir(dir_path):
                     if not fname.endswith(".json"):
                         continue
-                    palette_path = os.path.join(dir_path, fname)
+                    default_palette_path = os.path.join(dir_path, fname)
                     try:
-                        with open(palette_path, "r") as default_f:
+                        with open(default_palette_path, "r") as default_f:
                             default_data = json.load(default_f)
-                            default_id = default_data.get("id", fname.rstrip(".json"))
-                            if default_id.lower() == palette_id.lower():
+                            default_id = default_data.get("id", fname.rsplit(".", 1)[0])
+                            if default_id.lower() == final_id.lower():
                                 console.print(
-                                    f"[bold red]Error:[/bold red] Palette ID '{palette_id}' conflicts with a default palette. "
-                                    f"Default palette IDs cannot be overridden by custom palettes."
+                                    f"[bold red]Error:[/bold red] Palette ID '{final_id}' conflicts with a default palette ID ('{default_id}'). "
+                                    f"Default palette IDs cannot be overridden."
                                 )
                                 console.print(
                                     "Please choose a different ID using the --id option or modify the 'id' in your JSON."
@@ -535,27 +774,47 @@ def save_palette(json_file: str, id: Optional[str]):
                                 sys.exit(1)
                     except Exception:
                         continue
-
-            custom_palette_path = CUSTOM_PALETTES_DIR / f"{palette_id}.json"
-            if custom_palette_path.exists():
-                console.print(
-                    f"[bold yellow]Warning:[/bold yellow] Palette '{palette_id}' already exists in custom palettes."
-                )
-                if not click.confirm("Do you want to overwrite it?"):
-                    console.print("Operation cancelled.")
-                    sys.exit(0)
-            data["isDefault"] = False
-            with open(custom_palette_path, "w") as out_f:
-                json.dump(data, out_f, indent=4)
+        except FileNotFoundError:
+            pass
+        except Exception as e:
             console.print(
-                f"[bold green]Palette '{palette_id}' saved successfully.[/bold green]"
+                f"[yellow]Warning:[/yellow] Could not check for default palette ID conflicts: {e}"
             )
-    except Exception as e:
+
+        custom_palette_path = CUSTOM_PALETTES_DIR / f"{final_id}.json"
+        if custom_palette_path.exists():
+            console.print(
+                f"[bold yellow]Warning:[/bold yellow] Custom palette with ID '{final_id}' already exists ({custom_palette_path})."
+            )
+            if not click.confirm("Do you want to overwrite it?"):
+                console.print("Operation cancelled.")
+                sys.exit(0)
+
+        data["id"] = final_id
+        data["isDefault"] = False
+
+        with open(custom_palette_path, "w") as out_f:
+            json.dump(data, out_f, indent=4)
+
+        console.print(
+            f"[bold green]Palette '{final_id}' saved successfully to {custom_palette_path}[/bold green]"
+        )
+
+    except json.JSONDecodeError as e:
+        console.print(
+            f"[bold red]Error:[/bold red] Invalid JSON file '{json_file}': {e}"
+        )
+        sys.exit(1)
+    except ValueError as e:
         console.print(f"[bold red]Error:[/bold red] Failed to save palette: {e}")
+        sys.exit(1)
+    except Exception as e:
+        console.print(f"[bold red]Error:[/bold red] An unexpected error occurred: {e}")
         sys.exit(1)
 
 
 def main():
+    ensure_custom_palettes_dir()
     cli()
 
 

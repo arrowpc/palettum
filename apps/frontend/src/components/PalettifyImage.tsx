@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from "react";
-import { Palette, ImagePlus, Download } from "lucide-react";
+import { Download, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { processImage, APIError } from "@/services/api";
+import {
+  processImage,
+  APIError,
+  type ProcessImageOptions,
+} from "@/services/api";
 import type { Color, Palette as PaletteType } from "@/lib/palettes";
 import ImageViewer from "@/components/ImageViewer";
 import {
@@ -10,26 +14,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-
-const BORDER_THICKNESS = 5; // In pixels, can be adjusted as needed
-const HORIZONTAL_PIXELS = 40; // Number of segments in horizontal borders
-const VERTICAL_PIXELS = 30; // Number of segments in vertical borders
-
-interface PalettifyImageProps {
-  file: File | null;
-  dimensions: {
-    width: number | null;
-    height: number | null;
-  };
-  palette: PaletteType;
-  transparentThreshold: number;
-}
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 
 interface ImageDimensions {
   containerWidth: number;
   containerHeight: number;
 }
-
 interface PixelBorderProps {
   colors: Color[];
   side: "top" | "bottom" | "left" | "right";
@@ -37,21 +28,13 @@ interface PixelBorderProps {
   pixelCount: number;
   reverse: boolean;
 }
-
 interface PixelBordersProps {
   colors: Color[];
   dimensions: ImageDimensions | null;
 }
-
-interface ProcessedSettings {
-  fileName: string | null;
-  width: number | null;
-  height: number | null;
-  paletteId: string | null;
-  colorFingerprint: string | null;
-  transparentThreshold: number | null;
-}
-
+const BORDER_THICKNESS = 5;
+const HORIZONTAL_PIXELS = 40;
+const VERTICAL_PIXELS = 30;
 function PixelBorder({
   colors,
   side,
@@ -60,9 +43,7 @@ function PixelBorder({
   reverse,
 }: PixelBorderProps): JSX.Element | null {
   if (!dimensions || !colors.length) return null;
-
   const { containerWidth, containerHeight } = dimensions;
-
   const positions: Record<string, React.CSSProperties> = {
     top: {
       top: 0,
@@ -89,9 +70,7 @@ function PixelBorder({
       width: `${BORDER_THICKNESS}px`,
     },
   };
-
   const isHorizontal = side === "top" || side === "bottom";
-
   return (
     <div
       className={`absolute flex ${isHorizontal ? "" : "flex-col"} z-1`}
@@ -101,7 +80,6 @@ function PixelBorder({
         const index = reverse ? pixelCount - i - 1 : i;
         const colorIndex = index % colors.length;
         const { r, g, b } = colors[colorIndex];
-
         return (
           <div
             key={`${side}-${i}`}
@@ -118,13 +96,11 @@ function PixelBorder({
     </div>
   );
 }
-
 function PixelBorders({
   colors,
   dimensions,
 }: PixelBordersProps): JSX.Element | null {
   if (!dimensions || !colors.length) return null;
-
   return (
     <>
       <PixelBorder
@@ -159,11 +135,50 @@ function PixelBorders({
   );
 }
 
+interface PalettifyImageProps {
+  file: File | null;
+  dimensions: {
+    width: number | null;
+    height: number | null;
+  };
+  palette: PaletteType | undefined;
+  transparentThreshold: number;
+  mapping: string;
+  quantLevel: number;
+  formula: string;
+  weighting_kernel: string;
+  anisotropic_labScales: string;
+  anisotropic_shapeParameter: number;
+  anisotropic_powerParameter: number;
+}
+
+interface ProcessedSettings {
+  fileName: string | null;
+  width: number | null;
+  height: number | null;
+  paletteId: string | null;
+  transparentThreshold: number | null;
+  mapping: string | null;
+  quantLevel: number | null;
+  formula: string | null;
+  weighting_kernel: string | null;
+  anisotropic_labScales: string | null;
+  anisotropic_shapeParameter: number | null;
+  anisotropic_powerParameter: number | null;
+}
+
 function PalettifyImage({
   file,
   dimensions,
   palette,
   transparentThreshold,
+  mapping,
+  quantLevel,
+  formula,
+  weighting_kernel,
+  anisotropic_labScales,
+  anisotropic_shapeParameter,
+  anisotropic_powerParameter,
 }: PalettifyImageProps): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -184,104 +199,145 @@ function PalettifyImage({
     width: null,
     height: null,
     paletteId: null,
-    colorFingerprint: null,
     transparentThreshold: null,
+    mapping: null,
+    quantLevel: null,
+    formula: null,
+    weighting_kernel: null,
+    anisotropic_labScales: null,
+    anisotropic_shapeParameter: null,
+    anisotropic_powerParameter: null,
   });
-
-  const currentColorFingerprint = palette?.colors
-    ? JSON.stringify(
-      [...palette.colors].sort((a, b) =>
-        a.r !== b.r ? a.r - b.r : a.g !== b.g ? a.g - b.g : a.b - b.b,
-      ),
-    )
-    : null;
 
   const isSameSettings: boolean =
     !!processedImageUrl &&
     file?.name === lastProcessedSettings.current.fileName &&
     dimensions.width === lastProcessedSettings.current.width &&
     dimensions.height === lastProcessedSettings.current.height &&
-    currentColorFingerprint ===
-    lastProcessedSettings.current.colorFingerprint &&
-    transparentThreshold === lastProcessedSettings.current.transparentThreshold;
+    palette?.id === lastProcessedSettings.current.paletteId &&
+    transparentThreshold ===
+    lastProcessedSettings.current.transparentThreshold &&
+    mapping === lastProcessedSettings.current.mapping &&
+    quantLevel === lastProcessedSettings.current.quantLevel &&
+    formula === lastProcessedSettings.current.formula &&
+    weighting_kernel === lastProcessedSettings.current.weighting_kernel &&
+    anisotropic_labScales ===
+    lastProcessedSettings.current.anisotropic_labScales &&
+    anisotropic_shapeParameter ===
+    lastProcessedSettings.current.anisotropic_shapeParameter &&
+    anisotropic_powerParameter ===
+    lastProcessedSettings.current.anisotropic_powerParameter;
 
   useEffect(() => {
     if (file && currentProcessedFile !== file.name) {
-      if (processedImageUrl) {
-        URL.revokeObjectURL(processedImageUrl);
-      }
+      if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
       setProcessedImageUrl(null);
       setCurrentProcessedFile(null);
+      setError(null);
+      lastProcessedSettings.current = {
+        fileName: null,
+        width: null,
+        height: null,
+        paletteId: null,
+        transparentThreshold: null,
+        mapping: null,
+        quantLevel: null,
+        formula: null,
+        weighting_kernel: null,
+        anisotropic_labScales: null,
+        anisotropic_shapeParameter: null,
+        anisotropic_powerParameter: null,
+      };
     }
   }, [file, currentProcessedFile, processedImageUrl]);
 
   useEffect(() => {
     return () => {
-      if (processedImageUrl) {
-        URL.revokeObjectURL(processedImageUrl);
-      }
+      if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
     };
   }, [processedImageUrl]);
 
   useEffect(() => {
-    const updateContainerDimensions = (): void => {
+    const updateDims = () => {
       if (imageContainerRef.current) {
-        const container = imageContainerRef.current;
-        const rect = container.getBoundingClientRect();
-
+        const { width, height } =
+          imageContainerRef.current.getBoundingClientRect();
         setContainerDimensions({
-          containerWidth: rect.width,
-          containerHeight: rect.height,
+          containerWidth: width,
+          containerHeight: height,
         });
       }
     };
-
-    window.addEventListener("resize", updateContainerDimensions);
-
     if (processedImageUrl) {
-      updateContainerDimensions();
+      updateDims();
+      window.addEventListener("resize", updateDims);
+      return () => window.removeEventListener("resize", updateDims);
+    } else {
+      setContainerDimensions(null);
     }
-
-    return () => {
-      window.removeEventListener("resize", updateContainerDimensions);
-    };
   }, [processedImageUrl]);
 
   const handleProcessImage = async (): Promise<void> => {
     if (!file) {
-      setError("Select an image to process");
+      setError("Please upload an image first.");
       return;
     }
-
-    if (palette.colors.length === 0) {
-      setError("Choose a color palette");
+    if (!palette || !palette.colors || palette.colors.length === 0) {
+      setError("Please select a valid palette.");
       return;
     }
 
     setError(null);
     setIsProcessing(true);
 
-    try {
-      const processedBlob = await processImage(
-        file,
-        palette.colors,
-        dimensions.width || undefined,
-        dimensions.height || undefined,
-        transparentThreshold,
-      );
+    const usesSmoothed =
+      mapping === "SMOOTHED" || mapping === "SMOOTHED-PALETTIZED";
+    const usesGaussianKernel = usesSmoothed && weighting_kernel === "GAUSSIAN";
+    const usesInvDistKernel =
+      usesSmoothed && weighting_kernel === "INVERSE_DISTANCE_POWER";
 
+    const options: ProcessImageOptions = {
+      image: file,
+      colors: palette.colors,
+      ...(dimensions.width && { width: dimensions.width }),
+      ...(dimensions.height && { height: dimensions.height }),
+      ...(transparentThreshold !== undefined && {
+        transparentThreshold: transparentThreshold,
+      }),
+      ...(mapping && { mapping: mapping }),
+      ...(quantLevel !== undefined && { quantLevel: quantLevel }),
+      ...(formula && { formula: formula }),
+      ...(usesSmoothed && { weighting_kernel: weighting_kernel }),
+      ...(usesSmoothed && { anisotropic_labScales: anisotropic_labScales }),
+      ...(usesGaussianKernel && {
+        anisotropic_shapeParameter: anisotropic_shapeParameter,
+      }),
+      ...(usesInvDistKernel && {
+        anisotropic_powerParameter: anisotropic_powerParameter,
+      }),
+    };
+
+    try {
+      const processedBlob = await processImage(options);
+      if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
       const newProcessedUrl = URL.createObjectURL(processedBlob);
       setProcessedImageUrl(newProcessedUrl);
       setCurrentProcessedFile(file.name);
-
       processedPaletteRef.current = { ...palette };
+
       lastProcessedSettings.current = {
         fileName: file.name,
         width: dimensions.width,
         height: dimensions.height,
         paletteId: palette.id,
-        colorFingerprint: currentColorFingerprint,
         transparentThreshold: transparentThreshold,
+        mapping: mapping,
+        quantLevel: quantLevel,
+        formula: formula,
+        weighting_kernel: weighting_kernel,
+        anisotropic_labScales: anisotropic_labScales,
+        anisotropic_shapeParameter: anisotropic_shapeParameter,
+        anisotropic_powerParameter: anisotropic_powerParameter,
       };
     } catch (err: unknown) {
       const errorMessage =
@@ -289,105 +345,104 @@ function PalettifyImage({
           ? err.message
           : err instanceof Error
             ? err.message
-            : typeof err === "string"
-              ? err
-              : "Image processing failed";
+            : "Image processing failed";
       setError(errorMessage);
+      if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
+      setProcessedImageUrl(null);
+      setCurrentProcessedFile(null);
     } finally {
       setIsProcessing(false);
     }
   };
 
   const handleDownload = (): void => {
-    if (!processedImageUrl || !file || !currentProcessedFile) return;
-
+    if (!processedImageUrl || !file || !currentProcessedFile || !palette)
+      return;
     try {
       if (file.name !== currentProcessedFile) {
-        setError("Please process the current image before downloading");
+        setError("Current file changed. Please re-process before downloading.");
         return;
       }
-
       const link = document.createElement("a");
       link.href = processedImageUrl;
-
       const originalExtension = file.name.split(".").pop()?.toLowerCase() || "";
       const baseFileName = file.name.replace(/\.[^/.]+$/, "");
       const outputExtension = originalExtension === "gif" ? "gif" : "png";
-      const paletteName = palette.name.toLowerCase().replace(/\s+/g, "-");
-
+      const paletteName = palette.name
+        .toLowerCase()
+        .replace(/[^a-z0-9_]+/gi, "-");
       link.download = `${baseFileName}-${paletteName}.${outputExtension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     } catch (err: unknown) {
-      console.error(
-        "Download error:",
-        err instanceof Error ? err.message : String(err),
-      );
-      setError("Failed to download image");
+      console.error("Download error:", err);
+      setError("Failed to initiate download.");
     }
   };
+  const handleViewFullSize = (): void => setIsPreviewOpen(true);
+  const getProcessedColors = (): Color[] =>
+    processedPaletteRef.current?.colors || [];
 
-  const handleViewFullSize = (): void => {
-    setIsPreviewOpen(true);
-  };
-
-  const getProcessedColors = (): Color[] => {
-    return processedPaletteRef.current?.colors || [];
-  };
+  const canProcess =
+    !!file && !!palette && !!palette.colors && palette.colors.length > 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
+    <div className="space-y-6">
+      {error && (
+        <Alert variant="destructive">
+          <ExclamationTriangleIcon className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="flex justify-center">
         {isSameSettings ? (
           <TooltipProvider>
             <Tooltip delayDuration={200}>
               <TooltipTrigger asChild>
-                <div>
+                <div className="w-full sm:w-auto">
                   <Button
-                    onClick={handleProcessImage}
+                    size="lg"
                     disabled={true}
-                    className="bg-primary hover:bg-primary-hover text-primary-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full disabled:opacity-60"
                   >
-                    <Palette className="mr-2 h-4 w-4" />
+                    <Wand2 className="mr-2 h-5 w-5" />
                     Palettify Image
                   </Button>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Image already palettified with current configuration</p>
+                <p>Image already processed with current settings</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
         ) : (
           <Button
+            size="lg"
             onClick={handleProcessImage}
-            disabled={!file || palette.colors.length === 0 || isProcessing}
-            className="bg-primary hover:bg-primary-hover text-primary-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!canProcess || isProcessing}
+            className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground transition-all duration-200"
           >
             {isProcessing ? (
               "Processing..."
             ) : (
               <>
-                <Palette className="mr-2 h-4 w-4" />
-                Palettify Image
+                <Wand2 className="mr-2 h-5 w-5" /> Palettify Image
               </>
             )}
           </Button>
         )}
       </div>
 
-      {error && (
-        <div className="flex items-center space-x-2">
-          <ImagePlus className="h-4 w-4 text-destructive" />
-          <span className="text-sm text-destructive">{error}</span>
-        </div>
-      )}
-
       {processedImageUrl && (
-        <div className="mt-4 space-y-2">
+        <div className="mt-6 space-y-4">
+          <h2 className="text-xl font-semibold tracking-tight text-center">
+            Result
+          </h2>
           <div
-            className="rounded-md overflow-hidden relative border border-border shadow-sm"
+            className="rounded-lg overflow-hidden relative border border-border shadow-md bg-muted/30"
             ref={imageContainerRef}
           >
             <div
@@ -396,25 +451,11 @@ function PalettifyImage({
             >
               <img
                 src={processedImageUrl}
-                alt="Palettified"
-                className="w-full object-contain max-h-96 [image-rendering:-webkit-optimize-contrast] [image-rendering:crisp-edges] [image-rendering:pixelated]"
-                onLoad={() => {
-                  if (imageContainerRef.current) {
-                    const container = imageContainerRef.current;
-                    const rect = container.getBoundingClientRect();
-
-                    setContainerDimensions({
-                      containerWidth: rect.width,
-                      containerHeight: rect.height,
-                    });
-                  }
-                }}
+                alt="Palettified Result"
+                className="w-full object-contain max-h-[60vh] block [image-rendering:-webkit-optimize-contrast] [image-rendering:pixelated]"
               />
-
-              <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/5 transition-colors duration-300"></div>
-
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="bg-foreground/10 backdrop-blur-[1px] px-4 py-2 rounded-md flex items-center gap-2 opacity-0 group-hover:opacity-100 scale-95 group-hover:scale-100 transition-all duration-300">
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
+                <div className="bg-black/50 backdrop-blur-sm px-4 py-2 rounded-md flex items-center gap-2 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-300">
                   <svg
                     width="20"
                     height="20"
@@ -426,23 +467,19 @@ function PalettifyImage({
                       fill="currentColor"
                     />
                   </svg>
-                  <span className="text-sm font-medium text-white drop-shadow-sm">
+                  <span className="text-sm font-medium text-white drop-shadow">
                     View Full Size
                   </span>
                 </div>
               </div>
-
-              {processedImageUrl &&
-                getProcessedColors().length > 0 &&
-                containerDimensions && (
-                  <PixelBorders
-                    key={processedImageUrl}
-                    colors={getProcessedColors()}
-                    dimensions={containerDimensions}
-                  />
-                )}
-
-              <div className="absolute bottom-3 right-3 opacity-60 group-hover:opacity-90 transition-opacity duration-300 p-1 z-1">
+              {getProcessedColors().length > 0 && containerDimensions && (
+                <PixelBorders
+                  key={processedImageUrl}
+                  colors={getProcessedColors()}
+                  dimensions={containerDimensions}
+                />
+              )}
+              <div className="absolute bottom-3 right-3 opacity-60 group-hover:opacity-90 transition-opacity duration-300 p-1 z-10">
                 <div className="grid grid-cols-3 gap-0.5 w-8 h-8 transform rotate-45">
                   {getProcessedColors()
                     .slice(0, 9)
@@ -467,12 +504,11 @@ function PalettifyImage({
               </div>
             </div>
           </div>
-
-          <div className="flex justify-start">
+          <div className="flex justify-center">
             <Button
               onClick={handleDownload}
-              className="bg-primary hover:bg-primary-hover text-primary-foreground transition-colors flex items-center space-x-2"
-              size="sm"
+              variant="outline"
+              className="flex items-center space-x-2"
             >
               <Download className="h-4 w-4" />
               <span>Save Image</span>
@@ -491,53 +527,9 @@ function PalettifyImage({
       <style
         dangerouslySetInnerHTML={{
           __html: `
-@keyframes pixelFadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.8);
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.2);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
-  }
-}
-.animate-pixel-fade-in {
-  animation: pixelFadeIn 0.4s ease-out forwards;
-}
-
-@keyframes pixelExtend {
-  from {
-    transform: scaleX(0);
-    opacity: 0;
-    transform-origin: left;
-  }
-  to {
-    transform: scaleX(1) scaleY(1.05);
-    opacity: 1;
-  }
-}
-.animate-pixel-extend {
-  animation: pixelExtend 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
-  transform-origin: left;
-}
-
-@keyframes pixelPulse {
-  from, to {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.05);
-    opacity: 0.8;
-  }
-}
-.animate-pixel-pulse {
-  animation: pixelPulse 1.2s ease-in-out infinite;
-  transform-origin: center;
-}
-        `,
+        @keyframes pixelFadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        .animate-pixel-fade-in { animation: pixelFadeIn 0.4s ease-out forwards; }
+      `,
         }}
       />
     </div>

@@ -8,6 +8,7 @@ try:
         Image,
         Lab,
         Mapping,
+        WeightingKernelType,
         palettify,
         validate,
     )

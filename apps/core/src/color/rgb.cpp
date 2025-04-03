@@ -68,3 +68,11 @@ RGBA::RGBA(unsigned char r, unsigned char g, unsigned char b,
     , m_a(a)
 {
 }
+
+std::ostream &operator<<(std::ostream &os, const RGBA &RGBA)
+{
+    return os << "RGBA(" << static_cast<int>(RGBA.red()) << ", "
+              << static_cast<int>(RGBA.green()) << ", "
+              << static_cast<int>(RGBA.blue()) << ", "
+              << static_cast<int>(RGBA.m_a) << ")";
+}

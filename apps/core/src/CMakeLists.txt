@@ -7,10 +7,10 @@ target_link_libraries(palettum PRIVATE
   OpenMP::OpenMP_CXX
   GIF::GIF
   mtpng_lib
-  $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>
   $<IF:$<TARGET_EXISTS:libjpeg-turbo::turbojpeg>,libjpeg-turbo::turbojpeg,libjpeg-turbo::turbojpeg-static>
   WebP::webp
   WebP::webpdecoder
+  PNG::PNG
 )
 
 target_include_directories(palettum PRIVATE
@@ -18,6 +18,7 @@ target_include_directories(palettum PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../include
   ${CMAKE_CURRENT_SOURCE_DIR}/../external/mtpng/c
   ${OpenMP_CXX_INCLUDE_DIR}
+  ${PNG_INCLUDE_DIR}
 )
 
 if(WIN32)

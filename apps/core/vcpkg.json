@@ -1,13 +1,13 @@
 {
   "name": "palettum",
   "version": "0.3.9",
-  "builtin-baseline": "b545373a9a536dc559dac8583467a21497a0e897",
+  "builtin-baseline": "533a5fda5c0646d1771345fb572e759283444d5f",
   "dependencies": [
     "giflib",
     "gtest",
     "libjpeg-turbo",
-    "libspng",
+    "libwebp",
     "simde",
-    "libwebp"
+    "libpng"
   ]
 }

@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.22)
 
+cmake_policy(SET CMP0074 NEW)
 
 project(Palettum_Core
         VERSION 0.3.9
         DESCRIPTION "Core library for Palettum"
         LANGUAGES CXX)
+
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -110,9 +112,9 @@ endif ()
 
 find_package(GIF REQUIRED)
 find_package(pybind11 CONFIG REQUIRED)
-find_package(SPNG CONFIG REQUIRED)
 find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(WebP CONFIG REQUIRED)
+find_package(PNG REQUIRED)
 
 set(MTPNG_BINARY_DIR "${CMAKE_SOURCE_DIR}/external/mtpng/build")
 

@@ -7,7 +7,16 @@ from app import app, limiter
 from app.auth import require_api_key
 from flask import Response, jsonify, request, send_file
 
-from palettum import GIF, RGB, Config, Formula, Image, Mapping, palettify
+from palettum import (
+    GIF,
+    RGB,
+    Config,
+    Formula,
+    Image,
+    Mapping,
+    WeightingKernelType,
+    palettify,
+)
 
 VALID_IMAGE_TYPES = {"image/gif", "image/png", "image/jpeg", "image/jpg", "image/webp"}
 MAX_DIMENSION = 3840
@@ -19,10 +28,21 @@ VALID_FORMULAS = {
     "CIE76": Formula.CIE76,
 }
 VALID_MAPPINGS = {
-    "CIEDE-PALETTIZED": Mapping.CIEDE_PALETTIZED,
-    "RBF-INTERPOLATED": Mapping.RBF_INTERPOLATED,
-    "RBF-PALETTIZED": Mapping.RBF_PALETTIZED,
+    "PALETTIZED": Mapping.PALETTIZED,
+    "SMOOTHED": Mapping.SMOOTHED,
+    "SMOOTHED-PALETTIZED": Mapping.SMOOTHED_PALETTIZED,
 }
+VALID_WEIGHTING_KERNELS = {
+    "GAUSSIAN": WeightingKernelType.GAUSSIAN,
+    "INVERSE_DISTANCE_POWER": WeightingKernelType.INVERSE_DISTANCE_POWER,
+}
+
+MIN_SMOOTHED_SCALE = 0.1
+MAX_SMOOTHED_SCALE = 10.0
+MIN_SMOOTHED_SHAPE = 0.02
+MAX_SMOOTHED_SHAPE = 0.2
+MIN_SMOOTHED_POWER = 2.0
+MAX_SMOOTHED_POWER = 5.0
 
 
 @app.errorhandler(ValueError)
@@ -91,6 +111,38 @@ def validate_mapping(mapping: str) -> None:
         raise ValueError("Not a valid mapping. Choose from:", VALID_MAPPINGS.keys())
 
 
+def validate_weighting_kernel(kernel: str) -> None:
+    if kernel not in VALID_WEIGHTING_KERNELS:
+        raise ValueError(
+            "Not a valid weighting kernel. Choose from:", VALID_WEIGHTING_KERNELS.keys()
+        )
+
+
+def validate_smoothed_scale(scale: float) -> None:
+    if scale < MIN_SMOOTHED_SCALE:
+        raise ValueError(f"SMOOTHED scale must be at least {MIN_SMOOTHED_SCALE}")
+    if scale > MAX_SMOOTHED_SCALE:
+        raise ValueError(f"SMOOTHED scale cannot exceed {MAX_SMOOTHED_SCALE}")
+
+
+def validate_smoothed_shape(shape: float) -> None:
+    if shape < MIN_SMOOTHED_SHAPE:
+        raise ValueError(
+            f"Smoothed shape parameter must be at least {MIN_SMOOTHED_SHAPE}"
+        )
+    if shape > MAX_SMOOTHED_SHAPE:
+        raise ValueError(f"SMOOTHED shape parameter cannot exceed {MAX_SMOOTHED_SHAPE}")
+
+
+def validate_smoothed_power(power: float) -> None:
+    if power < MIN_SMOOTHED_POWER:
+        raise ValueError(
+            f"Smoothed power parameter must be at least {MIN_SMOOTHED_POWER}"
+        )
+    if power > MAX_SMOOTHED_POWER:
+        raise ValueError(f"Smoothed power parameter cannot exceed {MAX_SMOOTHED_POWER}")
+
+
 def parse_palette(palette_file):
     try:
         content = palette_file.read()
@@ -147,7 +199,7 @@ def is_gif(data):
 
 
 @app.route("/upload", methods=["POST"])
-@limiter.limit("30 per hour")
+# @limiter.limit("30 per hour")
 def upload_image():
     try:
         if "image" not in request.files:
@@ -198,10 +250,40 @@ def upload_image():
             validate_mapping(mapping.upper())
             conf.mapping = VALID_MAPPINGS[mapping.upper()]
 
-        # TODO: Validate sigma value, probably from 1 to 100?
-        sigma = request.form.get("sigma", type=float)
-        if sigma:
-            conf.sigma = sigma
+        weighting_kernel = request.form.get("weighting_kernel", type=str)
+        if weighting_kernel:
+            validate_weighting_kernel(weighting_kernel.upper())
+            conf.anisotropic_kernel = VALID_WEIGHTING_KERNELS[weighting_kernel.upper()]
+            app.logger.info(VALID_WEIGHTING_KERNELS[weighting_kernel.upper()])
+            app.logger.info(f"HIHIIHHHHHHHHHHHHHHHHHHHHIHJHDJHFDJF")
+
+        anisotropic_labScales = request.form.get("anisotropic_labScales", type=str)
+        if anisotropic_labScales:
+            try:
+                scales = [float(x) for x in anisotropic_labScales.split(",")]
+                if len(scales) != 3:
+                    raise ValueError(
+                        "anisotropic_labScales must be a comma-separated list of 3 floats"
+                    )
+                for scale in scales:
+                    validate_smoothed_scale(scale)
+                conf.anisotropic_labScales = (scales[0], scales[1], scales[2])
+            except ValueError as e:
+                return jsonify(error=str(e)), 400
+
+        anisotropic_shapeParameter = request.form.get(
+            "anisotropic_shapeParameter", type=float
+        )
+        if anisotropic_shapeParameter:
+            validate_smoothed_shape(anisotropic_shapeParameter)
+            conf.anisotropic_shapeParameter = anisotropic_shapeParameter
+
+        anisotropic_powerParameter = request.form.get(
+            "anisotropic_powerParameter", type=float
+        )
+        if anisotropic_powerParameter:
+            validate_smoothed_power(anisotropic_powerParameter)
+            conf.anisotropic_powerParameter = anisotropic_powerParameter
 
         conf.palette = palette
 

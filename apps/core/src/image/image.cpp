@@ -1,5 +1,18 @@
 #include "image/image.h"
 
+static void png_memory_read(png_structp png_ptr, png_bytep outBytes,
+                            png_size_t byteCountToRead)
+{
+    PngMemoryReader *reader =
+        reinterpret_cast<PngMemoryReader *>(png_get_io_ptr(png_ptr));
+    if (reader->offset + byteCountToRead > reader->size)
+    {
+        png_error(png_ptr, "Read Error");
+    }
+    std::memcpy(outBytes, reader->data + reader->offset, byteCountToRead);
+    reader->offset += byteCountToRead;
+}
+
 Image::Image(const unsigned char *buffer, int length)
 {
     // Try PNG
@@ -365,6 +378,11 @@ Image::Image(int width, int height, bool withAlpha)
 {
 }
 
+bool Image::hasAlpha() const noexcept
+{
+    return m_channels == 4;
+}
+
 int Image::operator-(const Image &other) const
 {
     if (m_width != other.m_width || m_height != other.m_height)
@@ -380,12 +398,12 @@ int Image::operator-(const Image &other) const
     {
         for (int x = 0; x < m_width; ++x)
         {
-            RGB thisColor = get(x, y);
-            RGB otherColor = other.get(x, y);
+            RGBA thisColor = get(x, y);
+            RGBA otherColor = other.get(x, y);
 
-            if (abs(thisColor.red() - otherColor.red()) > 5 ||
-                abs(thisColor.green() - otherColor.green()) > 5 ||
-                abs(thisColor.blue() - otherColor.blue()) > 5)
+            if (abs(thisColor.r - otherColor.r) > 5 ||
+                abs(thisColor.g - otherColor.g) > 5 ||
+                abs(thisColor.b - otherColor.b) > 5)
             {
                 differentPixels++;
             }
@@ -432,7 +450,7 @@ std::vector<unsigned char> Image::write() const
 
         unsigned char *jpegBuf = nullptr;
         unsigned long jpegSize = 0;
-        int quality = 100;
+        int quality = 80;
         int subsamp = TJSAMP_420;
         int pixel_format = (m_channels == 4) ? TJPF_RGBA : TJPF_RGB;
 
@@ -470,7 +488,7 @@ std::vector<unsigned char> Image::writeIndexedToMemory() const
         return len;
     };
 
-    auto flush_callback = [](void *user_data) -> bool {
+    auto flush_callback = [](void *) -> bool {
         return true;
     };
 
@@ -531,8 +549,8 @@ std::vector<unsigned char> Image::writeIndexedToMemory() const
 
     for (size_t j = 0; j < m_palette.size(); ++j)
     {
-        uint32_t key = (m_palette[j].red() << 16) |
-                       (m_palette[j].green() << 8) | m_palette[j].blue();
+        uint32_t key =
+            (m_palette[j].r << 16) | (m_palette[j].g << 8) | m_palette[j].b;
         colorMap[key] = j;
     }
 
@@ -541,9 +559,9 @@ std::vector<unsigned char> Image::writeIndexedToMemory() const
 
     for (const auto &color : m_palette)
     {
-        palette.push_back(color.red());
-        palette.push_back(color.green());
-        palette.push_back(color.blue());
+        palette.push_back(color.r);
+        palette.push_back(color.g);
+        palette.push_back(color.b);
     }
 
     if (needsTransparency && m_channels == 4)
@@ -657,7 +675,7 @@ bool Image::write(const char *filename) const
 
         unsigned char *jpegBuf = nullptr;
         unsigned long jpegSize = 0;
-        int quality = 100;
+        int quality = 80;
         int subsamp = TJSAMP_420;
         int pixel_format = (m_channels == 4) ? TJPF_RGBA : TJPF_RGB;
 
@@ -765,27 +783,13 @@ RGBA Image::get(int x, int y) const
 
 void Image::set(int x, int y, const RGBA &color)
 {
-    if (m_channels != 4)
-        throw std::logic_error("Image does not have an alpha channel. Use "
-                               "Image::set(int, int, const RGB&) instead.");
-
     validateCoordinates(x, y);
     size_t pos = (y * m_width + x) * m_channels;
-    m_data[pos] = color.red();
-    m_data[pos + 1] = color.green();
-    m_data[pos + 2] = color.blue();
-    m_data[pos + 3] = color.alpha();
-}
-
-void Image::set(int x, int y, const RGB &color)
-{
-    validateCoordinates(x, y);
-    size_t pos = (y * m_width + x) * m_channels;
-    m_data[pos] = color.red();
-    m_data[pos + 1] = color.green();
-    m_data[pos + 2] = color.blue();
+    m_data[pos] = color.r;
+    m_data[pos + 1] = color.g;
+    m_data[pos + 2] = color.b;
     if (m_channels == 4)
-        m_data[pos + 3] = 255;
+        m_data[pos + 3] = color.a;
 }
 
 int Image::width() const noexcept

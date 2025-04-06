@@ -77,7 +77,7 @@ void GIF::Frame::setPixel(int x, int y, const RGBA &color, GifByteType index)
 
 void GIF::Frame::setPixel(int x, int y, const RGB &color, GifByteType index)
 {
-    image.set(x, y, color);
+    image.set(x, y, RGBA{color.r, color.g, color.b});
     indices[y * image.width() + x] = index;
     updateBounds(x, y, index);
 }
@@ -401,17 +401,17 @@ void GIF::setPalette(size_t frameIndex, const std::vector<RGB> &palette)
 
     for (size_t i = 0; i < palette.size(); i++)
     {
-        newMap->Colors[i].Red = palette[i].red();
-        newMap->Colors[i].Green = palette[i].green();
-        newMap->Colors[i].Blue = palette[i].blue();
+        newMap->Colors[i].Red = palette[i].r;
+        newMap->Colors[i].Green = palette[i].g;
+        newMap->Colors[i].Blue = palette[i].b;
     }
 
     RGB lastColor = palette.back();
     for (size_t i = palette.size(); i < 256; i++)
     {
-        newMap->Colors[i].Red = lastColor.red();
-        newMap->Colors[i].Green = lastColor.green();
-        newMap->Colors[i].Blue = lastColor.blue();
+        newMap->Colors[i].Red = lastColor.r;
+        newMap->Colors[i].Green = lastColor.g;
+        newMap->Colors[i].Blue = lastColor.b;
     }
 
     newMap->ColorCount = 256;
@@ -434,7 +434,7 @@ void GIF::setPixel(size_t frameIndex, int x, int y, const RGBA &color)
         throw std::runtime_error("No color map available");
     }
 
-    if (color.alpha() == 0)
+    if (color.a == 0)
     {
         frame.setPixel(x, y, color, frame.transparent_index);
         return;
@@ -445,9 +445,9 @@ void GIF::setPixel(size_t frameIndex, int x, int y, const RGBA &color)
     double minDistance = DBL_MAX;
     for (int i = 0; i < colorMap->ColorCount; i++)
     {
-        double dr = color.red() - colorMap->Colors[i].Red;
-        double dg = color.green() - colorMap->Colors[i].Green;
-        double db = color.blue() - colorMap->Colors[i].Blue;
+        double dr = color.r - colorMap->Colors[i].Red;
+        double dg = color.g - colorMap->Colors[i].Green;
+        double db = color.b - colorMap->Colors[i].Blue;
         double distance = dr * dr + dg * dg + db * db;
         if (distance < minDistance)
         {
@@ -478,9 +478,9 @@ void GIF::setPixel(size_t frameIndex, int x, int y, const RGB &color)
     double minDistance = DBL_MAX;
     for (int i = 0; i < colorMap->ColorCount; i++)
     {
-        double dr = color.red() - colorMap->Colors[i].Red;
-        double dg = color.green() - colorMap->Colors[i].Green;
-        double db = color.blue() - colorMap->Colors[i].Blue;
+        double dr = color.r - colorMap->Colors[i].Red;
+        double dg = color.g - colorMap->Colors[i].Green;
+        double db = color.b - colorMap->Colors[i].Blue;
         double distance = dr * dr + dg * dg + db * db;
         if (distance < minDistance)
         {

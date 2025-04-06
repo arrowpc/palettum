@@ -1,15 +1,16 @@
 #pragma once
 
+#include <cstdint>
 #include <iostream>
+#include <list>
 #include <optional>
-#include <vector>
+#include <unordered_map>
 #include "color/lab.h"
 
 class Lab;
 
 struct XYZ {
     float X{0}, Y{0}, Z{0};
-
     static constexpr float WHITE_X = 95.047f;
     static constexpr float WHITE_Y = 100.000;
     static constexpr float WHITE_Z = 108.883;
@@ -17,106 +18,136 @@ struct XYZ {
     static constexpr float KAPPA = 903.3;
 };
 
-class RGB
-{
-public:
-    explicit RGB(unsigned char r = 0, unsigned char g = 0,
-                 unsigned char b = 0) noexcept;
-    [[nodiscard]] Lab toLab() const noexcept;
-    RGB(std::initializer_list<unsigned char> il) noexcept
+struct RGBA {
+    uint8_t r, g, b, a;
+
+    constexpr explicit RGBA(uint8_t r = 0, uint8_t g = 0, uint8_t b = 0,
+                            uint8_t a = 255) noexcept
+        : r(r)
+        , g(g)
+        , b(b)
+        , a(a)
+    {
+    }
+
+    bool operator==(const RGBA &rhs) const noexcept = default;
+    bool operator!=(const RGBA &rhs) const noexcept = default;
+
+    friend std::ostream &operator<<(std::ostream &os, const RGBA &RGBA);
+};
+
+struct RGB {
+    uint8_t r, g, b;
+
+    constexpr explicit RGB(uint8_t r = 0, uint8_t g = 0, uint8_t b = 0) noexcept
+        : r(r)
+        , g(g)
+        , b(b)
+    {
+    }
+    explicit RGB(const RGBA &rgba)
+        : r(rgba.r)
+        , g(rgba.g)
+        , b(rgba.b)
+    {
+    }
+
+    constexpr RGB(std::initializer_list<uint8_t> il) noexcept
     {
         auto it = il.begin();
-        m_r = it != il.end() ? *it++ : 0;
-        m_g = it != il.end() ? *it++ : 0;
-        m_b = it != il.end() ? *it : 0;
+        r = it != il.end() ? *it++ : 0;
+        g = it != il.end() ? *it++ : 0;
+        b = it != il.end() ? *it : 0;
     }
-    bool operator==(const RGB &rhs) const noexcept;
-    [[nodiscard]] constexpr unsigned char red() const noexcept
-    {
-        return m_r;
-    }
-    [[nodiscard]] constexpr unsigned char green() const noexcept
-    {
-        return m_g;
-    }
-    [[nodiscard]] constexpr unsigned char blue() const noexcept
-    {
-        return m_b;
-    }
-    virtual ~RGB() = default;
-    bool operator!=(const RGB &rhs) const noexcept;
-    friend std::ostream &operator<<(std::ostream &os, const RGB &RGB);
 
-private:
-    unsigned char m_r, m_g, m_b;
-    [[nodiscard]] static float pivotXYZ(float n) noexcept;
+    [[nodiscard]] Lab toLab() const noexcept;
+
+    bool operator==(const RGB &rhs) const noexcept = default;
+    bool operator!=(const RGB &rhs) const noexcept = default;
+
+    friend std::ostream &operator<<(std::ostream &os, const RGB &RGB);
 };
 
+namespace std {
 template <>
-struct std::hash<RGB> {
+struct hash<RGB> {
     size_t operator()(const RGB &rgb) const
     {
-        return (rgb.red() << 16) | (rgb.green() << 8) | rgb.blue();
+        return (static_cast<size_t>(rgb.r) << 16) |
+               (static_cast<size_t>(rgb.g) << 8) | rgb.b;
     }
 };
+};  // namespace std
 
-class RGBCache
+class ThreadLocalCache
 {
 private:
-    static constexpr int R_SHIFT = 16;
-    static constexpr int G_SHIFT = 8;
+    static constexpr size_t MAX_CACHE_SIZE = 4096;
 
-    struct Entry {
-        RGB val;
-        bool init;
+    std::list<RGB> m_lruList;
+    // Map RGB -> {Value, Iterator to key in m_lruList}
+    std::unordered_map<RGB, std::pair<RGBA, std::list<RGB>::iterator>,
+                       std::hash<RGB>>
+        m_cache;
 
-        Entry()
-            : val{}
-            , init{false}
+    void markAsUsed(typename std::unordered_map<
+                    RGB, std::pair<RGBA, std::list<RGB>::iterator>,
+                    std::hash<RGB>>::iterator map_it)
+    {
+        // Use splice to move the node pointed to by map_it->second.second
+        // to the beginning of m_lruList without allocation/deallocation
+        m_lruList.splice(m_lruList.begin(), m_lruList, map_it->second.second);
+        map_it->second.second = m_lruList.begin();
+    }
+
+public:
+    void set(const RGBA &key, const RGBA &val) noexcept
+    {
+        RGB rgbKey(key);
+        auto it = m_cache.find(rgbKey);
+
+        if (it != m_cache.end())
         {
+            // Key exists: Update value and mark as recently used
+            it->second.first = val;
+            markAsUsed(it);
         }
-    };
+        else
+        {
+            // Key doesn't exist: Insert new element
+            if (m_cache.size() >= MAX_CACHE_SIZE)
+            {
+                // Cache is full: Evict least recently used
+                RGB lruKey = m_lruList.back();
+                m_lruList.pop_back();
+                m_cache.erase(lruKey);
+            }
 
-    std::vector<Entry> m_entries;
-
-public:
-    RGBCache()
-        : m_entries(1 << 24)
-    {
+            m_lruList.push_front(rgbKey);
+            // Use emplace for potentially better performance constructing in place
+            m_cache.emplace(rgbKey, std::make_pair(val, m_lruList.begin()));
+            // Note: If emplace fails (e.g., duplicate key inserted between find and emplace
+            // in a concurrent scenario - not possible here due to thread_local),
+            // the list push_front would need rollback. But for thread_local, this is safe.
+        }
     }
 
-    void set(const RGB &key, const RGB &val) noexcept
+    [[nodiscard]] std::optional<RGBA> get(const RGBA &key) noexcept
     {
-        const size_t idx = makeIndex(key);
-        m_entries[idx].val = val;
-        m_entries[idx].init = true;
+        RGB rgbKey(key);
+        auto it = m_cache.find(rgbKey);
+
+        if (it != m_cache.end())
+        {
+            markAsUsed(it);
+            return std::optional{it->second.first};
+        }
+        return std::nullopt;
     }
 
-    [[nodiscard]] std::optional<RGB> get(const RGB &key) const noexcept
+    void clear() noexcept
     {
-        const size_t idx = makeIndex(key);
-        return m_entries[idx].init ? std::optional{m_entries[idx].val}
-                                   : std::nullopt;
+        m_lruList.clear();
+        m_cache.clear();
     }
-
-private:
-    [[nodiscard]] static constexpr size_t makeIndex(const RGB &rgb) noexcept
-    {
-        return (rgb.red() << R_SHIFT) | (rgb.green() << G_SHIFT) | rgb.blue();
-    }
-};
-
-class RGBA : public RGB
-{
-public:
-    explicit RGBA(unsigned char r = 0, unsigned char g = 0, unsigned char b = 0,
-                  unsigned char a = 255) noexcept;
-    [[nodiscard]] unsigned char alpha() const noexcept
-    {
-        return m_a;
-    }
-    friend std::ostream &operator<<(std::ostream &os, const RGBA &RGBA);
-
-private:
-    unsigned char m_a;
 };

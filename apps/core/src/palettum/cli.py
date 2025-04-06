@@ -632,29 +632,29 @@ def palettify(
 
     start_time = time.perf_counter()
     original_width, original_height = 0, 0
-    media = None
+    result = None
     with Status(
         f"Palettifying {file_type.lower()}...", console=console, spinner="dots"
     ) as status:
         try:
             if is_gif_file:
                 status.update(f"Loading GIF...")
-                media = GIF(input_file)
-                original_width, original_height = media.width(), media.height()
+                result = GIF(input_file)
+                original_width, original_height = result.width(), result.height()
                 if resize_requested:
                     target_width, target_height = calculate_dimensions(
                         original_width, original_height, width, height, scale
                     )
                     status.update(f"Resizing GIF to {target_width}x{target_height}...")
-                    media.resize(target_width, target_height)
+                    result.resize(target_width, target_height)
                 else:
                     target_width, target_height = original_width, original_height
                 status.update(f"Applying palette to GIF...")
-                result = core_palettify(media, config)
+                core_palettify(result, config)
             else:
                 status.update(f"Loading image...")
-                media = Image(input_file)
-                original_width, original_height = media.width(), media.height()
+                result = Image(input_file)
+                original_width, original_height = result.width(), result.height()
                 if resize_requested:
                     target_width, target_height = calculate_dimensions(
                         original_width, original_height, width, height, scale
@@ -662,11 +662,11 @@ def palettify(
                     status.update(
                         f"Resizing image to {target_width}x{target_height}..."
                     )
-                    media.resize(target_width, target_height)
+                    result.resize(target_width, target_height)
                 else:
                     target_width, target_height = original_width, original_height
                 status.update(f"Applying palette to image...")
-                result = core_palettify(media, config)
+                core_palettify(result, config)
             status.update(f"Writing output to {output}...")
             result.write(output)
         except Exception as e:
@@ -718,9 +718,9 @@ def palettify(
             f"{target_width}x{target_height} "
             f"({width_change:+.1f}% W, {height_change:+.1f}% H)",
         )
-    if is_gif_file and media and hasattr(media, "frame_count"):
+    if is_gif_file and result and hasattr(result, "frame_count"):
         try:
-            results_table.add_row("Frame Count", str(media.frame_count()))
+            results_table.add_row("Frame Count", str(result.frame_count()))
         except Exception:
             results_table.add_row("Frame Count", "[red]N/A[/red]")
     console.print("[bold]Results:[/bold]")

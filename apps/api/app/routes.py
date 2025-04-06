@@ -154,10 +154,7 @@ def parse_palette(palette_file):
             color = RGB(r, g, b)
             palette.append(color)
         for color in palette:
-            if not all(
-                0 <= value <= 255
-                for value in [color.red(), color.green(), color.blue()]
-            ):
+            if not all(0 <= value <= 255 for value in [color.r, color.g, color.b]):
                 raise ValueError("RGB values must be in range [0, 255]")
         return palette
     except Exception as e:
@@ -231,12 +228,12 @@ def upload_image():
         conf = Config()
 
         transparent_threshold = request.form.get("transparent_threshold", type=int)
-        if transparent_threshold:
+        if transparent_threshold is not None:
             validate_threshold(transparent_threshold)
             conf.transparencyThreshold = transparent_threshold
 
         quant_level = request.form.get("quant_level", type=int)
-        if quant_level:
+        if quant_level is not None:
             validate_quant_level(quant_level)
             conf.quantLevel = quant_level
 
@@ -255,7 +252,6 @@ def upload_image():
             validate_weighting_kernel(weighting_kernel.upper())
             conf.anisotropic_kernel = VALID_WEIGHTING_KERNELS[weighting_kernel.upper()]
             app.logger.info(VALID_WEIGHTING_KERNELS[weighting_kernel.upper()])
-            app.logger.info(f"HIHIIHHHHHHHHHHHHHHHHHHHHIHJHDJHFDJF")
 
         anisotropic_labScales = request.form.get("anisotropic_labScales", type=str)
         if anisotropic_labScales:
@@ -286,25 +282,26 @@ def upload_image():
             conf.anisotropic_powerParameter = anisotropic_powerParameter
 
         conf.palette = palette
+        result = None
 
         try:
             if is_gif(img_data):
                 app.logger.info("Processing GIF...")
                 start_time = time.time()
-                gif = GIF(img_data)
+                result = GIF(img_data)
                 gif_load_time = time.time() - start_time
                 app.logger.info(f"GIF loaded in {gif_load_time:.2f}s")
 
                 if width or height:
                     app.logger.info("Resizing GIF...")
                     start_time = time.time()
-                    gif = resize_gif(gif, width, height)
+                    result = resize_gif(result, width, height)
                     resize_time = time.time() - start_time
                     app.logger.info(f"GIF resized in {resize_time:.2f}s")
 
                 app.logger.info("Palettifying GIF...")
                 start_time = time.time()
-                result = palettify(gif, conf)
+                palettify(result, conf)
                 palettify_time = time.time() - start_time
                 app.logger.info(f"GIF palettified in {palettify_time:.2f}s")
 
@@ -327,20 +324,20 @@ def upload_image():
             else:
                 app.logger.info("Loading static image...")
                 start_time = time.time()
-                img = Image(img_data)
+                result = Image(img_data)
                 load_time = time.time() - start_time
                 app.logger.info(f"Static image loaded in {load_time:.2f}s")
 
                 if width or height:
                     app.logger.info("Resizing image...")
                     start_time = time.time()
-                    img = resize_image(img, width, height)
+                    result = resize_image(result, width, height)
                     resize_time = time.time() - start_time
                     app.logger.info(f"Image resized in {resize_time:.2f}s")
 
                 app.logger.info("Palettifying static image...")
                 start_time = time.time()
-                result = palettify(img, conf)
+                palettify(result, conf)
                 palettify_time = time.time() - start_time
                 app.logger.info(f"Static image palettified in {palettify_time:.2f}s")
 

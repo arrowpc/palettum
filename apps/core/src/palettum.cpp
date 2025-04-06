@@ -91,9 +91,9 @@ RGB computeAnisotropicWeightedAverage(const Lab &targetLab,
         {
             totalWeight += weight;
             // Use the original RGB palette color for averaging
-            sumR += weight * static_cast<double>(config.palette[i].red());
-            sumG += weight * static_cast<double>(config.palette[i].green());
-            sumB += weight * static_cast<double>(config.palette[i].blue());
+            sumR += weight * static_cast<double>(config.palette[i].r);
+            sumG += weight * static_cast<double>(config.palette[i].g);
+            sumB += weight * static_cast<double>(config.palette[i].b);
         }
     }
 
@@ -119,8 +119,8 @@ RGB computeAnisotropicWeightedAverage(const Lab &targetLab,
     }
 }
 
-RGB computeMappedColor(const RGB &target, const Config &config,
-                       const std::vector<Lab> &labPalette)
+RGBA computeMappedColor(const RGBA &target, const Config &config,
+                        const std::vector<Lab> &labPalette)
 {
     if (config.mapping == Mapping::UNTOUCHED)
     {
@@ -136,50 +136,67 @@ RGB computeMappedColor(const RGB &target, const Config &config,
         return target;
     }
 
-    Lab targetLab = target.toLab();
+    RGB targetRGB{target.r, target.g, target.b};
+    Lab targetLab = targetRGB.toLab();
 
     switch (config.mapping)
     {
-        case Mapping::PALETTIZED:
-            return findClosestPaletteColor(targetLab, labPalette, config);
-        case Mapping::SMOOTHED:
-            return computeAnisotropicWeightedAverage(targetLab, config,
-                                                     labPalette);
+        case Mapping::PALETTIZED: {
+            RGB palettizedColor =
+                findClosestPaletteColor(targetLab, labPalette, config);
+            return RGBA{palettizedColor.r, palettizedColor.g,
+                        palettizedColor.b};
+        }
+        case Mapping::SMOOTHED: {
+            RGB smoothedColor = computeAnisotropicWeightedAverage(
+                targetLab, config, labPalette);
+            return RGBA{smoothedColor.r, smoothedColor.g, smoothedColor.b};
+        }
         case Mapping::SMOOTHED_PALETTIZED: {
             RGB smoothedColor = computeAnisotropicWeightedAverage(
                 targetLab, config, labPalette);
             Lab smoothedLab = smoothedColor.toLab();
-            return findClosestPaletteColor(smoothedLab, labPalette, config);
+            RGB palettizedColor =
+                findClosestPaletteColor(smoothedLab, labPalette, config);
+            return RGBA{palettizedColor.r, palettizedColor.g,
+                        palettizedColor.b};
         }
         default:
-            // Juuust in case
             std::cerr << "Warning: Unsupported mapping type encountered ("
                       << static_cast<int>(config.mapping)
                       << "). Falling back to PALETTIZED." << std::endl;
-            return findClosestPaletteColor(targetLab, labPalette, config);
+            RGB palettizedColor =
+                findClosestPaletteColor(targetLab, labPalette, config);
+            return RGBA{palettizedColor.r, palettizedColor.g,
+                        palettizedColor.b};
     }
 }
 
 std::vector<RGB> generateLookupTable(const Config &config,
-                                     const std::vector<Lab> &labPalette)
+                                     const std::vector<Lab> &labPalette,
+                                     int imageSize = 0)
 {
     const uint8_t q = config.quantLevel;
     const uint8_t max_q = 5;
-    if (q == 0)
+
+    // Skip LUT generation if quantization is disabled or too high
+    if (q == 0 || q >= max_q)
     {
-        return {};  // No LUT needed if no quantization
-    }
-    if (q >= max_q)
-    {
-        std::cerr << "Warning: Quantization level " << static_cast<int>(q)
-                  << " is too high (>=" << static_cast<int>(max_q)
-                  << "). LUT generation skipped." << std::endl;
         return {};
     }
 
-    // Calculate the number of bins per channel after quantization
+    // Only use lookup table for images large enough to benefit from it
+    // A reasonable threshold is when the LUT size is smaller than the image size
     const uint8_t bins = 256 >> q;
     const size_t table_size = static_cast<size_t>(bins) * bins * bins;
+
+    // If image is small or quantization level would create a LUT larger than
+    // what's beneficial, skip LUT generation
+    if (imageSize > 0 && table_size > static_cast<size_t>(imageSize / 4))
+    {
+        return {};
+    }
+
     std::vector<RGB> lookup(table_size);
 
     // Determine the center offset for rounding quantized values
@@ -193,8 +210,6 @@ std::vector<RGB> generateLookupTable(const Config &config,
             for (int b_bin = 0; b_bin < bins; ++b_bin)
             {
                 // Reconstruct the representative RGB color for this bin
-                // Left-shift approximates multiplication by 2^q
-                // Add rounding offset to get the center of the quantization bin
                 uint8_t r_val = static_cast<uint8_t>(
                     std::min(255, (r_bin << q) + rounding));
                 uint8_t g_val = static_cast<uint8_t>(
@@ -202,31 +217,31 @@ std::vector<RGB> generateLookupTable(const Config &config,
                 uint8_t b_val = static_cast<uint8_t>(
                     std::min(255, (b_bin << q) + rounding));
 
-                RGB target{r_val, g_val, b_val};
-
-                RGB result = computeMappedColor(target, config, labPalette);
+                RGBA target{r_val, g_val, b_val};
+                RGBA result = computeMappedColor(target, config, labPalette);
 
                 size_t index =
                     (static_cast<size_t>(r_bin) * bins + g_bin) * bins + b_bin;
-                lookup[index] = result;
+                lookup[index] = RGB{result.r, result.g, result.b};
             }
         }
     }
     return lookup;
 }
 
-RGB getMappedColorForPixel(const RGBA &pixel, const Config &config,
-                           const std::vector<Lab> &labPalette, RGBCache &cache,
-                           const std::vector<RGB> *lookup)
+RGBA getMappedColorForPixel(const RGBA &pixel, const Config &config,
+                            const std::vector<Lab> &labPalette,
+                            ThreadLocalCache &cache,
+                            const std::vector<RGB> *lookup)
 {
-    if (lookup && !lookup->empty() && config.quantLevel > 0 &&
-        config.quantLevel < 8)
+    // Use lookup table if provided and applicable
+    if (lookup && !lookup->empty())
     {
         const uint8_t q = config.quantLevel;
         const uint8_t binsPerChannel = 256 >> q;
-        uint8_t r_q = pixel.red() >> q;
-        uint8_t g_q = pixel.green() >> q;
-        uint8_t b_q = pixel.blue() >> q;
+        uint8_t r_q = pixel.r >> q;
+        uint8_t g_q = pixel.g >> q;
+        uint8_t b_q = pixel.b >> q;
 
         // Calculate the 1D index into the LUT
         size_t index =
@@ -234,65 +249,67 @@ RGB getMappedColorForPixel(const RGBA &pixel, const Config &config,
             b_q;
 
         if (index < lookup->size())
-            return (*lookup)[index];
-        else
-            std::cerr << "Warning: LUT index out of bounds (" << index
-                      << " vs size " << lookup->size() << ")!" << std::endl;
+        {
+            RGB rgb = (*lookup)[index];
+            return RGBA{rgb.r, rgb.g, rgb.b};
+        }
     }
 
-    RGB target{pixel.red(), pixel.green(), pixel.blue()};
-    auto cachedColor = cache.get(target);
+    // Check the cache
+    auto cachedColor = cache.get(pixel);
     if (cachedColor)
+    {
         return *cachedColor;
+    }
 
-    RGB result = computeMappedColor(target, config, labPalette);
-    cache.set(target, result);
+    // Compute the color and cache it
+    RGBA result = computeMappedColor(pixel, config, labPalette);
+    cache.set(pixel, result);
     return result;
 }
 
-void processPixels(const Image &source, Image &target, const Config &config,
-                   const std::vector<Lab> &labPalette, RGBCache &cache,
+void processPixels(Image &image, const Config &config,
+                   const std::vector<Lab> &labPalette,
                    const std::vector<RGB> *lookup)
 {
-    const int width = source.width();
-    const int height = source.height();
+    const int width = image.width();
+    const int height = image.height();
 
-    if (width != target.width() || height != target.height())
-        throw std::runtime_error(
-            "Source and target image dimensions must match in processPixels.");
-
-#pragma omp parallel for collapse(2) schedule(dynamic)
-    for (int y = 0; y < height; ++y)
+#pragma omp parallel
     {
-        for (int x = 0; x < width; ++x)
+        ThreadLocalCache thread_cache;
+#pragma omp parallel for collapse(2) schedule(dynamic)
+        for (int y = 0; y < height; ++y)
         {
-            RGBA currentPixel = source.get(x, y);
-
-            if (source.hasAlpha() &&
-                currentPixel.alpha() < config.transparencyThreshold)
-                target.set(x, y, RGBA(0, 0, 0, 0));
-            else
+            for (int x = 0; x < width; ++x)
             {
-                RGB mappedColor = getMappedColorForPixel(
-                    currentPixel, config, labPalette, cache, lookup);
-                target.set(x, y, mappedColor);
+                RGBA currentPixel = image.get(x, y);
+
+                if (image.hasAlpha() &&
+                    currentPixel.a < config.transparencyThreshold)
+                {
+                    image.set(x, y, RGBA(0, 0, 0, 0));
+                }
+                else
+                {
+                    RGBA mappedColor = getMappedColorForPixel(
+                        currentPixel, config, labPalette, thread_cache, lookup);
+
+                    image.set(x, y, mappedColor);
+                }
             }
         }
     }
 }
 
-Image palettify(const Image &image, const Config &config)
+void palettify(Image &image, const Config &config)
 {
-    const size_t width = image.width();
-    const size_t height = image.height();
-    Image result(width, height, image.hasAlpha());
-
     bool outputIsPalettized = (config.mapping == Mapping::PALETTIZED ||
                                config.mapping == Mapping::SMOOTHED_PALETTIZED);
 
-    result.setMapping(config.mapping);
+    image.setMapping(config.mapping);
     if (outputIsPalettized && !config.palette.empty())
-        result.setPalette(config.palette);
+        image.setPalette(config.palette);
 
     std::vector<Lab> labPalette;
     if (config.mapping != Mapping::UNTOUCHED)
@@ -308,23 +325,22 @@ Image palettify(const Image &image, const Config &config)
         }
     }
 
-    RGBCache cache;
     std::vector<RGB> lookup;
     if (config.quantLevel > 0)
-        lookup = generateLookupTable(config, labPalette);
+    {
+        int imageSize = image.width() * image.height();
+        lookup = generateLookupTable(config, labPalette, imageSize);
+    }
 
-    processPixels(image, result, config, labPalette, cache,
+    processPixels(image, config, labPalette,
                   (!lookup.empty()) ? &lookup : nullptr);
-
-    return result;
 }
 
-GIF palettify(const GIF &gif, const Config &config)
+void palettify(GIF &gif, const Config &config)
 {
     bool outputIsPalettized = (config.mapping == Mapping::PALETTIZED ||
                                config.mapping == Mapping::SMOOTHED_PALETTIZED);
 
-    //TODO: Create a config validation function instead of rewriting this for Image
     if (!outputIsPalettized)
     {
         throw std::runtime_error(
@@ -338,26 +354,32 @@ GIF palettify(const GIF &gif, const Config &config)
     }
     if (config.palette.size() > 256)
     {
-        // GIF standard allows max 256 colors per frame palette
         throw std::runtime_error(
             "GIF palette size cannot exceed 256 colors. Provided palette has " +
             std::to_string(config.palette.size()) + " colors.");
     }
 
-    GIF result = gif;
-
-    for (size_t frameIndex = 0; frameIndex < result.frameCount(); ++frameIndex)
-        result.setPalette(frameIndex, config.palette);
+    // Set palettes for all frames
+    for (size_t frameIndex = 0; frameIndex < gif.frameCount(); ++frameIndex)
+        gif.setPalette(frameIndex, config.palette);
 
     const size_t palette_size = config.palette.size();
     std::vector<Lab> labPalette(palette_size);
     for (size_t i = 0; i < palette_size; ++i)
         labPalette[i] = config.palette[i].toLab();
 
-    RGBCache cache;
+    // Calculate average frame size to determine if lookup table is beneficial
+    size_t totalPixels = 0;
+    for (size_t frameIndex = 0; frameIndex < gif.frameCount(); ++frameIndex)
+    {
+        const auto &frame = gif.getFrame(frameIndex);
+        totalPixels += frame.image.width() * frame.image.height();
+    }
+    int avgFrameSize = totalPixels / gif.frameCount();
+
     std::vector<RGB> lookup;
     if (config.quantLevel > 0)
-        lookup = generateLookupTable(config, labPalette);
+        lookup = generateLookupTable(config, labPalette, avgFrameSize);
 
     std::unordered_map<RGB, GifByteType> colorToIndexMap;
     for (size_t i = 0; i < config.palette.size(); ++i)
@@ -368,48 +390,47 @@ GIF palettify(const GIF &gif, const Config &config)
 
     for (size_t frameIndex = 0; frameIndex < gif.frameCount(); ++frameIndex)
     {
-        const auto &sourceFrame = gif.getFrame(frameIndex);
-        auto &targetFrame = result.getFrame(frameIndex);
+        auto &frame = gif.getFrame(frameIndex);
 
-        const size_t width = sourceFrame.image.width();
-        const size_t height = sourceFrame.image.height();
+        const size_t width = frame.image.width();
+        const size_t height = frame.image.height();
 
-        GifByteType currentFrameTransparentIndex =
-            targetFrame.transparent_index;
+        GifByteType currentFrameTransparentIndex = frame.transparent_index;
         bool currentFrameHasTransparency =
             (currentFrameTransparentIndex != NO_TRANSPARENT_INDEX);
 
-#pragma omp parallel for collapse(2) schedule(dynamic)
-        for (size_t y = 0; y < height; ++y)
+#pragma omp parallel
         {
-            for (size_t x = 0; x < width; ++x)
+            ThreadLocalCache thread_cache;
+#pragma omp parallel for collapse(2) schedule(dynamic)
+            for (size_t y = 0; y < height; ++y)
             {
-                RGBA currentPixel = sourceFrame.image.get(x, y);
-
-                if (currentFrameHasTransparency &&
-                    currentPixel.alpha() < config.transparencyThreshold)
+                for (size_t x = 0; x < width; ++x)
                 {
-                    targetFrame.setPixel(x, y, RGBA(0, 0, 0, 0),
-                                         currentFrameTransparentIndex);
-                }
-                else
-                {
-                    RGB mappedColor = getMappedColorForPixel(
-                        currentPixel, config, labPalette, cache,
-                        (!lookup.empty()) ? &lookup : nullptr);
+                    RGBA currentPixel = frame.image.get(x, y);
 
-                    auto it = colorToIndexMap.find(mappedColor);
-                    GifByteType index;
-                    if (it != colorToIndexMap.end())
-                        index = it->second;
+                    if (currentFrameHasTransparency &&
+                        currentPixel.a < config.transparencyThreshold)
+                    {
+                        frame.setPixel(x, y, RGBA(0, 0, 0, 0),
+                                       currentFrameTransparentIndex);
+                    }
+                    else
+                    {
+                        RGBA mappedColor = getMappedColorForPixel(
+                            currentPixel, config, labPalette, thread_cache,
+                            (!lookup.empty()) ? &lookup : nullptr);
 
-                    targetFrame.setPixel(x, y, mappedColor, index);
+                        auto it = colorToIndexMap.find(
+                            RGB{mappedColor.r, mappedColor.g, mappedColor.b});
+                        GifByteType index = it->second;
+
+                        frame.setPixel(x, y, mappedColor, index);
+                    }
                 }
             }
         }
     }
-
-    return result;
 }
 
 bool validate(const Image &image, const Config &config)
@@ -437,17 +458,16 @@ bool validate(const Image &image, const Config &config)
         {
             const RGBA currentPixel = image.get(x, y);
 
-            if (currentPixel.alpha() < config.transparencyThreshold)
+            if (currentPixel.a < config.transparencyThreshold)
                 continue;
 
-            RGB pixelRgb{currentPixel.red(), currentPixel.green(),
-                         currentPixel.blue()};
+            RGB pixelRgb{currentPixel.r, currentPixel.g, currentPixel.b};
             if (paletteLookup.find(pixelRgb) == paletteLookup.end())
             {
                 std::cerr << "Pixel at (" << x << "," << y << ") has color RGB("
-                          << static_cast<int>(pixelRgb.red()) << ","
-                          << static_cast<int>(pixelRgb.green()) << ","
-                          << static_cast<int>(pixelRgb.blue())
+                          << static_cast<int>(pixelRgb.r) << ","
+                          << static_cast<int>(pixelRgb.g) << ","
+                          << static_cast<int>(pixelRgb.b)
                           << ") which is not in the configured palette."
                           << std::endl;
                 return false;

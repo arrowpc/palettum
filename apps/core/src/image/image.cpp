@@ -16,7 +16,7 @@ static void png_memory_read(png_structp png_ptr, png_bytep outBytes,
 Image::Image(const unsigned char *buffer, int length)
 {
     // Try PNG
-    if (length >= 8 && !png_sig_cmp(buffer, 0, 8))
+    if (length >= 8 && !png_sig_cmp(const_cast<unsigned char *>(buffer), 0, 8))
     {
         png_structp png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
                                                      nullptr, nullptr, nullptr);

@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.27)
 cmake_policy(SET CMP0074 NEW)
 
 project(Palettum_Core
-        VERSION 0.4.0
+        VERSION 0.4.8
         DESCRIPTION "Core library for Palettum"
         LANGUAGES C CXX)
 
@@ -112,7 +112,7 @@ endif ()
 
 find_package(GIF REQUIRED)
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
+find_package(Python3 COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG REQUIRED)
 
 find_package(libjpeg-turbo CONFIG REQUIRED)

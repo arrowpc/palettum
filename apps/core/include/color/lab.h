@@ -12,7 +12,7 @@ using lab_float_t = simde_float16_t;
 using lab_float_t = float;
 #endif
 
-class RGB;
+struct RGB;
 
 class Lab
 {

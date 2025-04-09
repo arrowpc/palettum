@@ -11,7 +11,7 @@
 #include "image/image.h"
 
 namespace palettum {
-Image palettify(const Image &image, const Config &config);
-GIF palettify(const GIF &gif, const Config &config);
+void palettify(Image &image, const Config &config);
+void palettify(GIF &gif, const Config &config);
 bool validate(const Image &image, const Config &config);
 };  // namespace palettum

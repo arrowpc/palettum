@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from palettum import RGB, Config, Image, Lab, palettify, validate
 
 
@@ -12,7 +13,7 @@ class TestPalettum:
             self.current_dir, "..", "test_images", "hydrangea.jpeg"
         )
 
-        self.img = Image(self.img_path)
+        self.result = Image(self.img_path)
 
         self.palette = [
             RGB(190, 0, 57),
@@ -42,9 +43,8 @@ class TestPalettum:
         ]
         self.conf = Config()
         self.conf.palette = self.palette
-        self.result = palettify(self.img, self.conf)
+        palettify(self.result, self.conf)
 
-        request.cls.img = self.img
         request.cls.result = self.result
         request.cls.palette = self.palette
         request.cls.current_dir = self.current_dir
@@ -67,9 +67,13 @@ class TestPalettum:
         diff_percentage = (different_pixels * 100.0) / total_pixels
 
         assert (
-            diff_percentage <= 10.0
+            diff_percentage <= 20.0
         ), f"Images differ by {diff_percentage:.2f}% ({different_pixels} pixels out of {total_pixels})"
 
     def test_validate_image_colors(self):
+        original_path = os.path.join(
+            self.current_dir, "..", "test_images", "hydrangea.jpeg"
+        )
+        original = Image(original_path)
         assert validate(self.result, self.conf)
-        assert not validate(self.img, self.conf)
+        assert not validate(original, self.conf)

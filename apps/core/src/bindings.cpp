@@ -12,15 +12,15 @@ PYBIND11_MODULE(palettum, m)
 
     m.def(
         "palettify",
-        [](Image &img, Config &config) -> Image {
-            return palettum::palettify(img, config);
+        [](Image &img, Config &config) {
+            palettum::palettify(img, config);
         },
         py::arg("image"), py::arg("config"));
 
     m.def(
         "palettify",
-        [](GIF &gif, Config &config) -> GIF {
-            return palettum::palettify(gif, config);
+        [](GIF &gif, Config &config) {
+            palettum::palettify(gif, config);
         },
         py::arg("gif"), py::arg("config"));
 
@@ -66,19 +66,26 @@ PYBIND11_MODULE(palettum, m)
                        &Config::anisotropic_powerParameter);
 
     py::class_<RGB>(m, "RGB")
-        .def(py::init<unsigned char, unsigned char, unsigned char>())
-        .def(py::init<std::initializer_list<unsigned char>>())
-        .def("red", &RGB::red)
-        .def("green", &RGB::green)
-        .def("blue", &RGB::blue)
+        .def(py::init<uint8_t, uint8_t, uint8_t>())
+        .def(py::init<std::initializer_list<uint8_t>>())
+        .def_readwrite("r", &RGB::r)
+        .def_readwrite("g", &RGB::g)
+        .def_readwrite("b", &RGB::b)
         .def("toLab", &RGB::toLab)
         .def("__eq__", &RGB::operator==)
         .def("__ne__", &RGB::operator!=)
         .def("__repr__", [](const RGB &rgb) {
-            return "RGB(" + std::to_string(rgb.red()) + ", " +
-                   std::to_string(rgb.green()) + ", " +
-                   std::to_string(rgb.blue()) + ")";
+            return "RGB(" + std::to_string(rgb.r) + ", " +
+                   std::to_string(rgb.g) + ", " + std::to_string(rgb.b) + ")";
         });
+
+    py::class_<RGBA>(m, "RGBA")
+        .def(py::init<uint8_t, uint8_t, uint8_t, uint8_t>(), py::arg("r") = 0,
+             py::arg("g") = 0, py::arg("b") = 0, py::arg("a") = 255)
+        .def_readwrite("r", &RGBA::r)
+        .def_readwrite("g", &RGBA::g)
+        .def_readwrite("b", &RGBA::b)
+        .def_readwrite("a", &RGBA::a);
 
     py::class_<Lab>(m, "Lab")
         .def(py::init<lab_float_t, lab_float_t, lab_float_t>(),
@@ -92,13 +99,6 @@ PYBIND11_MODULE(palettum, m)
                    std::to_string((float)lab.a()) + ", " +
                    std::to_string((float)lab.b()) + ")";
         });
-
-    py::class_<RGBA, RGB>(m, "RGBA")
-        .def(py::init<unsigned char, unsigned char, unsigned char,
-                      unsigned char>(),
-             py::arg("r") = 0, py::arg("g") = 0, py::arg("b") = 0,
-             py::arg("a") = 255)
-        .def("alpha", &RGBA::alpha);
 
     py::class_<Image>(m, "Image")
         .def(py::init<>())
@@ -126,7 +126,6 @@ PYBIND11_MODULE(palettum, m)
         .def("resize", &Image::resize)
         .def("get", &Image::get)
         .def("set", py::overload_cast<int, int, const RGBA &>(&Image::set))
-        .def("set", py::overload_cast<int, int, const RGB &>(&Image::set))
         .def("width", &Image::width)
         .def("height", &Image::height)
         .def("channels", &Image::channels)

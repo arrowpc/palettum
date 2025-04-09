@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.27)
 
 cmake_policy(SET CMP0074 NEW)
 
 project(Palettum_Core
-        VERSION 0.4.0
+        VERSION 0.4.8
         DESCRIPTION "Core library for Palettum"
-        LANGUAGES CXX)
+        LANGUAGES C CXX)
 
 
 set(CMAKE_CXX_STANDARD 20)
@@ -27,9 +27,9 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
 
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -Ofast")
     else ()
-        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Ofast")
     endif ()
 elseif (MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /openmp:llvm /openmp:experimental")
@@ -111,7 +111,10 @@ else ()
 endif ()
 
 find_package(GIF REQUIRED)
+
+find_package(Python3 COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG REQUIRED)
+
 find_package(libjpeg-turbo CONFIG REQUIRED)
 find_package(WebP CONFIG REQUIRED)
 find_package(PNG REQUIRED)

@@ -95,12 +95,37 @@ class CMakeBuild(build_ext):
         vcpkg_toolchain = vcpkg_root / "scripts" / "buildsystems" / "vcpkg.cmake"
         use_vcpkg = False  # Flag to track if we are using vcpkg
 
+        python_prefix = sys.prefix
+
+        giflib_prefix = os.environ.get("GIFLIB_PREFIX", "")
+        giflib_library = os.environ.get(
+            "GIF_LIBRARY", f"{giflib_prefix}/lib/libgif.dylib" if giflib_prefix else ""
+        )
+        giflib_include = os.environ.get(
+            "GIF_INCLUDE_DIR", f"{giflib_prefix}/include" if giflib_prefix else ""
+        )
+        png_library = os.environ.get("PNG_LIBRARY", "")
+        png_include = os.environ.get("PNG_INCLUDE_DIR", "")
+
         cmake_args = [
             f"-DBUILD_TESTS=OFF",
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}{os.sep}",
-            f"-DPYTHON_EXECUTABLE={sys.executable}",
             f"-DCMAKE_BUILD_TYPE={cfg}",  # not used on MSVC, but no harm
+            f"-DPython3_ROOT_DIR={python_prefix}",
         ]
+
+        if giflib_library:
+            cmake_args.append(f"-DGIF_LIBRARY={giflib_library}")
+        if giflib_include:
+            cmake_args.append(f"-DGIF_INCLUDE_DIR={giflib_include}")
+        if giflib_prefix:
+            cmake_args.append(f"-DCMAKE_PREFIX_PATH={giflib_prefix}")
+        if png_library:
+            cmake_args.append(f"-DPNG_LIBRARY={png_library}")
+        if png_include:
+            cmake_args.append(
+                f"-DPNG_PNG_INCLUDE_DIR={png_include}"
+            )  # Match CMake’s FindPNG
 
         if vcpkg_toolchain.exists():
             print(f"--- Found vcpkg toolchain at {vcpkg_toolchain} ---")
@@ -152,8 +177,6 @@ class CMakeBuild(build_ext):
         # Adding CMake arguments set as environment variable
         if "CMAKE_ARGS" in os.environ:
             cmake_args += [item for item in os.environ["CMAKE_ARGS"].split(" ") if item]
-
-        cmake_args += [f"-DEXAMPLE_VERSION_INFO={self.distribution.get_version()}"]
 
         if self.compiler.compiler_type != "msvc":
             if not cmake_generator or cmake_generator == "Ninja":
@@ -225,7 +248,7 @@ class CMakeBuild(build_ext):
 
 setup(
     name="palettum",
-    version="0.4.2",
+    version="0.4.8",
     author="ArrowPC",
     description="Core functionality for the Palettum project.",
     long_description="Core functionality for the Palettum project.",

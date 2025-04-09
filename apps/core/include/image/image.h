@@ -21,10 +21,7 @@ public:
     explicit Image(const char *filename);
     explicit Image(int width, int height);
     explicit Image(int width, int height, bool withAlpha);
-    [[nodiscard]] bool hasAlpha() const noexcept
-    {
-        return m_channels == 4;
-    }
+    [[nodiscard]] bool hasAlpha() const noexcept;
     Image(const Image &) = default;
     Image &operator=(const Image &) = default;
     int operator-(const Image &other) const;
@@ -36,7 +33,6 @@ public:
     bool resize(int width, int height);
     [[nodiscard]] RGBA get(int x, int y) const;
     void set(int x, int y, const RGBA &color);
-    void set(int x, int y, const RGB &color);
     [[nodiscard]] int width() const noexcept;
     [[nodiscard]] int height() const noexcept;
     [[nodiscard]] int channels() const noexcept;
@@ -83,16 +79,3 @@ struct PngMemoryReader {
     size_t size;
     size_t offset;
 };
-
-static void png_memory_read(png_structp png_ptr, png_bytep outBytes,
-                            png_size_t byteCountToRead)
-{
-    PngMemoryReader *reader =
-        reinterpret_cast<PngMemoryReader *>(png_get_io_ptr(png_ptr));
-    if (reader->offset + byteCountToRead > reader->size)
-    {
-        png_error(png_ptr, "Read Error");
-    }
-    std::memcpy(outBytes, reader->data + reader->offset, byteCountToRead);
-    reader->offset += byteCountToRead;
-}

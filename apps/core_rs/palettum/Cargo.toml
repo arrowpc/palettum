@@ -1,0 +1,43 @@
+[package]
+name = "palettum"
+version = "0.1.0"
+edition = "2021"
+description = "Image and GIF palettization library"
+license = "AGPL-3.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+image = { version = "0.25.6", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+log = "0.4"
+rayon = "1.10.0"
+thiserror = "1.0"
+clap = { version = "4.5", features = ["derive", "env"] }
+num_cpus = "1.16"
+pprof = { version = "0.14", features = ["flamegraph", "protobuf-codec"], optional = true }
+prost = { version = "0.13.5", optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde-wasm-bindgen = { version = "0.4", optional = true }
+wasm-bindgen = { version = "0.2.100", optional = true }
+js-sys = { version = "0.3", optional = true }
+console_error_panic_hook = { version = "0.1.7", optional = true }
+wasm-logger = { version = "0.2", optional = true }
+env_logger = { version = "0.11" }
+
+[features]
+default = ["image/png", "image/gif"]
+profiling = ["dep:pprof", "dep:prost"]
+serde = ["dep:serde", "image/serde"]
+wasm = [
+    "serde",
+    "dep:serde-wasm-bindgen",
+    "dep:wasm-bindgen",
+    "dep:js-sys",
+    "dep:console_error_panic_hook",
+    "dep:wasm-logger",
+    "image/png",
+    "image/gif",
+    "image/webp",
+]
+

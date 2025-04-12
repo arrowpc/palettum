@@ -1,11 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Download, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  processImage,
-  APIError,
-  type ProcessImageOptions,
-} from "@/services/api";
 import type { Color, Palette as PaletteType } from "@/lib/palettes";
 import ImageViewer from "@/components/ImageViewer";
 import {
@@ -21,6 +16,7 @@ interface ImageDimensions {
   containerWidth: number;
   containerHeight: number;
 }
+
 interface PixelBorderProps {
   colors: Color[];
   side: "top" | "bottom" | "left" | "right";
@@ -28,13 +24,16 @@ interface PixelBorderProps {
   pixelCount: number;
   reverse: boolean;
 }
+
 interface PixelBordersProps {
   colors: Color[];
   dimensions: ImageDimensions | null;
 }
+
 const BORDER_THICKNESS = 5;
 const HORIZONTAL_PIXELS = 40;
 const VERTICAL_PIXELS = 30;
+
 function PixelBorder({
   colors,
   side,
@@ -96,6 +95,7 @@ function PixelBorder({
     </div>
   );
 }
+
 function PixelBorders({
   colors,
   dimensions,
@@ -167,6 +167,25 @@ interface ProcessedSettings {
   anisotropic_powerParameter: number | null;
 }
 
+interface WasmConfig {
+  palette: Array<{ r: number; g: number; b: number }>;
+  mapping: string;
+  deltaEMethod: string;
+  quantLevel: number;
+  transparencyThreshold: number;
+  anisotropicKernel: string;
+  anisotropicShapeParameter: number;
+  anisotropicPowerParameter: number;
+  anisotropicLabScales: [number, number, number];
+  resizeWidth: number | null;
+  resizeHeight: number | null;
+}
+
+type TaskCallbacks = {
+  resolve: (value: Uint8Array) => void;
+  reject: (reason?: any) => void;
+};
+
 function PalettifyImage({
   file,
   dimensions,
@@ -194,6 +213,10 @@ function PalettifyImage({
 
   const processedPaletteRef = useRef<PaletteType | null>(null);
   const imageContainerRef = useRef<HTMLDivElement | null>(null);
+  const workerRef = useRef<Worker | null>(null);
+  const taskIdCounterRef = useRef(0);
+  const pendingTasksRef = useRef(new Map<number, TaskCallbacks>());
+
   const lastProcessedSettings = useRef<ProcessedSettings>({
     fileName: null,
     width: null,
@@ -216,17 +239,54 @@ function PalettifyImage({
     dimensions.height === lastProcessedSettings.current.height &&
     palette?.id === lastProcessedSettings.current.paletteId &&
     transparentThreshold ===
-    lastProcessedSettings.current.transparentThreshold &&
+      lastProcessedSettings.current.transparentThreshold &&
     mapping === lastProcessedSettings.current.mapping &&
     quantLevel === lastProcessedSettings.current.quantLevel &&
     formula === lastProcessedSettings.current.formula &&
     weighting_kernel === lastProcessedSettings.current.weighting_kernel &&
     anisotropic_labScales ===
-    lastProcessedSettings.current.anisotropic_labScales &&
+      lastProcessedSettings.current.anisotropic_labScales &&
     anisotropic_shapeParameter ===
-    lastProcessedSettings.current.anisotropic_shapeParameter &&
+      lastProcessedSettings.current.anisotropic_shapeParameter &&
     anisotropic_powerParameter ===
-    lastProcessedSettings.current.anisotropic_powerParameter;
+      lastProcessedSettings.current.anisotropic_powerParameter;
+
+  useEffect(() => {
+    if (!workerRef.current) {
+      workerRef.current = new Worker(new URL("../worker.js", import.meta.url), {
+        type: "module",
+      });
+
+      workerRef.current.onmessage = (e) => {
+        const { id, status, result, error: workerError } = e.data;
+        const pendingTask = pendingTasksRef.current.get(id);
+        if (pendingTask) {
+          if (status === "success" && result) {
+            pendingTask.resolve(result);
+          } else if (status === "error" && workerError) {
+            pendingTask.reject(new Error(workerError));
+          }
+          pendingTasksRef.current.delete(id);
+        }
+      };
+
+      workerRef.current.onerror = (error) => {
+        console.error("Worker error:", error);
+        pendingTasksRef.current.forEach((task) => {
+          task.reject(new Error("Worker encountered an error"));
+        });
+        pendingTasksRef.current.clear();
+      };
+    }
+
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
+      pendingTasksRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (file && currentProcessedFile !== file.name) {
@@ -277,6 +337,51 @@ function PalettifyImage({
     }
   }, [processedImageUrl]);
 
+  const processImageWithWorker = (
+    imageBytes: Uint8Array,
+    config: WasmConfig,
+    mimeType: string,
+  ): Promise<Blob> => {
+    return new Promise<Blob>((resolve, reject) => {
+      if (!workerRef.current) {
+        reject(new Error("Worker not initialized"));
+        return;
+      }
+
+      const taskId = taskIdCounterRef.current++;
+
+      pendingTasksRef.current.set(taskId, {
+        resolve: (workerResult: Uint8Array) => {
+          try {
+            const blob = new Blob([workerResult], { type: mimeType });
+            resolve(blob);
+          } catch (conversionError) {
+            console.error("Error creating Blob:", conversionError);
+            reject(
+              conversionError instanceof Error
+                ? conversionError
+                : new Error("Failed to create Blob from worker result"),
+            );
+          }
+        },
+        reject: (workerError: any) => {
+          reject(workerError);
+        },
+      } as TaskCallbacks);
+
+      const clonedBytes = new Uint8Array(imageBytes);
+
+      workerRef.current.postMessage(
+        {
+          id: taskId,
+          imageBytes: clonedBytes,
+          config: config,
+        },
+        [clonedBytes.buffer],
+      );
+    });
+  };
+
   const handleProcessImage = async (): Promise<void> => {
     if (!file) {
       setError("Please upload an image first.");
@@ -290,38 +395,48 @@ function PalettifyImage({
     setError(null);
     setIsProcessing(true);
 
-    const usesSmoothed =
-      mapping === "SMOOTHED" || mapping === "SMOOTHED-PALETTIZED";
-    const usesGaussianKernel = usesSmoothed && weighting_kernel === "GAUSSIAN";
-    const usesInvDistKernel =
-      usesSmoothed && weighting_kernel === "INVERSE_DISTANCE_POWER";
-
-    const options: ProcessImageOptions = {
-      image: file,
-      colors: palette.colors,
-      ...(dimensions.width && { width: dimensions.width }),
-      ...(dimensions.height && { height: dimensions.height }),
-      ...(transparentThreshold !== undefined && {
-        transparentThreshold: transparentThreshold,
-      }),
-      ...(mapping && { mapping: mapping }),
-      ...(quantLevel !== undefined && { quantLevel: quantLevel }),
-      ...(formula && { formula: formula }),
-      ...(usesSmoothed && { weighting_kernel: weighting_kernel }),
-      ...(usesSmoothed && { anisotropic_labScales: anisotropic_labScales }),
-      ...(usesGaussianKernel && {
-        anisotropic_shapeParameter: anisotropic_shapeParameter,
-      }),
-      ...(usesInvDistKernel && {
-        anisotropic_powerParameter: anisotropic_powerParameter,
-      }),
-    };
-
     try {
-      const processedBlob = await processImage(options);
-      if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
-      const newProcessedUrl = URL.createObjectURL(processedBlob);
-      setProcessedImageUrl(newProcessedUrl);
+      const arrayBuffer = await file.arrayBuffer();
+      const imageBytes = new Uint8Array(arrayBuffer);
+
+      const labScalesParsed = anisotropic_labScales.split(",").map(Number);
+      if (labScalesParsed.length !== 3 || labScalesParsed.some(isNaN)) {
+        throw new Error(
+          "Invalid anisotropic_labScales format. Expected three numbers separated by commas.",
+        );
+      }
+      const labScales = labScalesParsed as [number, number, number];
+
+      const configJs: WasmConfig = {
+        palette: palette.colors.map((color) => ({
+          r: color.r,
+          g: color.g,
+          b: color.b,
+        })),
+        mapping: mapping,
+        deltaEMethod: formula,
+        quantLevel: quantLevel,
+        transparencyThreshold: transparentThreshold,
+        anisotropicKernel: weighting_kernel,
+        anisotropicShapeParameter: anisotropic_shapeParameter,
+        anisotropicPowerParameter: anisotropic_powerParameter,
+        anisotropicLabScales: labScales,
+        resizeWidth: dimensions.width || null,
+        resizeHeight: dimensions.height || null,
+      };
+
+      const isGif =
+        file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+      const mimeType = isGif ? "image/gif" : "image/png";
+
+      const outputBlob = await processImageWithWorker(
+        imageBytes,
+        configJs,
+        mimeType,
+      );
+
+      const url = URL.createObjectURL(outputBlob);
+      setProcessedImageUrl(url);
       setCurrentProcessedFile(file.name);
       processedPaletteRef.current = { ...palette };
 
@@ -339,14 +454,9 @@ function PalettifyImage({
         anisotropic_shapeParameter: anisotropic_shapeParameter,
         anisotropic_powerParameter: anisotropic_powerParameter,
       };
-    } catch (err: unknown) {
-      const errorMessage =
-        err instanceof APIError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : "Image processing failed";
-      setError(errorMessage);
+    } catch (err: any) {
+      console.error("Processing error:", err);
+      setError(err.toString());
       if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
       setProcessedImageUrl(null);
       setCurrentProcessedFile(null);
@@ -380,7 +490,9 @@ function PalettifyImage({
       setError("Failed to initiate download.");
     }
   };
+
   const handleViewFullSize = (): void => setIsPreviewOpen(true);
+
   const getProcessedColors = (): Color[] =>
     processedPaletteRef.current?.colors || [];
 
@@ -426,7 +538,29 @@ function PalettifyImage({
             className="w-full sm:w-auto bg-primary hover:bg-primary-hover text-primary-foreground transition-all duration-200"
           >
             {isProcessing ? (
-              "Processing..."
+              <>
+                <svg
+                  className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Palettifying...
+              </>
             ) : (
               <>
                 <Wand2 className="mr-2 h-5 w-5" /> Palettify Image
@@ -527,9 +661,9 @@ function PalettifyImage({
       <style
         dangerouslySetInnerHTML={{
           __html: `
-        @keyframes pixelFadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-        .animate-pixel-fade-in { animation: pixelFadeIn 0.4s ease-out forwards; }
-      `,
+ @keyframes pixelFadeIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+ .animate-pixel-fade-in { animation: pixelFadeIn 0.4s ease-out forwards; }
+ `,
         }}
       />
     </div>

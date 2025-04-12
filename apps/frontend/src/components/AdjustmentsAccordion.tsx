@@ -20,9 +20,9 @@ import {
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-export const MAPPING_PALETTIZED = "PALETTIZED";
-export const MAPPING_SMOOTHED = "SMOOTHED";
-export const MAPPING_SMOOTHED_PALETTIZED = "SMOOTHED-PALETTIZED";
+export const MAPPING_PALETTIZED = "Palettized";
+export const MAPPING_SMOOTHED = "Smoothed";
+export const MAPPING_SMOOTHED_PALETTIZED = "SmoothedPalettized";
 export type MappingKey =
   | typeof MAPPING_PALETTIZED
   | typeof MAPPING_SMOOTHED
@@ -47,8 +47,8 @@ const FORMULA_TOOLTIPS: Record<FormulaKey, string> = {
   [FORMULA_CIE76]: "Fastest color matching (less accurate)",
 };
 
-export const WEIGHTING_KERNEL_GAUSSIAN = "GAUSSIAN";
-export const WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER = "INVERSE_DISTANCE_POWER";
+export const WEIGHTING_KERNEL_GAUSSIAN = "Gaussian";
+export const WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER = "InverseDistancePower";
 export type WeightingKernelKey =
   | typeof WEIGHTING_KERNEL_GAUSSIAN
   | typeof WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER;

@@ -38,7 +38,7 @@ pub(crate) fn generate_lookup_table(
         }
     }
 
-    log::info!(
+    log::debug!(
         "Generating lookup table (quant={}, bins={}, size={})...",
         q,
         bins_per_channel,

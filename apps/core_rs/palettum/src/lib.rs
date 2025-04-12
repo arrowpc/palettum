@@ -47,7 +47,7 @@ fn calculate_resize_dimensions(
 }
 
 pub fn palettify_image(image: &mut RgbaImage, config: &Config) -> Result<(), PalettumError> {
-    log::info!(
+    log::debug!(
         "Starting image palettification: mapping={:?}, delta_e={:?}, quant={}, palette_size={}, threads={}",
         config.mapping,
         config.delta_e_method,

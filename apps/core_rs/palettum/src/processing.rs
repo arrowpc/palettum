@@ -1,56 +1,29 @@
 use crate::cache::ThreadLocalCache;
 use crate::color::{ConvertToLab, Lab};
 use crate::config::{Config, Mapping, WeightingKernelType};
-use crate::delta_e;
+use crate::delta_e::delta_e_batch;
 use crate::error::PalettumError;
 use image::{Rgb, Rgba, RgbaImage};
-use rayon::prelude::*;
+use rayon::ThreadPoolBuilder;
 
 const WEIGHT_THRESHOLD: f64 = 1e-9;
 const TOTAL_WEIGHT_THRESHOLD: f64 = 1e-9;
 const ANISOTROPIC_DIST_EPSILON: f64 = 1e-9;
 const MAX_Q: u8 = 5;
 
-fn delta_e_batch(target_lab: &Lab, lab_palette: &[Lab], config: &Config) -> Vec<f32> {
-    lab_palette
-        .iter()
-        .map(|palette_color| {
-            delta_e::calculate_delta_e(config.delta_e_method, target_lab, palette_color)
-        })
-        .collect()
-}
-
-fn find_closest_palette_color_index(
-    lab: &Lab,
-    lab_palette: &[Lab],
-    config: &Config,
-) -> Result<usize, PalettumError> {
-    if lab_palette.is_empty() {
-        return Err(PalettumError::EmptyPalette);
-    }
-    let results = delta_e_batch(lab, lab_palette, config);
-    results
-        .iter()
-        .enumerate()
-        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        .map(|(index, _)| index)
-        .ok_or(PalettumError::EmptyPalette)
-}
-
 fn find_closest_palette_color(
     lab: &Lab,
     lab_palette: &[Lab],
     config: &Config,
 ) -> Result<Rgb<u8>, PalettumError> {
-    let index = find_closest_palette_color_index(lab, lab_palette, config)?;
-    config
-        .palette
-        .get(index)
-        .cloned()
-        .ok_or(PalettumError::PaletteSizeMismatch(
-            config.palette.len(),
-            lab_palette.len(),
-        ))
+    let index = delta_e_batch(config.delta_e_method, lab, lab_palette)
+        .iter()
+        .enumerate()
+        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(index, _)| index)
+        .unwrap();
+
+    Ok(config.palette[index])
 }
 
 #[inline]
@@ -76,16 +49,6 @@ fn compute_anisotropic_weighted_average(
     config: &Config,
     lab_palette: &[Lab],
 ) -> Result<Rgb<u8>, PalettumError> {
-    if config.palette.is_empty() {
-        return Err(PalettumError::EmptyPalette);
-    }
-    if config.palette.len() != lab_palette.len() {
-        return Err(PalettumError::PaletteSizeMismatch(
-            config.palette.len(),
-            lab_palette.len(),
-        ));
-    }
-
     let mut total_weight: f64 = 0.0;
     let mut sum_r: f64 = 0.0;
     let mut sum_g: f64 = 0.0;
@@ -130,26 +93,9 @@ pub(crate) fn compute_mapped_color_rgb(
     config: &Config,
     lab_palette: &[Lab],
 ) -> Result<Rgb<u8>, PalettumError> {
-    if config.mapping == Mapping::Untouched {
-        return Ok(Rgb([target.0[0], target.0[1], target.0[2]]));
-    }
-
-    let needs_palette = matches!(
-        config.mapping,
-        Mapping::Palettized | Mapping::Smoothed | Mapping::SmoothedPalettized
-    );
-    if needs_palette && lab_palette.is_empty() {
-        log::warn!(
-            "compute_mapped_color_rgb called with empty Lab palette for mapping {:?}. Returning original color.",
-            config.mapping
-        );
-        return Ok(Rgb([target.0[0], target.0[1], target.0[2]]));
-    }
-
     let target_lab = target.to_lab();
 
     match config.mapping {
-        Mapping::Untouched => unreachable!(),
         Mapping::Palettized => find_closest_palette_color(&target_lab, lab_palette, config),
         Mapping::Smoothed => compute_anisotropic_weighted_average(&target_lab, config, lab_palette),
         Mapping::SmoothedPalettized => {
@@ -219,39 +165,9 @@ pub(crate) fn process_pixels(
     let raw_data = image.as_mut();
     let bytes_per_pixel = 4;
 
-    thread_local! {
-        static CACHE: std::cell::RefCell<ThreadLocalCache> =
-            std::cell::RefCell::new(ThreadLocalCache::new());
-    }
+    let num_threads = config.num_threads.max(1);
 
-    if config.num_threads > 1 {
-        raw_data
-            .par_chunks_mut(bytes_per_pixel)
-            .for_each(|pixel_chunk| {
-                let r = pixel_chunk[0];
-                let g = pixel_chunk[1];
-                let b = pixel_chunk[2];
-                let a = pixel_chunk[3];
-                let pixel = Rgba([r, g, b, a]);
-
-                let result = CACHE.with(|cache_cell| {
-                    let mut cache = cache_cell.borrow_mut();
-                    get_mapped_color_for_pixel(pixel, config, lab_palette, &mut cache, lookup)
-                });
-
-                match result {
-                    Ok(mapped_pixel) => {
-                        pixel_chunk[0] = mapped_pixel.0[0];
-                        pixel_chunk[1] = mapped_pixel.0[1];
-                        pixel_chunk[2] = mapped_pixel.0[2];
-                        pixel_chunk[3] = mapped_pixel.0[3];
-                    }
-                    Err(e) => {
-                        log::error!("Error processing pixel: {}", e);
-                    }
-                }
-            });
-    } else {
+    if num_threads == 1 {
         let mut cache = ThreadLocalCache::new();
         for pixel_chunk in raw_data.chunks_mut(bytes_per_pixel) {
             let r = pixel_chunk[0];
@@ -260,18 +176,54 @@ pub(crate) fn process_pixels(
             let a = pixel_chunk[3];
             let pixel = Rgba([r, g, b, a]);
 
-            match get_mapped_color_for_pixel(pixel, config, lab_palette, &mut cache, lookup) {
-                Ok(mapped_pixel) => {
-                    pixel_chunk[0] = mapped_pixel.0[0];
-                    pixel_chunk[1] = mapped_pixel.0[1];
-                    pixel_chunk[2] = mapped_pixel.0[2];
-                    pixel_chunk[3] = mapped_pixel.0[3];
-                }
-                Err(e) => {
-                    log::error!("Error processing pixel: {}", e);
-                }
+            if let Ok(mapped_pixel) =
+                get_mapped_color_for_pixel(pixel, config, lab_palette, &mut cache, lookup)
+            {
+                pixel_chunk[0] = mapped_pixel.0[0];
+                pixel_chunk[1] = mapped_pixel.0[1];
+                pixel_chunk[2] = mapped_pixel.0[2];
+                pixel_chunk[3] = mapped_pixel.0[3];
             }
         }
+    } else {
+        // Multi-threaded processing using Rayon
+
+        let chunk_size = (raw_data.len() / bytes_per_pixel).div_ceil(num_threads);
+        let pixel_chunks: Vec<_> = raw_data.chunks_mut(chunk_size * bytes_per_pixel).collect();
+
+        let pool = ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .map_err(|e| PalettumError::ThreadPoolBuildError(e.to_string()))?;
+
+        pool.scope(|scope| {
+            for chunk in pixel_chunks {
+                scope.spawn(|_| {
+                    let mut cache = ThreadLocalCache::new();
+
+                    for pixel_chunk in chunk.chunks_mut(bytes_per_pixel) {
+                        let r = pixel_chunk[0];
+                        let g = pixel_chunk[1];
+                        let b = pixel_chunk[2];
+                        let a = pixel_chunk[3];
+                        let pixel = Rgba([r, g, b, a]);
+
+                        if let Ok(mapped_pixel) = get_mapped_color_for_pixel(
+                            pixel,
+                            config,
+                            lab_palette,
+                            &mut cache,
+                            lookup,
+                        ) {
+                            pixel_chunk[0] = mapped_pixel.0[0];
+                            pixel_chunk[1] = mapped_pixel.0[1];
+                            pixel_chunk[2] = mapped_pixel.0[2];
+                            pixel_chunk[3] = mapped_pixel.0[3];
+                        }
+                    }
+                });
+            }
+        });
     }
 
     log::debug!("Pixel processing complete.");

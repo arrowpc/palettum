@@ -5,7 +5,6 @@ use crate::processing::compute_mapped_color_rgb;
 use image::{Rgb, Rgba};
 use rayon::prelude::*;
 
-const MAX_Q: u8 = 5;
 const LUT_SIZE_HEURISTIC_DIVISOR: usize = 4;
 
 pub(crate) fn generate_lookup_table(
@@ -14,14 +13,6 @@ pub(crate) fn generate_lookup_table(
     image_size: Option<usize>,
 ) -> Result<Vec<Rgb<u8>>, PalettumError> {
     let q = config.quant_level;
-
-    if q == 0
-        || q > MAX_Q
-        || lab_palette.is_empty()
-        || config.mapping == crate::config::Mapping::Untouched
-    {
-        return Ok(Vec::new());
-    }
 
     let bins_per_channel = 256usize >> q;
     let table_size = bins_per_channel.pow(3);
@@ -86,6 +77,6 @@ pub(crate) fn generate_lookup_table(
         }
     }
 
-    log::info!("Lookup table generation complete.");
+    log::debug!("Lookup table generation complete.");
     Ok(lookup)
 }

@@ -1,6 +1,8 @@
 use image::{imageops::FilterType, Rgb};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use crate::color::rgb_vec_serde;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -12,7 +14,6 @@ pub enum WeightingKernelType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Mapping {
-    Untouched,
     Palettized,
     Smoothed,
     SmoothedPalettized,
@@ -59,9 +60,9 @@ impl Default for Config {
 
         Config {
             palette: Vec::new(),
-            mapping: Mapping::Smoothed,
+            mapping: Mapping::Palettized,
             delta_e_method: DeltaEMethod::CIEDE2000,
-            quant_level: 0,
+            quant_level: 2,
             transparency_threshold: 128,
             num_threads,
             anisotropic_kernel: WeightingKernelType::InverseDistancePower,

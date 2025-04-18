@@ -1,12 +1,11 @@
 #![cfg(feature = "wasm")]
-
 use crate::{
     config::{Config, DeltaEMethod, Mapping, WeightingKernelType},
     error::PalettumError,
-    gif::palettify_gif_bytes,
-    palettify_image, RgbaImage,
+    gif::{palettify_gif, Gif},
+    image::{palettify_image, Image},
 };
-use image::{ImageBuffer, ImageFormat};
+use image::{ImageBuffer, ImageFormat, RgbaImage};
 use js_sys::Uint8Array;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
@@ -35,7 +34,7 @@ export interface PalettumWasmConfig {
     /** Array of palette colors, each with r, g, b properties (0-255). */
     palette: Array<{ r: number; g: number; b: number }>;
     /** The mapping algorithm to use. Defaults to 'SMOOTHED'. */
-    mapping?: 'UNTOUCHED' | 'PALETTIZED' | 'SMOOTHED' | 'SMOOTHED-PALETTIZED';
+    mapping?: 'PALETTIZED' | 'SMOOTHED' | 'SMOOTHED-PALETTIZED';
     /** The Delta E method for color difference calculation. Defaults to 'CIEDE2000'. */
     deltaEMethod?: 'CIE76' | 'CIE94' | 'CIEDE2000';
     /** Quantization level for LUT optimization (0=disabled, 1-5). Defaults to 0. */
@@ -83,7 +82,12 @@ pub fn processImageBytes(
     let output_bytes = match format {
         ImageFormat::Gif => {
             log::info!("Detected GIF format, processing animation...");
-            palettify_gif_bytes(&bytes, &config).map_err(to_js_error)?
+            // let gif = Gif::from_bytes(&bytes).map_err(to_js_error)?;
+            // let palettified_gif = palettify_gif(&gif, &config).map_err(to_js_error)?;
+            // palettified_gif.write_to_memory().map_err(to_js_error)?
+            let gif = Gif::from_bytes(&bytes).map_err(to_js_error)?;
+            let res = palettify_gif(&gif, &config).map_err(to_js_error)?;
+            res.write_to_memory().map_err(to_js_error)?
         }
         ImageFormat::Png
         | ImageFormat::Jpeg
@@ -92,14 +96,10 @@ pub fn processImageBytes(
         | ImageFormat::Tiff
         | _ => {
             log::info!("Detected static image format ({:?}), processing...", format);
-            let img = image::load_from_memory(&bytes).map_err(to_js_error)?;
-            let mut img_buffer = img.into_rgba8();
-            palettify_image(&mut img_buffer, &config).map_err(to_js_error)?;
-            let mut buf = Cursor::new(Vec::new());
-            img_buffer
-                .write_to(&mut buf, ImageFormat::Png)
-                .map_err(to_js_error)?;
-            buf.into_inner()
+            // let img = image::load_from_memory(&bytes).map_err(to_js_error)?;
+            let img = Image::from_bytes(&bytes).map_err(to_js_error)?;
+            let res = palettify_image(&img, &config).map_err(to_js_error)?;
+            res.write_to_memory(ImageFormat::Png).map_err(to_js_error)?
         }
     };
 

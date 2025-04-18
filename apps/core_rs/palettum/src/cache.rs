@@ -9,7 +9,7 @@ pub(crate) struct ThreadLocalCache {
 impl ThreadLocalCache {
     pub(crate) fn new() -> Self {
         ThreadLocalCache {
-            cache: HashMap::with_capacity(1024),
+            cache: HashMap::with_capacity(4096),
         }
     }
 

@@ -216,17 +216,17 @@ function PalettifyImage({
     dimensions.height === lastProcessedSettings.current.height &&
     palette?.id === lastProcessedSettings.current.paletteId &&
     transparentThreshold ===
-    lastProcessedSettings.current.transparentThreshold &&
+      lastProcessedSettings.current.transparentThreshold &&
     mapping === lastProcessedSettings.current.mapping &&
     quantLevel === lastProcessedSettings.current.quantLevel &&
     formula === lastProcessedSettings.current.formula &&
     weighting_kernel === lastProcessedSettings.current.weighting_kernel &&
     anisotropic_labScales ===
-    lastProcessedSettings.current.anisotropic_labScales &&
+      lastProcessedSettings.current.anisotropic_labScales &&
     anisotropic_shapeParameter ===
-    lastProcessedSettings.current.anisotropic_shapeParameter &&
+      lastProcessedSettings.current.anisotropic_shapeParameter &&
     anisotropic_powerParameter ===
-    lastProcessedSettings.current.anisotropic_powerParameter;
+      lastProcessedSettings.current.anisotropic_powerParameter;
 
   useEffect(() => {
     if (file && currentProcessedFile !== file.name) {
@@ -479,7 +479,7 @@ function PalettifyImage({
                   dimensions={containerDimensions}
                 />
               )}
-              <div className="absolute bottom-3 right-3 opacity-60 group-hover:opacity-90 transition-opacity duration-300 p-1 z-10">
+              <div className="absolute bottom-3 right-3 opacity-60 group-hover:opacity-90 transition-opacity duration-300 p-1">
                 <div className="grid grid-cols-3 gap-0.5 w-8 h-8 transform rotate-45">
                   {getProcessedColors()
                     .slice(0, 9)

@@ -1,8 +1,8 @@
+#[cfg(feature = "serde")]
+use crate::color::rgb_vec_serde;
 use image::{imageops::FilterType, Rgb};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde")]
-use crate::color::rgb_vec_serde;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

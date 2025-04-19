@@ -1,14 +1,12 @@
 #![cfg(feature = "wasm")]
 use crate::{
-    config::{Config, DeltaEMethod, Mapping, WeightingKernelType},
-    error::PalettumError,
+    config::Config,
     gif::{palettify_gif, Gif},
     image::{palettify_image, Image},
 };
-use image::{ImageBuffer, ImageFormat, RgbaImage};
+use image::ImageFormat;
 use js_sys::Uint8Array;
 use serde::{Deserialize, Serialize};
-use std::io::Cursor;
 use wasm_bindgen::prelude::*;
 
 // TODO:
@@ -82,9 +80,6 @@ pub fn processImageBytes(
     let output_bytes = match format {
         ImageFormat::Gif => {
             log::info!("Detected GIF format, processing animation...");
-            // let gif = Gif::from_bytes(&bytes).map_err(to_js_error)?;
-            // let palettified_gif = palettify_gif(&gif, &config).map_err(to_js_error)?;
-            // palettified_gif.write_to_memory().map_err(to_js_error)?
             let gif = Gif::from_bytes(&bytes).map_err(to_js_error)?;
             let res = palettify_gif(&gif, &config).map_err(to_js_error)?;
             res.write_to_memory().map_err(to_js_error)?

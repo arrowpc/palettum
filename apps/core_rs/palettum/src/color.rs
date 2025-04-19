@@ -75,11 +75,9 @@ impl ConvertToLab for Rgba<u8> {
 pub mod rgb_vec_serde {
     use image::Rgb;
     use serde::{
-        de::{SeqAccess, Visitor},
         ser::SerializeSeq,
         Deserialize, Deserializer, Serialize, Serializer,
     };
-    use std::fmt;
 
     // Intermediate struct that can derive Serialize/Deserialize
     #[derive(Serialize, Deserialize)]

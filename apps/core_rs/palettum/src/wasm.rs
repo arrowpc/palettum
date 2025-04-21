@@ -8,15 +8,14 @@ use image::ImageFormat;
 use js_sys::Uint8Array;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use web_time::Instant;
 
 // TODO:
 // pub use wasm_bindgen_rayon::init_thread_pool;
 
 #[wasm_bindgen(start)]
 pub fn wasm_init() {
-    #[cfg(feature = "console_error_panic_hook")]
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-    #[cfg(feature = "wasm-logger")]
     wasm_logger::init(wasm_logger::Config::default());
     log::info!("palettum WASM module initialized");
 }
@@ -77,6 +76,7 @@ pub fn processImageBytes(
     let bytes = image_bytes.to_vec();
     let format = image::guess_format(&bytes).map_err(to_js_error)?;
 
+    let start_time = Instant::now();
     let output_bytes = match format {
         ImageFormat::Gif => {
             log::info!("Detected GIF format, processing animation...");
@@ -91,13 +91,13 @@ pub fn processImageBytes(
         | ImageFormat::Tiff
         | _ => {
             log::info!("Detected static image format ({:?}), processing...", format);
-            // let img = image::load_from_memory(&bytes).map_err(to_js_error)?;
             let img = Image::from_bytes(&bytes).map_err(to_js_error)?;
             let res = palettify_image(&img, &config).map_err(to_js_error)?;
             res.write_to_memory(ImageFormat::Png).map_err(to_js_error)?
         }
     };
 
-    log::info!("Image processing complete, returning output bytes.");
+    let duration = start_time.elapsed();
+    log::info!("Palettification completed in {:?}", duration);
     Ok(Uint8Array::from(&output_bytes[..]))
 }

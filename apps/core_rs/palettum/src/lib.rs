@@ -1,4 +1,3 @@
-#![feature(portable_simd)]
 mod cache;
 mod color;
 mod config;

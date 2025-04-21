@@ -18,6 +18,9 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const uploadAreaRef = useRef<HTMLDivElement>(null);
 
   const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+  const validTypesString = validTypes
+    .map((type) => type.split("/")[1].toUpperCase())
+    .join(", ");
 
   const validateFile = useCallback(
     (file: File | null) => {
@@ -30,7 +33,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
 
       if (!validTypes.includes(file.type)) {
         setShake(true);
-        setError("Invalid file type. Please upload a JPEG, PNG, or GIF.");
+        setError(`Invalid file type. Please upload a ${validTypesString}.`);
         setTimeout(() => setShake(false), 300);
         return false;
       }
@@ -80,13 +83,14 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
 
       img.src = url;
     },
-    [onFileSelect],
+    [onFileSelect, validTypesString],
   );
 
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
       validateFile(file || null);
+      event.target.value = "";
     },
     [validateFile],
   );
@@ -94,6 +98,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const handleDragEvents = useCallback(
     (event: React.DragEvent<HTMLDivElement>, isEntering: boolean) => {
       event.preventDefault();
+      event.stopPropagation();
       setIsDragging(isEntering);
     },
     [],
@@ -102,6 +107,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const handleDrop = useCallback(
     (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
+      event.stopPropagation();
       setIsDragging(false);
 
       const files = event.dataTransfer.files;
@@ -117,44 +123,68 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
     [validateFile],
   );
 
+  const triggerFileInput = useCallback(() => {
+    document.getElementById("file-upload")?.click();
+  }, []);
+
+  const handleButtonClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      triggerFileInput();
+    },
+    [triggerFileInput],
+  );
+
   const handlePaste = useCallback(
     (event: ClipboardEvent) => {
       const activeElement = document.activeElement;
 
       const isInputActive =
-        activeElement instanceof HTMLInputElement ||
-        activeElement instanceof HTMLTextAreaElement ||
-        activeElement?.getAttribute("contenteditable") === "true";
+        (activeElement instanceof HTMLInputElement ||
+          activeElement instanceof HTMLTextAreaElement ||
+          activeElement?.getAttribute("contenteditable") === "true") &&
+        !uploadAreaRef.current?.contains(activeElement);
 
-      const isBackgroundActive =
+      if (isInputActive) {
+        return;
+      }
+
+      const isPasteTarget =
+        uploadAreaRef.current?.contains(activeElement) ||
         activeElement === document.body ||
         activeElement?.id === "root" ||
         activeElement?.tagName === "MAIN" ||
         activeElement?.tagName === "DIV" ||
         isActive;
 
-      if (isInputActive && !isActive) {
-        return;
-      }
-
-      if (isBackgroundActive) {
+      if (isPasteTarget) {
         const items = event.clipboardData?.items;
-
         if (!items) return;
 
+        let imageFound = false;
         for (let i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf("image") !== -1) {
+          if (items[i].type.startsWith("image/")) {
             const file = items[i].getAsFile();
-            if (file) {
+            if (file && validTypes.includes(file.type)) {
               validateFile(file);
               event.preventDefault();
-              return;
+              imageFound = true;
+              break;
+            } else if (file) {
+              setShake(true);
+              setError(
+                `Invalid file type pasted. Please use ${validTypesString}.`,
+              );
+              setTimeout(() => setShake(false), 300);
+              event.preventDefault();
+              imageFound = true;
+              break;
             }
           }
         }
 
         if (
-          isActive &&
+          !imageFound &&
           items.length > 0 &&
           event.clipboardData?.getData("text")
         ) {
@@ -166,7 +196,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         }
       }
     },
-    [validateFile, isActive],
+    [validateFile, isActive, validTypesString],
   );
 
   useEffect(() => {
@@ -184,33 +214,42 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           "flex flex-col items-center justify-center w-full h-64 sm:h-80",
           "border-2 border-dashed rounded-lg",
           "transition-all duration-300",
-          "p-4",
+          "p-4 text-center",
+          "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
           isDragging
             ? "border-primary bg-primary/5"
-            : "border-border bg-background-secondary",
+            : "border-border bg-background-secondary cursor-pointer hover:border-primary/50",
           shake && "animate-shake",
         )}
+        onDragEnter={(e) => handleDragEvents(e, true)}
         onDragOver={(e) => handleDragEvents(e, true)}
         onDragLeave={(e) => handleDragEvents(e, false)}
         onDrop={handleDrop}
-        onClick={() =>
-          !isDragging && document.getElementById("file-upload")?.click()
-        }
+        onClick={triggerFileInput}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            triggerFileInput();
+          }
+        }}
         onFocus={() => setIsActive(true)}
         onBlur={() => setIsActive(false)}
         onMouseEnter={() => setIsActive(true)}
         onMouseLeave={() => setIsActive(false)}
         tabIndex={0}
+        role="button"
+        aria-label="Image upload area"
       >
         <ImageIcon
           className={cn(
-            "w-16 h-16 mb-4",
+            "w-16 h-16 mb-4 pointer-events-none",
             "transition-all duration-300",
             isDragging ? "icon-active scale-110" : "text-foreground-secondary",
           )}
+          aria-hidden="true"
         />
         <div
-          className={`flex flex-col items-center transition-all duration-200 ${isDragging ? "opacity-50" : ""}`}
+          className={`flex flex-col items-center transition-all duration-200 pointer-events-none ${isDragging ? "opacity-50" : ""}`}
         >
           {/* Drag and Paste text, hidden on mobile */}
           <div className="hidden sm:flex items-center gap-3 mb-3">
@@ -219,15 +258,6 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
             <p className="text-sm text-foreground-secondary">Paste</p>
           </div>
 
-          <input
-            type="file"
-            id="file-upload"
-            className="hidden"
-            accept={validTypes.join(",")}
-            capture="environment"
-            onChange={handleFileChange}
-          />
-
           {/* "or" section, shown only on desktop */}
           <div className="hidden sm:flex items-center gap-3 mb-3">
             <div className="h-px w-16 bg-border"></div>
@@ -235,22 +265,32 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
             <div className="h-px w-16 bg-border"></div>
           </div>
 
+          <input
+            type="file"
+            id="file-upload"
+            className="sr-only"
+            accept={validTypes.join(",")}
+            onChange={handleFileChange}
+            tabIndex={-1}
+          />
+
           <Button
-            onClick={() => document.getElementById("file-upload")?.click()}
+            onClick={handleButtonClick}
             disabled={isDragging}
             className={cn(
               "bg-primary hover:bg-primary-hover text-primary-foreground",
               "transition-all duration-200",
-              "px-6 py-3 text-base",
+              "px-6 py-3 text-base pointer-events-auto",
               isDragging && "opacity-50 cursor-not-allowed",
             )}
+            aria-label="Choose image from device"
           >
             Choose image
           </Button>
         </div>
       </div>
       {error && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" role="alert">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}

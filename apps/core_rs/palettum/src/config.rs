@@ -71,7 +71,7 @@ impl Default for Config {
             anisotropic_lab_scales: [1.0, 1.0, 1.0],
             resize_width: None,
             resize_height: None,
-            resize_filter: FilterType::Lanczos3,
+            resize_filter: FilterType::Nearest,
         }
     }
 }

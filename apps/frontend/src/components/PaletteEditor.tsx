@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Trash2, Pipette, X, Plus } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,7 @@ interface PaletteEditorProps {
 interface ColorTileProps {
   color: Color;
   onRemove: () => void;
+  isMobile: boolean;
 }
 
 interface RGBInputProps {
@@ -37,7 +38,7 @@ interface RGBInputProps {
   onChange: (value: string) => void;
 }
 
-const ColorTile: React.FC<ColorTileProps> = ({ color, onRemove }) => (
+const ColorTile: React.FC<ColorTileProps> = ({ color, onRemove, isMobile }) => (
   <TooltipProvider>
     <Tooltip delayDuration={50}>
       <TooltipTrigger asChild>
@@ -46,18 +47,26 @@ const ColorTile: React.FC<ColorTileProps> = ({ color, onRemove }) => (
             className="aspect-square rounded-lg shadow-sm hover:shadow-md transition-all duration-150 border border-gray-200"
             style={{ backgroundColor: rgbToHex(color) }}
           />
-          <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/20 transition-all duration-150">
-            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove();
-                }}
-                className="p-2 bg-black/50 rounded-full hover:bg-black/70 transition-colors transform hover:scale-110"
-              >
-                <Trash2 className="w-4 h-4 text-white" />
-              </button>
-            </div>
+          <div
+            className={cn(
+              "absolute inset-0 rounded-lg flex items-center justify-center",
+              isMobile ? "bg-black/10" : "bg-black/0 group-hover:bg-black/20",
+            )}
+          >
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className={cn(
+                "p-2 bg-black/50 rounded-full transform transition-all duration-150",
+                isMobile
+                  ? "opacity-100 hover:bg-black/70"
+                  : "opacity-0 group-hover:opacity-100 hover:bg-black/70 hover:scale-110",
+              )}
+            >
+              <Trash2 className="w-4 h-4 text-white" />
+            </button>
           </div>
         </div>
       </TooltipTrigger>
@@ -85,6 +94,36 @@ const RGBInput: React.FC<RGBInputProps> = ({ label, value, onChange }) => (
   </div>
 );
 
+const AddColorButton: React.FC<{
+  color: string;
+  onClick: () => void;
+}> = ({ color, onClick }) => (
+  <div className="relative">
+    <div
+      className={cn(
+        "aspect-square rounded-md overflow-hidden cursor-pointer group",
+        "border border-border",
+        "shadow-sm hover:shadow-md",
+        "transition-all duration-150",
+      )}
+      onClick={onClick}
+    >
+      <div className="w-full h-full" style={{ backgroundColor: color }} />
+      <div
+        className={cn(
+          "absolute inset-0 rounded-md flex items-center justify-center",
+          "bg-background/50 group-hover:bg-background/30",
+          "transition-all duration-150",
+        )}
+      >
+        <div className="w-6 h-6 rounded-full bg-background shadow-md flex items-center justify-center transform group-hover:scale-110 transition-all duration-150">
+          <Plus className="w-4 h-4 text-foreground" />
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   palette: initialPalette,
   onClose,
@@ -99,6 +138,18 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   const [errors, setErrors] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     const hasChanges =
@@ -247,9 +298,19 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     }
   };
 
+  // Reverse the colors array for display (newest first)
+  const displayColors = [...palette.colors].reverse();
+
   return (
     <div className="fixed inset-0 bg-foreground/10 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-background rounded-lg p-6 flex flex-col w-[560px] max-h-[90vh] overflow-y-auto border border-border shadow-lg">
+      <div
+        className={cn(
+          "bg-background rounded-lg p-6 flex flex-col border border-border shadow-lg overflow-hidden",
+          isMobile
+            ? "w-full max-w-[95vw] max-h-[95vh]"
+            : "w-[560px] max-h-[90vh]",
+        )}
+      >
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold text-foreground">
             Edit Palette
@@ -262,121 +323,130 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
           </button>
         </div>
 
-        <div className="flex gap-6">
-          <div className="flex-1 min-w-0">
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Palette Name
-              </label>
-              <input
-                type="text"
-                value={palette.name}
-                onChange={(e) => {
-                  const newName = e.target.value;
-                  if (newName.length <= LIMITS.MAX_NAME_LENGTH) {
-                    setPalette((prev) => ({ ...prev, name: newName }));
-                  }
-                }}
-                className={cn(
-                  "w-full px-4 py-2 text-sm bg-background border rounded-md",
-                  "focus:ring-2 focus:ring-ring focus:border-border-active",
-                  errors.some((e) => e.includes("name")) &&
-                    "border-destructive",
-                )}
-                placeholder="Enter palette name"
-                maxLength={LIMITS.MAX_NAME_LENGTH}
-              />
-              <div className="flex justify-between mt-1">
-                <span className="text-xs text-foreground-muted">
-                  {palette.name.length}/{LIMITS.MAX_NAME_LENGTH}
-                </span>
-              </div>
-            </div>
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-foreground mb-2">
+            Palette Name
+          </label>
+          <input
+            type="text"
+            value={palette.name}
+            onChange={(e) => {
+              const newName = e.target.value;
+              if (newName.length <= LIMITS.MAX_NAME_LENGTH) {
+                setPalette((prev) => ({ ...prev, name: newName }));
+              }
+            }}
+            className={cn(
+              "w-full px-4 py-2 text-sm bg-background border rounded-md",
+              "focus:ring-2 focus:ring-ring focus:border-border-active",
+              errors.some((e) => e.includes("name")) && "border-destructive",
+            )}
+            placeholder="Enter palette name"
+            maxLength={LIMITS.MAX_NAME_LENGTH}
+          />
+          <div className="flex justify-between mt-1">
+            <span className="text-xs text-foreground-muted">
+              {palette.name.length}/{LIMITS.MAX_NAME_LENGTH}
+            </span>
+          </div>
+        </div>
 
-            <div className="h-[300px] overflow-y-auto pr-2 scrollbar-thin">
-              <div className="grid grid-cols-4 gap-2 auto-rows-[1fr] pb-8">
-                {palette.colors.map((color, index) => (
+        <div
+          className={cn(
+            "flex flex-1 min-h-0",
+            isMobile ? "flex-col gap-6" : "gap-6",
+          )}
+        >
+          <div
+            className={cn("min-h-0", isMobile ? "w-full order-2" : "flex-1")}
+          >
+            <div
+              ref={gridContainerRef}
+              className={cn(
+                "h-[300px] overflow-y-auto pr-2 scrollbar-thin",
+                isMobile && "h-[220px]",
+              )}
+            >
+              <div
+                className="grid gap-2 auto-rows-[1fr] pb-4"
+                style={{
+                  gridTemplateColumns: isMobile
+                    ? "repeat(auto-fill, minmax(60px, 1fr))"
+                    : "repeat(4, 1fr)", // Force 4 columns on desktop
+                }}
+              >
+                <AddColorButton color={hexValue} onClick={addColor} />
+
+                {displayColors.map((color, index) => (
                   <ColorTile
-                    key={index}
+                    key={palette.colors.length - 1 - index}
                     color={color}
-                    onRemove={() => removeColor(index)}
+                    onRemove={() =>
+                      removeColor(palette.colors.length - 1 - index)
+                    }
+                    isMobile={isMobile}
                   />
                 ))}
-                <div className="relative">
-                  <div
-                    className={cn(
-                      "aspect-square rounded-md overflow-hidden cursor-pointer group",
-                      "border border-border",
-                      "shadow-sm hover:shadow-md",
-                      "transition-all duration-150",
-                    )}
-                    onClick={addColor}
-                  >
-                    <div
-                      className="w-full h-full"
-                      style={{ backgroundColor: hexValue }}
-                    />
-                    <div
-                      className={cn(
-                        "absolute inset-0 rounded-md flex items-center justify-center",
-                        "bg-background/50 group-hover:bg-background/30",
-                        "transition-all duration-150",
-                      )}
-                    >
-                      <div className="w-6 h-6 rounded-full bg-background shadow-md flex items-center justify-center transform group-hover:scale-110 transition-all duration-150">
-                        <Plus className="w-4 h-4 text-foreground" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
 
-          <div className="w-[200px]">
-            <div className="mb-6">
-              <HexColorPicker color={hexValue} onChange={handleHexChange} />
+          <div className={cn(isMobile ? "w-full order-1" : "w-[200px]")}>
+            <div className={cn("mb-6", isMobile && "flex justify-center")}>
+              <HexColorPicker
+                color={hexValue}
+                onChange={handleHexChange}
+                className={cn(isMobile && "w-[200px]")}
+              />
             </div>
 
             <div className="space-y-6">
-              <div className="w-full flex flex-col items-center space-y-1">
-                <div className="flex items-center gap-2">
-                  {isEyeDropperSupported && (
-                    <button
-                      onClick={handleEyeDropper}
-                      className={cn(
-                        "p-1.5 border rounded-md flex items-center justify-center transition-colors",
-                        isPickerActive
-                          ? "bg-primary hover:bg-primary-hover border-primary text-primary-foreground"
-                          : "hover:bg-secondary-hover border-border text-foreground",
-                      )}
-                      title="Use eyedropper"
-                      onBlur={() => validateHex(hexValue)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          validateHex(hexValue);
-                        }
-                      }}
-                    >
-                      <Pipette className="w-4 h-4" />
-                    </button>
-                  )}
-                  <input
-                    type="text"
-                    value={hexValue}
-                    onChange={(e) => handleHexChange(e.target.value)}
-                    className={cn(
-                      "w-24 px-2 py-1.5 text-xs text-center",
-                      "bg-background border border-border rounded-md",
-                      "focus:ring-2 focus:ring-ring focus:border-border-active",
+              <div
+                className={cn(
+                  "w-full flex justify-center",
+                  isMobile ? "flex-row items-center gap-4" : "flex-col gap-4",
+                )}
+              >
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-medium text-foreground mb-1">
+                    HEX
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {isEyeDropperSupported && (
+                      <button
+                        onClick={handleEyeDropper}
+                        className={cn(
+                          "p-1.5 border rounded-md flex items-center justify-center transition-colors",
+                          isPickerActive
+                            ? "bg-primary hover:bg-primary-hover border-primary text-primary-foreground"
+                            : "hover:bg-secondary-hover border-border text-foreground",
+                        )}
+                        title="Use eyedropper"
+                        onBlur={() => validateHex(hexValue)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            validateHex(hexValue);
+                          }
+                        }}
+                      >
+                        <Pipette className="w-4 h-4" />
+                      </button>
                     )}
-                    disabled={isSaving}
-                  />
+                    <input
+                      type="text"
+                      value={hexValue}
+                      onChange={(e) => handleHexChange(e.target.value)}
+                      className={cn(
+                        "w-24 px-2 py-1.5 text-xs text-center",
+                        "bg-background border border-border rounded-md",
+                        "focus:ring-2 focus:ring-ring focus:border-border-active",
+                      )}
+                      disabled={isSaving}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="w-full px-2">
-                <div className="flex justify-between">
+                <div className="flex items-center gap-3">
                   {(["r", "g", "b"] as const).map((label) => (
                     <RGBInput
                       key={label}
@@ -399,7 +469,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
           </div>
         </div>
 
-        <div className="flex justify-between gap-3 mt-8 pt-6 border-t border-border">
+        <div className="flex justify-between gap-3 mt-6 pt-6 border-t border-border">
           <div className="text-sm text-foreground-muted">
             {palette.colors.length} / {LIMITS.MAX_COLORS} colors
           </div>
@@ -425,7 +495,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
                 "disabled:opacity-50 disabled:cursor-not-allowed",
               )}
             >
-              {isSaving ? "Saving..." : "Save Changes"}
+              {isSaving ? "Saving..." : "Save"}
             </button>
           </div>
         </div>

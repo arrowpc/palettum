@@ -21,18 +21,21 @@ import {
 } from "@/components/ui/dialog";
 
 function useContinuousTap(
-  singleTap: (e: React.MouseEvent) => void,
-  doubleTap: (e: React.MouseEvent) => void,
+  singleTap: (e: React.MouseEvent | React.TouchEvent) => void,
+  doubleTap: (e: React.MouseEvent | React.TouchEvent) => void,
 ) {
   const continuousClick = useRef(0);
 
-  const debounceTap = useDebounceCallback((e: React.MouseEvent) => {
-    continuousClick.current = 0;
-    singleTap(e);
-  }, 300);
+  const debounceTap = useDebounceCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      continuousClick.current = 0;
+      singleTap(e);
+    },
+    300,
+  );
 
   return useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent | React.TouchEvent) => {
       continuousClick.current += 1;
       debounceTap(e);
 
@@ -165,9 +168,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [zoomLimits, setZoomLimits] = useState({ min: 0.1, max: 10 });
+  const [, setImageSize] = useState({ width: 0, height: 0 });
+  const [touchDistance, setTouchDistance] = useState(0);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const rafRef = useRef<number>();
+  const defaultZoomRef = useRef<number>(1);
 
   const ZOOM_STEP = 1.2;
   const TARGET_MAX_PIXEL_SIZE = 256;
@@ -226,11 +233,16 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     return Math.min(widthRatio, heightRatio) * 0.95;
   }, []);
 
-  const defaultZoom = calculateFitToViewZoom();
-  const isDefaultView = Math.abs(zoomLevel - defaultZoom) <= defaultZoom * 0.01;
+  const isDefaultView = useMemo(() => {
+    const zoomDiff = Math.abs(zoomLevel - defaultZoomRef.current) < 0.001;
+    const positionAtOrigin =
+      Math.abs(position.x) < 1 && Math.abs(position.y) < 1;
+    return zoomDiff && positionAtOrigin;
+  }, [zoomLevel, position]);
 
   const resetView = useCallback(() => {
     const newZoom = calculateFitToViewZoom();
+    defaultZoomRef.current = newZoom;
     setZoomLevel(newZoom);
     setPosition({ x: 0, y: 0 });
   }, [calculateFitToViewZoom]);
@@ -247,14 +259,28 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     const initializeImage = () => {
       if (!imageRef.current?.complete) {
         const handleLoad = () => {
-          resetView();
-          setZoomLimits(calculateZoomLimits());
+          if (imageRef.current) {
+            setImageSize({
+              width: imageRef.current.naturalWidth,
+              height: imageRef.current.naturalHeight,
+            });
+            resetView();
+            setZoomLimits(calculateZoomLimits());
+            setImageLoaded(true);
+          }
         };
         imageRef.current?.addEventListener("load", handleLoad);
         return () => imageRef.current?.removeEventListener("load", handleLoad);
       }
+      if (imageRef.current) {
+        setImageSize({
+          width: imageRef.current.naturalWidth,
+          height: imageRef.current.naturalHeight,
+        });
+      }
       resetView();
       setZoomLimits(calculateZoomLimits());
+      setImageLoaded(true);
     };
 
     const frame = requestAnimationFrame(initializeImage);
@@ -291,11 +317,16 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
           ? Math.min(zoomLevel * ZOOM_STEP, zoomLimits.max)
           : Math.max(zoomLevel / ZOOM_STEP, zoomLimits.min));
 
-      const scale = newZoom / zoomLevel;
+      const clampedZoom = Math.max(
+        zoomLimits.min,
+        Math.min(zoomLimits.max, newZoom),
+      );
+
+      const scale = clampedZoom / zoomLevel;
       const newX = position.x - offsetX * (scale - 1);
       const newY = position.y - offsetY * (scale - 1);
 
-      setZoomLevel(newZoom);
+      setZoomLevel(clampedZoom);
       setPosition({ x: newX, y: newY });
     },
     [zoomLevel, position, zoomLimits],
@@ -342,18 +373,27 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   );
 
   const handleDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.MouseEvent | React.TouchEvent) => {
+      e.preventDefault();
       if (!isDefaultView) {
         resetView();
       } else {
         const targetZoom = zoomLevel * 2.5;
-        handleZoom(true, e.clientX, e.clientY, targetZoom);
+        const clientX =
+          "clientX" in e
+            ? e.clientX
+            : e.touches[0]?.clientX || window.innerWidth / 2;
+        const clientY =
+          "clientY" in e
+            ? e.clientY
+            : e.touches[0]?.clientY || window.innerHeight / 2;
+        handleZoom(true, clientX, clientY, targetZoom);
       }
     },
     [zoomLevel, isDefaultView, resetView, handleZoom],
   );
 
-  const handleSingleTap = useCallback(() => { }, []);
+  const handleSingleTap = useCallback(() => {}, []);
   const handleTap = useContinuousTap(handleSingleTap, handleDoubleClick);
 
   const handleMouseUp = useCallback(() => {
@@ -365,16 +405,134 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
 
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
+      e.preventDefault();
       handleZoom(e.deltaY < 0, e.clientX, e.clientY);
     },
     [handleZoom],
   );
+
+  const getDistance = useCallback((touches: React.TouchList) => {
+    if (touches.length < 2) return 0;
+    return Math.hypot(
+      touches[0].clientX - touches[1].clientX,
+      touches[0].clientY - touches[1].clientY,
+    );
+  }, []);
+
+  const getMidpoint = useCallback((touches: React.TouchList) => {
+    if (touches.length < 2) {
+      return { x: touches[0]?.clientX || 0, y: touches[0]?.clientY || 0 };
+    }
+    return {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
+    };
+  }, []);
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+      }
+
+      if (e.touches.length === 1) {
+        setIsDragging(true);
+        setDragStart({
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+        });
+      } else if (e.touches.length === 2) {
+        setTouchDistance(getDistance(e.touches));
+      }
+    },
+    [getDistance],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length >= 2) {
+        e.preventDefault();
+      }
+
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+
+      rafRef.current = requestAnimationFrame(() => {
+        if (e.touches.length === 1 && isDragging) {
+          const deltaX = e.touches[0].clientX - dragStart.x;
+          const deltaY = e.touches[0].clientY - dragStart.y;
+          updatePosition(deltaX, deltaY);
+          setDragStart({
+            x: e.touches[0].clientX,
+            y: e.touches[0].clientY,
+          });
+        } else if (e.touches.length === 2) {
+          const currentDistance = getDistance(e.touches);
+          if (touchDistance > 0) {
+            const scale = currentDistance / touchDistance;
+            const midpoint = getMidpoint(e.touches);
+            const zoomIn = scale > 1;
+
+            if (Math.abs(scale - 1) > 0.01) {
+              const rawTargetZoom = zoomLevel * scale;
+              const targetZoom = Math.max(
+                zoomLimits.min,
+                Math.min(zoomLimits.max, rawTargetZoom),
+              );
+
+              handleZoom(zoomIn, midpoint.x, midpoint.y, targetZoom);
+            }
+          }
+          setTouchDistance(currentDistance);
+        }
+      });
+    },
+    [
+      isDragging,
+      dragStart,
+      touchDistance,
+      zoomLevel,
+      zoomLimits,
+      updatePosition,
+      getDistance,
+      getMidpoint,
+      handleZoom,
+    ],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    setIsDragging(false);
+    setTouchDistance(0);
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+    }
+  }, []);
 
   useEffect(() => {
     return () => {
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    const preventDefaultForDoubleTouch = (e: TouchEvent) => {
+      if (viewportRef.current?.contains(e.target as Node)) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener("dblclick", preventDefaultForDoubleTouch as any, {
+      passive: false,
+    });
+
+    return () => {
+      document.removeEventListener(
+        "dblclick",
+        preventDefaultForDoubleTouch as any,
+      );
     };
   }, []);
 
@@ -393,40 +551,60 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
               : "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             transformOrigin: "center",
             willChange: "transform",
-            imageRendering: "pixelated",
+            imageRendering: zoomLevel > 3 ? "pixelated" : "auto",
+            opacity: imageLoaded ? 1 : 0,
           }}
           draggable={false}
         />
       </div>
     );
-  }, [position.x, position.y, zoomLevel, isDragging, imageUrl]);
+  }, [position.x, position.y, zoomLevel, isDragging, imageUrl, imageLoaded]);
+
+  const containerStyle = useMemo(() => {
+    const heightConstraint = "calc(90vh - 4rem)";
+    return {
+      height: "calc(90vh - 4rem)",
+      minHeight: "400px",
+      maxHeight: heightConstraint,
+      maxWidth: "100%",
+      touchAction: "none",
+    };
+  }, []);
 
   const ViewportContent = useMemo(() => {
     return (
       <div
         ref={viewportRef}
         className={cn(
-          "w-full h-[calc(90vh-4rem)] min-h-[400px] overflow-hidden relative",
-          "bg-gray-100",
+          "w-full overflow-hidden relative",
           isDragging ? "cursor-grabbing" : "cursor-grab",
         )}
+        style={containerStyle}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
         onWheel={handleWheel}
         onClick={handleTap}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
       >
         {ImageContent}
       </div>
     );
   }, [
     isDragging,
+    containerStyle,
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
     handleWheel,
     handleTap,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
     ImageContent,
   ]);
 
@@ -436,19 +614,35 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
       zoomLimits,
       resetView,
       handleZoom,
-      isDefaultView: isDefaultView && position.x === 0 && position.y === 0,
+      isDefaultView,
       onClose,
     }),
-    [
-      zoomLevel,
-      zoomLimits,
-      resetView,
-      handleZoom,
-      isDefaultView,
-      position,
-      onClose,
-    ],
+    [zoomLevel, zoomLimits, resetView, handleZoom, isDefaultView, onClose],
   );
+
+  useEffect(() => {
+    let viewportMeta = document.querySelector('meta[name="viewport"]');
+    const originalContent = viewportMeta?.getAttribute("content") || "";
+
+    if (!viewportMeta) {
+      viewportMeta = document.createElement("meta");
+      viewportMeta.setAttribute("name", "viewport");
+      document.head.appendChild(viewportMeta);
+    }
+
+    viewportMeta.setAttribute(
+      "content",
+      "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no",
+    );
+
+    return () => {
+      if (viewportMeta && originalContent) {
+        viewportMeta.setAttribute("content", originalContent);
+      } else if (viewportMeta) {
+        document.head.removeChild(viewportMeta);
+      }
+    };
+  }, []);
 
   return (
     <Dialog open onOpenChange={onClose}>

@@ -32,6 +32,7 @@ const LOCAL_STORAGE_KEY = "userPalettes";
 const SELECTED_PALETTE_KEY = "selectedPaletteId";
 const PREVIEW_CYCLE_INTERVAL = 500; // ms
 const HOVER_CYCLE_INTERVAL = 300; // ms
+const MOBILE_MENU_TRANSITION_DURATION = 200; // ms
 
 interface PaletteManagerProps {
   onPaletteSelect: (palette: Palette) => void;
@@ -87,9 +88,24 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
   const [mobileActionPaletteId, setMobileActionPaletteId] = useState<
     string | null
   >(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [isMenuVisible, setIsMenuVisible] = useState(false);
+
+  // Disable background scroll when mobile menu is open
+  useEffect(() => {
+    if (showMobileMenu) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showMobileMenu]);
 
   useEffect(() => {
     const userPalettes = palettes.filter((p) => !p.isDefault);
@@ -175,13 +191,15 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
 
   useEffect(() => {
     if (mobileActionPaletteId) {
-      document.body.style.overflow = "hidden";
+      setShowMobileMenu(true);
+      setTimeout(() => setIsMenuVisible(true), 10);
     } else {
-      document.body.style.overflow = "";
+      setIsMenuVisible(false);
+      setTimeout(
+        () => setShowMobileMenu(false),
+        MOBILE_MENU_TRANSITION_DURATION,
+      );
     }
-    return () => {
-      document.body.style.overflow = "";
-    };
   }, [mobileActionPaletteId]);
 
   const getDisplayedColors = (
@@ -342,6 +360,14 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   const filteredPalettes = palettes.filter((p) =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()),
   );
+
+  const closeMobileMenu = () => {
+    setIsMenuVisible(false);
+    setTimeout(() => {
+      setShowMobileMenu(false);
+      setMobileActionPaletteId(null);
+    }, MOBILE_MENU_TRANSITION_DURATION);
+  };
 
   return (
     <TooltipProvider>
@@ -561,80 +587,6 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                       >
                         <MoreVertical className="w-5 h-5" />
                       </button>
-                      {mobileActionPaletteId === palette.id && (
-                        <div className="fixed inset-0 flex items-end bg-black/40">
-                          <div className="bg-background w-full rounded-t-2xl p-4 shadow-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="font-medium truncate">
-                                {palette.name}
-                              </span>
-                              <button
-                                onClick={() => setMobileActionPaletteId(null)}
-                                className="p-2"
-                                aria-label="Close"
-                              >
-                                <X className="w-5 h-5" />
-                              </button>
-                            </div>
-                            <div className="flex flex-col text-sm gap-2">
-                              <button
-                                className="flex items-center gap-2 px-3 py-2 rounded hover:bg-secondary"
-                                onClick={() => {
-                                  handleCopyPalette(palette);
-                                  setMobileActionPaletteId(null);
-                                }}
-                              >
-                                <Copy className="w-4 h-4" />
-                                Duplicate
-                              </button>
-                              <button
-                                className="flex items-center gap-2 px-3 py-2 rounded hover:bg-secondary"
-                                onClick={() => {
-                                  handleExportPalette(palette);
-                                  setMobileActionPaletteId(null);
-                                }}
-                              >
-                                <Download className="w-4 h-4" />
-                                Export
-                              </button>
-                              <button
-                                className={cn(
-                                  "flex items-center gap-2 px-3 py-2 rounded",
-                                  palette.isDefault
-                                    ? "text-icon-disabled opacity-50 cursor-not-allowed"
-                                    : "hover:bg-secondary",
-                                )}
-                                onClick={() => {
-                                  if (!palette.isDefault)
-                                    handleEditPalette(palette);
-                                  setMobileActionPaletteId(null);
-                                }}
-                                disabled={palette.isDefault}
-                              >
-                                <Edit2 className="w-4 h-4" />
-                                Edit
-                              </button>
-                              <button
-                                className={cn(
-                                  "flex items-center gap-2 px-3 py-2 rounded",
-                                  palette.isDefault
-                                    ? "text-icon-disabled opacity-50 cursor-not-allowed"
-                                    : "hover:bg-secondary text-destructive",
-                                )}
-                                onClick={() => {
-                                  if (!palette.isDefault)
-                                    handleDeletePalette(palette.id);
-                                  setMobileActionPaletteId(null);
-                                }}
-                                disabled={palette.isDefault}
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
@@ -669,6 +621,119 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
           className="hidden"
           onChange={handleImportPalette}
         />
+
+        {showMobileMenu && (
+          <div className="fixed inset-0 z-50 flex items-end bg-black/40">
+            <div className="absolute inset-0" onClick={closeMobileMenu} />
+            <div
+              className={cn(
+                "relative w-full bg-background rounded-t-2xl p-4 shadow-lg transition-transform ease-in-out",
+                isMenuVisible ? "translate-y-0" : "translate-y-full",
+              )}
+              style={{
+                willChange: "transform",
+                transitionDuration: `${MOBILE_MENU_TRANSITION_DURATION}ms`,
+              }}
+            >
+              {" "}
+              {mobileActionPaletteId && (
+                <>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-medium truncate">
+                      {
+                        palettes.find((p) => p.id === mobileActionPaletteId)
+                          ?.name
+                      }
+                    </span>
+                    <button
+                      onClick={closeMobileMenu}
+                      className="p-2"
+                      aria-label="Close"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="flex flex-col text-sm gap-2">
+                    <button
+                      className="flex items-center gap-2 px-3 py-2 rounded hover:bg-secondary"
+                      onClick={() => {
+                        const palette = palettes.find(
+                          (p) => p.id === mobileActionPaletteId,
+                        );
+                        if (palette) handleCopyPalette(palette);
+                        closeMobileMenu();
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                      Duplicate
+                    </button>
+                    <button
+                      className="flex items-center gap-2 px-3 py-2 rounded hover:bg-secondary"
+                      onClick={() => {
+                        const palette = palettes.find(
+                          (p) => p.id === mobileActionPaletteId,
+                        );
+                        if (palette) handleExportPalette(palette);
+                        closeMobileMenu();
+                      }}
+                    >
+                      <Download className="w-4 h-4" />
+                      Export
+                    </button>
+                    <button
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2 rounded",
+                        palettes.find((p) => p.id === mobileActionPaletteId)
+                          ?.isDefault
+                          ? "text-icon-disabled opacity-50 cursor-not-allowed"
+                          : "hover:bg-secondary",
+                      )}
+                      onClick={() => {
+                        const palette = palettes.find(
+                          (p) => p.id === mobileActionPaletteId,
+                        );
+                        if (palette && !palette.isDefault)
+                          handleEditPalette(palette);
+                        closeMobileMenu();
+                      }}
+                      disabled={
+                        palettes.find((p) => p.id === mobileActionPaletteId)
+                          ?.isDefault
+                      }
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      Edit
+                    </button>
+                    <button
+                      className={cn(
+                        "flex items-center gap-2 px-3 py-2 rounded",
+                        palettes.find((p) => p.id === mobileActionPaletteId)
+                          ?.isDefault
+                          ? "text-icon-disabled opacity-50 cursor-not-allowed"
+                          : "hover:bg-secondary text-destructive",
+                      )}
+                      onClick={() => {
+                        const palette = palettes.find(
+                          (p) => p.id === mobileActionPaletteId,
+                        );
+                        if (palette && !palette.isDefault)
+                          handleDeletePalette(palette.id);
+                        closeMobileMenu();
+                      }}
+                      disabled={
+                        palettes.find((p) => p.id === mobileActionPaletteId)
+                          ?.isDefault
+                      }
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {isEditModalOpen && editingPalette && (
           <PaletteEditor

@@ -98,12 +98,10 @@ pub fn palettify_gif(gif: &Gif, config: &Config) -> Result<Gif, PalettumError> {
         // Resize the image if needed
         let mut res =
             resize_image_if_needed(&image, target_dims.0, target_dims.1, config.resize_filter);
-        image.width = image.buffer.width();
-        image.height = image.buffer.height();
 
         processing::process_pixels(&mut res.buffer, config, &lab_palette, lookup_opt)?;
 
-        Ok(Frame::from_parts(image.buffer, left, top, delay))
+        Ok(Frame::from_parts(res.buffer, left, top, delay))
     };
 
     let processed_frames = gif

@@ -1,6 +1,5 @@
 use crate::color::Lab;
 use crate::config::Config;
-use crate::error::PalettumError;
 use crate::processing::compute_mapped_color_rgb;
 use image::{Rgb, Rgba};
 use rayon::prelude::*;
@@ -11,7 +10,7 @@ pub(crate) fn generate_lookup_table(
     config: &Config,
     lab_palette: &[Lab],
     image_size: Option<usize>,
-) -> Result<Vec<Rgb<u8>>, PalettumError> {
+) -> Vec<Rgb<u8>> {
     let q = config.quant_level;
 
     let bins_per_channel = 256usize >> q;
@@ -25,7 +24,7 @@ pub(crate) fn generate_lookup_table(
                 size,
                 LUT_SIZE_HEURISTIC_DIVISOR
             );
-            return Ok(Vec::new());
+            return Vec::new();
         }
     }
 
@@ -39,7 +38,7 @@ pub(crate) fn generate_lookup_table(
     let mut lookup = vec![Rgb([0, 0, 0]); table_size];
     let rounding = if q > 0 { 1u16 << (q - 1) } else { 0 };
 
-    let process_index = |index: usize| -> Result<(usize, Rgb<u8>), PalettumError> {
+    let process_index = |index: usize| -> Option<(usize, Rgb<u8>)> {
         let b_bin = index % bins_per_channel;
         let g_bin = (index / bins_per_channel) % bins_per_channel;
         let r_bin = index / (bins_per_channel * bins_per_channel);
@@ -50,33 +49,27 @@ pub(crate) fn generate_lookup_table(
 
         let target_pixel = Rgba([r_val, g_val, b_val, 255]);
 
-        let result_rgb = compute_mapped_color_rgb(target_pixel, config, lab_palette)?;
-        Ok((index, result_rgb))
+        match compute_mapped_color_rgb(target_pixel, config, lab_palette) {
+            result_rgb => Some((index, result_rgb)),
+        }
     };
 
     if config.num_threads > 1 {
-        let results: Vec<Result<(usize, Rgb<u8>), PalettumError>> =
+        let results: Vec<Option<(usize, Rgb<u8>)>> =
             (0..table_size).into_par_iter().map(process_index).collect();
 
-        for result in results {
-            match result {
-                Ok((index, rgb)) => lookup[index] = rgb,
-                Err(e) => {
-                    log::error!("Error generating LUT entry: {}. Skipping.", e);
-                }
-            }
+        for result in results.into_iter().flatten() {
+            let (index, rgb) = result;
+            lookup[index] = rgb;
         }
     } else {
         for index in 0..table_size {
-            match process_index(index) {
-                Ok((_, rgb)) => lookup[index] = rgb,
-                Err(e) => {
-                    log::error!("Error generating LUT entry {}: {}. Skipping.", index, e);
-                }
+            if let Some((_, rgb)) = process_index(index) {
+                lookup[index] = rgb;
             }
         }
     }
 
     log::debug!("Lookup table generation complete.");
-    Ok(lookup)
+    lookup
 }

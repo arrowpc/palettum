@@ -75,3 +75,92 @@ impl Default for Config {
         }
     }
 }
+
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum ConfigError {
+    #[error("Empty palette: at least one color is required")]
+    EmptyPalette,
+
+    #[error("Invalid quant_level: must be between 0 (to disable) and {max}, got {value}")]
+    InvalidQuantLevel { value: u8, max: u8 },
+
+    #[error("Invalid anisotropic_shape_parameter: must be positive, got {0}")]
+    InvalidShapeParameter(f64),
+
+    #[error("Invalid anisotropic_power_parameter: must be positive, got {0}")]
+    InvalidPowerParameter(f64),
+
+    #[error("Invalid anisotropic_lab_scale: scale values must be positive")]
+    InvalidLabScales,
+
+    #[error("Invalid resize dimensions: width and height must be positive")]
+    InvalidResizeDimensions,
+
+    #[error(
+        "Invalid thread count: Specifying more threads than available CPU cores ({0}) is redundant"
+    )]
+    InvalidThreadCount(usize),
+}
+
+impl Config {
+    const MAX_QUANT_LEVEL: u8 = 5;
+
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.palette.is_empty() {
+            return Err(ConfigError::EmptyPalette);
+        }
+
+        if self.quant_level > Self::MAX_QUANT_LEVEL {
+            return Err(ConfigError::InvalidQuantLevel {
+                value: self.quant_level,
+                max: Self::MAX_QUANT_LEVEL,
+            });
+        }
+
+        if self.anisotropic_shape_parameter <= 0.0 {
+            return Err(ConfigError::InvalidShapeParameter(
+                self.anisotropic_shape_parameter,
+            ));
+        }
+
+        if self.anisotropic_power_parameter <= 0.0 {
+            return Err(ConfigError::InvalidPowerParameter(
+                self.anisotropic_power_parameter,
+            ));
+        }
+
+        if self
+            .anisotropic_lab_scales
+            .iter()
+            .any(|&scale| scale <= 0.0)
+        {
+            return Err(ConfigError::InvalidLabScales);
+        }
+
+        if let Some(width) = self.resize_width {
+            if width == 0 {
+                return Err(ConfigError::InvalidResizeDimensions);
+            }
+        }
+
+        if let Some(height) = self.resize_height {
+            if height == 0 {
+                return Err(ConfigError::InvalidResizeDimensions);
+            }
+        }
+
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.num_threads > num_cpus::get() {
+            return Err(ConfigError::InvalidThreadCount(num_cpus::get()));
+        }
+
+        Ok(())
+    }
+
+    pub fn validated(config: Self) -> Result<Self, ConfigError> {
+        config.validate()?;
+        Ok(config)
+    }
+}

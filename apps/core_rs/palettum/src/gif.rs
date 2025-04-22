@@ -1,6 +1,5 @@
 use crate::color::ConvertToLab;
 use crate::config::Config;
-use crate::error::PalettumError;
 use crate::image::Image;
 use crate::lut;
 use crate::processing;
@@ -17,7 +16,9 @@ pub struct Gif {
 }
 
 impl Gif {
-    pub fn from_bytes(gif_bytes: &[u8]) -> Result<Self, PalettumError> {
+    pub fn from_bytes(
+        gif_bytes: &[u8],
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let decoder = image::codecs::gif::GifDecoder::new(Cursor::new(gif_bytes))?;
         let (width, height) = decoder.dimensions();
         let frames = decoder.into_frames().collect_frames()?;
@@ -28,7 +29,9 @@ impl Gif {
         })
     }
 
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, PalettumError> {
+    pub fn from_file<P: AsRef<Path>>(
+        path: P,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let file = File::open(path)?;
         let decoder = image::codecs::gif::GifDecoder::new(BufReader::new(file))?;
         let (width, height) = decoder.dimensions();
@@ -40,13 +43,18 @@ impl Gif {
         })
     }
 
-    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), PalettumError> {
+    pub fn write_to_file<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
         self.write_to_writer(writer)
     }
 
-    pub fn write_to_memory(&self) -> Result<Vec<u8>, PalettumError> {
+    pub fn write_to_memory(
+        &self,
+    ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let mut buffer = Vec::new();
         {
             let writer = Cursor::new(&mut buffer);
@@ -55,14 +63,22 @@ impl Gif {
         Ok(buffer)
     }
 
-    fn write_to_writer<W: std::io::Write>(&self, writer: W) -> Result<(), PalettumError> {
+    fn write_to_writer<W: std::io::Write>(
+        &self,
+        writer: W,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
         let mut encoder = GifEncoder::new_with_speed(writer, 10);
         encoder.encode_frames(self.frames.clone())?;
         Ok(())
     }
 }
 
-pub fn palettify_gif(gif: &Gif, config: &Config) -> Result<Gif, PalettumError> {
+pub fn palettify_gif(
+    gif: &Gif,
+    config: &Config,
+) -> Result<Gif, Box<dyn std::error::Error + Send + Sync + 'static>> {
+    config.validate()?;
+
     let target_dims = (config.resize_width, config.resize_height);
 
     let lab_palette = config
@@ -73,7 +89,7 @@ pub fn palettify_gif(gif: &Gif, config: &Config) -> Result<Gif, PalettumError> {
 
     let lookup = if config.quant_level > 0 {
         let avg_frame_size = gif.width as usize * gif.height as usize;
-        lut::generate_lookup_table(config, &lab_palette, Some(avg_frame_size))?
+        lut::generate_lookup_table(config, &lab_palette, Some(avg_frame_size))
     } else {
         Vec::new()
     };
@@ -84,31 +100,32 @@ pub fn palettify_gif(gif: &Gif, config: &Config) -> Result<Gif, PalettumError> {
         Some(&lookup[..])
     };
 
-    let process_frame = |frame: &Frame| -> Result<Frame, PalettumError> {
-        let delay = frame.delay();
-        let left = frame.left();
-        let top = frame.top();
+    let process_frame =
+        |frame: &Frame| -> Result<Frame, Box<dyn std::error::Error + Send + Sync + 'static>> {
+            let delay = frame.delay();
+            let left = frame.left();
+            let top = frame.top();
 
-        let mut image = Image {
-            buffer: frame.buffer().clone(),
-            width: frame.buffer().width(),
-            height: frame.buffer().height(),
+            let image = Image {
+                buffer: frame.buffer().clone(),
+                width: frame.buffer().width(),
+                height: frame.buffer().height(),
+            };
+
+            // Resize the image if needed
+            let mut res =
+                resize_image_if_needed(&image, target_dims.0, target_dims.1, config.resize_filter);
+
+            processing::process_pixels(&mut res.buffer, config, &lab_palette, lookup_opt);
+
+            Ok(Frame::from_parts(res.buffer, left, top, delay))
         };
-
-        // Resize the image if needed
-        let mut res =
-            resize_image_if_needed(&image, target_dims.0, target_dims.1, config.resize_filter);
-
-        processing::process_pixels(&mut res.buffer, config, &lab_palette, lookup_opt)?;
-
-        Ok(Frame::from_parts(res.buffer, left, top, delay))
-    };
 
     let processed_frames = gif
         .frames
         .iter()
         .map(process_frame)
-        .collect::<Result<Vec<_>, PalettumError>>()?;
+        .collect::<Result<Vec<_>, Box<dyn std::error::Error + Send + Sync + 'static>>>()?;
 
     Ok(Gif {
         frames: processed_frames,

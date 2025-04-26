@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "palettum",
-    #TODO: "palettum-cli",
+    "palettum-cli",
 ]
 resolver = "2"
 

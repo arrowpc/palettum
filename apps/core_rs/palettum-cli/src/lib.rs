@@ -219,11 +219,10 @@ pub fn list_available_palettes() -> Result<Vec<Palette>> {
     let custom_source = FsPaletteSource {
         dir: get_custom_palettes_dir()?,
     };
-    let mut palettes = load_palettes_from_source(&default_source, PaletteKind::Default)?;
     let mut custom = load_palettes_from_source(&custom_source, PaletteKind::Custom)?;
+    let mut palettes = load_palettes_from_source(&default_source, PaletteKind::Default)?;
     palettes.append(&mut custom);
 
-    palettes.sort_by(|a, b| a.id.to_lowercase().cmp(&b.id.to_lowercase()));
     Ok(palettes)
 }
 

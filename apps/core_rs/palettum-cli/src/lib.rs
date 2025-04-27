@@ -311,9 +311,6 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
             let is_gif = ImageFormat::from_path(&input_path).is_ok_and(|f| f == ImageFormat::Gif);
             let output_path =
                 determine_output_path(&input_path, args.output.as_ref(), is_gif, args.mapping)?;
-            let output_format = ImageFormat::from_path(&output_path)?;
-
-            let img_bytes = std::fs::read(&input_path)?;
 
             let config = PalettumConfig {
                 palette: palette.colors,
@@ -333,19 +330,20 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
 
             config.validate()?;
 
-            let processed_bytes = if is_gif {
-                let gif = PalettumGif::from_bytes(&img_bytes).map_err(|e| anyhow!(e))?;
+            if is_gif {
+                let gif = PalettumGif::from_file(&input_path).map_err(|e| anyhow!(e))?;
                 let processed_gif = palettify_gif(&gif, &config).map_err(|e| anyhow!(e))?;
-                processed_gif.write_to_memory().map_err(|e| anyhow!(e))?
+                processed_gif
+                    .write_to_file(&output_path)
+                    .map_err(|e| anyhow!(e))?
             } else {
-                let img = PalettumImage::from_bytes(&img_bytes).map_err(|e| anyhow!(e))?;
+                let img = PalettumImage::from_file(&input_path).map_err(|e| anyhow!(e))?;
                 let processed_img = palettify_image(&img, &config).map_err(|e| anyhow!(e))?;
                 processed_img
-                    .write_to_memory(output_format)
+                    .write_to_file(&output_path, ImageFormat::Png)
                     .map_err(|e| anyhow!(e))?
             };
 
-            std::fs::write(&output_path, processed_bytes)?;
             let duration = start_time.elapsed();
             Ok(CommandResult::PalettifySuccess {
                 input_path,
@@ -377,7 +375,14 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
 }
 
 pub fn format_duration(duration: Duration) -> String {
-    humantime::format_duration(duration).to_string()
+    let millis = duration.as_millis();
+    let secs = duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0);
+
+    if duration.as_secs() == 0 && millis > 0 {
+        format!("{}ms", millis)
+    } else {
+        format!("{:.3}s", secs)
+    }
 }
 
 pub fn format_filesize(size: u64) -> String {

@@ -109,7 +109,7 @@ fn get_mapped_color_for_pixel(
     cache: &mut ThreadLocalCache,
     lookup: Option<&[Rgb<u8>]>,
 ) -> Rgba<u8> {
-    if pixel.0[3] < config.transparency_threshold {
+    if pixel.0[3] < config.transparency_threshold && config.mapping != Mapping::Smoothed {
         return Rgba([0, 0, 0, 0]);
     }
 
@@ -139,8 +139,13 @@ fn get_mapped_color_for_pixel(
     }
 
     let result_rgb = compute_mapped_color_rgb(pixel, config, lab_palette);
-    let result_rgba = Rgba([result_rgb.0[0], result_rgb.0[1], result_rgb.0[2], 255]);
+    let alpha = if config.mapping == Mapping::Smoothed {
+        pixel[3]
+    } else {
+        255
+    };
 
+    let result_rgba = Rgba([result_rgb.0[0], result_rgb.0[1], result_rgb.0[2], alpha]);
     cache.set(pixel, result_rgba);
 
     result_rgba

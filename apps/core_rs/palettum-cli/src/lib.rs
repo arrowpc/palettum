@@ -6,7 +6,6 @@ use palettum::{
     palettify_gif, palettify_image, Config as PalettumConfig, DeltaEMethod, Gif as PalettumGif,
     Image as PalettumImage, Mapping, WeightingKernelType,
 };
-use path_clean::PathClean;
 use serde_json::Value;
 use std::{
     fs,
@@ -303,15 +302,12 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
     match command {
         Command::Palettify(args) => {
             let start_time = std::time::Instant::now();
-            let input_path = normalize_path(&args.input_file)?;
-            if !input_path.exists() {
-                return Err(anyhow!("Input file not found: {}", input_path.display()));
-            }
-            let palette = find_palette(&args.palette)?;
-            let is_gif = ImageFormat::from_path(&input_path).is_ok_and(|f| f == ImageFormat::Gif);
-            let output_path =
-                determine_output_path(&input_path, args.output.as_ref(), is_gif, args.mapping)?;
+            let input_path = args.input_file;
+            let output_path;
 
+            let exts = ["gif", "png", "jpg", "jpeg", "webp"];
+
+            let palette = find_palette(&args.palette)?;
             let config = PalettumConfig {
                 palette: palette.colors,
                 mapping: args.mapping,
@@ -327,22 +323,92 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
                 resize_height: args.height,
                 num_threads: args.threads,
             };
-
             config.validate()?;
+            if !input_path.exists() {
+                return Err(anyhow!("Input not found: {}", input_path.display()));
+            }
+            if input_path.is_dir() {
+                use std::ffi::OsStr;
+                use walkdir::WalkDir;
 
-            if is_gif {
-                let gif = PalettumGif::from_file(&input_path).map_err(|e| anyhow!(e))?;
-                let processed_gif = palettify_gif(&gif, &config).map_err(|e| anyhow!(e))?;
-                processed_gif
-                    .write_to_file(&output_path)
-                    .map_err(|e| anyhow!(e))?
+                output_path = if let Some(out) = &args.output {
+                    out.clone()
+                } else {
+                    let dir_name = input_path
+                        .file_name()
+                        .ok_or_else(|| anyhow!("Cannot determine directory name"))?
+                        .to_string_lossy();
+
+                    let suffix = match args.mapping {
+                        Mapping::Palettized => "_palettized",
+                        Mapping::Smoothed => "_smoothed",
+                        Mapping::SmoothedPalettized => "_smoothed_palettized",
+                    };
+
+                    let new_dir_name = format!("{}{}", dir_name, suffix);
+                    let parent = input_path.parent().unwrap_or_else(|| Path::new("."));
+
+                    parent.join(new_dir_name)
+                };
+
+                //TODO: Give users the option to override
+                if output_path.exists() {
+                    return Err(anyhow!(
+            "Output directory already exists: {}. Please specify a different output directory or remove the existing one.",
+            output_path.display()
+        ));
+                }
+
+                copy_dir_all(&input_path, &output_path)?;
+
+                let matches: Vec<_> = WalkDir::new(&output_path)
+                    .into_iter()
+                    .filter_map(Result::ok)
+                    .map(|e| e.into_path())
+                    .filter(|path| {
+                        path.extension()
+                            .and_then(OsStr::to_str)
+                            .is_some_and(|ext| exts.contains(&ext))
+                    })
+                    .collect();
+
+                let total = matches.len();
+                for (i, path) in matches.into_iter().enumerate() {
+                    log::debug!("Palettifying {} - {}/{}...", path.display(), i + 1, total);
+                    let is_gif = ImageFormat::from_path(&path).is_ok_and(|f| f == ImageFormat::Gif);
+                    if is_gif {
+                        let gif = PalettumGif::from_file(&path).map_err(|e| anyhow!(e))?;
+                        let processed_gif = palettify_gif(&gif, &config).map_err(|e| anyhow!(e))?;
+                        processed_gif.write_to_file(&path).map_err(|e| anyhow!(e))?
+                    } else {
+                        let img = PalettumImage::from_file(&path).map_err(|e| anyhow!(e))?;
+                        let processed_img =
+                            palettify_image(&img, &config).map_err(|e| anyhow!(e))?;
+                        processed_img
+                            .write_to_file(&path, ImageFormat::Png)
+                            .map_err(|e| anyhow!(e))?
+                    };
+                }
             } else {
-                let img = PalettumImage::from_file(&input_path).map_err(|e| anyhow!(e))?;
-                let processed_img = palettify_image(&img, &config).map_err(|e| anyhow!(e))?;
-                processed_img
-                    .write_to_file(&output_path, ImageFormat::Png)
-                    .map_err(|e| anyhow!(e))?
-            };
+                let is_gif =
+                    ImageFormat::from_path(&input_path).is_ok_and(|f| f == ImageFormat::Gif);
+                output_path =
+                    determine_output_path(&input_path, args.output.as_ref(), is_gif, args.mapping)?;
+
+                if is_gif {
+                    let gif = PalettumGif::from_file(&input_path).map_err(|e| anyhow!(e))?;
+                    let processed_gif = palettify_gif(&gif, &config).map_err(|e| anyhow!(e))?;
+                    processed_gif
+                        .write_to_file(&output_path)
+                        .map_err(|e| anyhow!(e))?
+                } else {
+                    let img = PalettumImage::from_file(&input_path).map_err(|e| anyhow!(e))?;
+                    let processed_img = palettify_image(&img, &config).map_err(|e| anyhow!(e))?;
+                    processed_img
+                        .write_to_file(&output_path, ImageFormat::Png)
+                        .map_err(|e| anyhow!(e))?
+                };
+            }
 
             let duration = start_time.elapsed();
             Ok(CommandResult::PalettifySuccess {
@@ -393,17 +459,6 @@ pub fn format_dimensions(dimensions: (u32, u32)) -> String {
     format!("{}x{}", dimensions.0, dimensions.1)
 }
 
-pub fn normalize_path(input_path: &Path) -> Result<PathBuf> {
-    let cleaned = input_path.clean();
-    if cleaned.is_absolute() {
-        Ok(cleaned)
-    } else {
-        std::env::current_dir()
-            .map(|cwd| cwd.join(cleaned).clean())
-            .map_err(|e| anyhow!("Failed to get current working directory: {}", e))
-    }
-}
-
 pub fn parse_scale(scale_str: &str) -> Result<f64> {
     let trimmed = scale_str.trim();
     let scale_val = if let Some(factor_str) = trimmed.strip_suffix('x') {
@@ -445,4 +500,23 @@ fn determine_output_path(
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| PathBuf::from("."));
     Ok(parent.join(new_file_name))
+}
+
+fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<()> {
+    log::debug!(
+        "Copying directory structure from {} to {}...",
+        src.as_ref().display(),
+        dst.as_ref().display()
+    );
+    fs::create_dir_all(&dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let ty = entry.file_type()?;
+        if ty.is_dir() {
+            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        } else {
+            fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+        }
+    }
+    Ok(())
 }

@@ -6,13 +6,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum WeightingKernelType {
-    Gaussian,
-    InverseDistancePower,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Mapping {
     Palettized,
     Smoothed,
@@ -27,6 +20,13 @@ pub enum DeltaEMethod {
     CIEDE2000,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum SmoothingStyle {
+    IDW,
+    Gaussian,
+}
+
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
@@ -34,17 +34,15 @@ pub enum DeltaEMethod {
 pub struct Config {
     #[cfg_attr(feature = "serde", serde(with = "rgb_vec_serde"))]
     pub palette: Vec<Rgb<u8>>,
-
     pub mapping: Mapping,
     pub delta_e_method: DeltaEMethod,
     pub quant_level: u8,
     pub transparency_threshold: u8,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub num_threads: usize,
-    pub anisotropic_kernel: WeightingKernelType,
-    pub anisotropic_shape_parameter: f64, // Gaussian
-    pub anisotropic_power_parameter: f64, // Inverse Distance
-    pub anisotropic_lab_scales: [f64; 3], // [L, A, B] scaling
+    pub smoothing_style: SmoothingStyle,
+    pub smoothing_strength: f64,
+    pub lab_scales: [f64; 3],
     pub resize_width: Option<u32>,
     pub resize_height: Option<u32>,
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -65,10 +63,9 @@ impl Default for Config {
             quant_level: 2,
             transparency_threshold: 128,
             num_threads,
-            anisotropic_kernel: WeightingKernelType::InverseDistancePower,
-            anisotropic_shape_parameter: 0.08,
-            anisotropic_power_parameter: 3.5,
-            anisotropic_lab_scales: [1.0, 1.0, 1.0],
+            smoothing_style: SmoothingStyle::IDW,
+            smoothing_strength: 0.5,
+            lab_scales: [1.0, 1.0, 1.0],
             resize_width: None,
             resize_height: None,
             resize_filter: FilterType::Nearest,
@@ -86,13 +83,10 @@ pub enum ConfigError {
     #[error("Invalid quant_level: must be between 0 (to disable) and {max}, got {value}")]
     InvalidQuantLevel { value: u8, max: u8 },
 
-    #[error("Invalid anisotropic_shape_parameter: must be positive, got {0}")]
-    InvalidShapeParameter(f64),
+    #[error("Invalid smoothing_strength: must be between 0.0 and 1.0, got {0}")]
+    InvalidsmoothingStrength(f64),
 
-    #[error("Invalid anisotropic_power_parameter: must be positive, got {0}")]
-    InvalidPowerParameter(f64),
-
-    #[error("Invalid anisotropic_lab_scale: scale values must be positive")]
+    #[error("Invalid lab_scales: scale values must be positive")]
     InvalidLabScales,
 
     #[error("Invalid resize dimensions: width and height must be positive")]
@@ -119,23 +113,13 @@ impl Config {
             });
         }
 
-        if self.anisotropic_shape_parameter <= 0.0 {
-            return Err(ConfigError::InvalidShapeParameter(
-                self.anisotropic_shape_parameter,
+        if self.smoothing_strength < 0.0 || self.smoothing_strength > 1.0 {
+            return Err(ConfigError::InvalidsmoothingStrength(
+                self.smoothing_strength,
             ));
         }
 
-        if self.anisotropic_power_parameter <= 0.0 {
-            return Err(ConfigError::InvalidPowerParameter(
-                self.anisotropic_power_parameter,
-            ));
-        }
-
-        if self
-            .anisotropic_lab_scales
-            .iter()
-            .any(|&scale| scale <= 0.0)
-        {
+        if self.lab_scales.iter().any(|&scale| scale <= 0.0) {
             return Err(ConfigError::InvalidLabScales);
         }
 

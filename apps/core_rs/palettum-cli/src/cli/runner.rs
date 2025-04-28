@@ -45,10 +45,10 @@ pub fn run_cli(cli: Cli) -> Result<()> {
     };
     let result = match command {
         Command::Palettify(args) => {
-            if !args.quiet {
+            if !args.silent {
                 term.write_line(&format!(
                     "🎨 Palettifying '{}' with '{}'...",
-                    args.input_file.display(),
+                    args.input_path.display(),
                     style::classic_accent().apply_to(&args.palette)
                 ))?;
             }
@@ -59,7 +59,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                 duration,
             } = &result
             {
-                if !args.quiet {
+                if !args.silent {
                     term.write_line(
                         &style::classic_success()
                             .apply_to("✔ Palettification complete!")

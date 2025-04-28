@@ -1,10 +1,10 @@
 use clap::{Parser, Subcommand};
 use image::imageops::FilterType;
-use palettum::{DeltaEMethod, Mapping, WeightingKernelType};
+use palettum::{DeltaEMethod, Mapping, SmoothingStyle};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "palettum", about = "Palette-based image processing tool")]
+#[command(name = "palettum", about = "Map images & GIFs to custom palettes")]
 pub struct Cli {
     #[arg(short, long, global = true)]
     pub verbose: bool,
@@ -24,40 +24,55 @@ pub enum Commands {
 
 #[derive(Parser, Clone)]
 pub struct PalettifyArgs {
-    #[arg(value_name = "INPUT_FILE")]
-    pub input_file: PathBuf,
+    /// Path to image or directory with images
+    #[arg(value_name = "INPUT_PATH")]
+    pub input_path: PathBuf,
+    /// Output file path (file extension needs to be included)
     #[arg(short, long, value_name = "OUTPUT_FILE")]
     pub output: Option<PathBuf>,
-    #[arg(short, long, required = true, value_name = "ID_OR_PATH")]
+    /// Use the list-palettes command to list available palettes
+    #[arg(short, long, required = true, value_name = "ID | NAME | JSON_FILE")]
     pub palette: String,
-    #[arg(short, long, default_value = "palettized", value_name = "STRATEGY", value_parser = parse_mapping)]
+    /// Available mappings: palettized, smoothed, palettized-smoothed
+    #[arg(short, long, default_value = "palettized", value_name = "MAPPING", value_parser = parse_mapping)]
     pub mapping: Mapping,
-    #[arg(long, default_value = "ciede2000", value_name = "METHOD", value_parser = parse_delta_e)]
+    /// Available formulas: ciede2000, cie94, cie76
+    #[arg(long, default_value = "ciede2000", value_name = "FORMULA", value_parser = parse_delta_e)]
     pub delta_e: DeltaEMethod,
-    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=255), default_value_t = 2)]
-    pub quant_level: u8,
-    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=255), default_value_t = 128)]
-    pub alpha_threshold: u8,
-    #[arg(short, long, value_name = "THREADS", default_value_t = num_cpus::get())]
-    pub threads: usize,
-    #[arg(long, default_value = "inverse_distance_power", value_name = "KERNEL", value_parser = parse_kernel)]
-    pub weighting_kernel: WeightingKernelType,
-    #[arg(long, default_value_t = 0.08)]
-    pub shape_parameter: f64,
-    #[arg(long, default_value_t = 3.5)]
-    pub power_parameter: f64,
+    /// Available formulas: idw (inverse distance weighting; gives more legible results with
+    /// smaller palettes), gaussian
+    #[arg(long, default_value = "idw", value_name = "FORMULA", value_parser = parse_smoothing_style)]
+    pub smoothing_style: SmoothingStyle,
+    /// higher increases sharpness [range: 0.1 - 1.0]
+    #[arg(long, default_value_t = 0.5)]
+    pub smoothing_strength: f64,
+    /// [range for each: 0.1 - 10.0]
     #[arg(long, default_value = "1.0,1.0,1.0", value_name = "L,A,B", value_parser = parse_lab_scales)]
     pub lab_scales: [f64; 3],
+    #[arg(short, long, value_parser = clap::value_parser!(u8).range(0..=255), default_value_t = 2)]
+    /// [range: 0 - 5]
+    pub quant_level: u8,
+    /// 0 To disable transparency [range: 0 - 255]
+    #[arg(short, long, value_parser = clap::value_parser!(u8).range(0..=255), default_value_t = 128)]
+    pub alpha_threshold: u8,
+    /// Number of threads. Limited to number of CPU cores
+    #[arg(short, long, value_name = "THREADS", default_value_t = num_cpus::get())]
+    pub threads: usize,
+    /// Resize output to this width (pixels). If --height is not set, aspect ratio is preserved
     #[arg(long, value_name = "PIXELS")]
     pub width: Option<u32>,
+    /// Resize output to this height (pixels). If --width is not set, aspect ratio is preserved
     #[arg(long, value_name = "PIXELS")]
     pub height: Option<u32>,
+    ///  Resize output by a scale factor. Use 'Nx' format (e.g. '0.5x') or 'N%' format (e.g. '50%'). Overridden by --width/height if set
     #[arg(long, value_name = "FACTOR")]
     pub scale: Option<String>,
-    #[arg(long, default_value = "lanczos3", value_name = "FILTER", value_parser = parse_filter_type)]
+    /// Available formulas: nearest (good for pixel art), lanczos3, triangle, catmullrom, gaussian
+    #[arg(short, long, default_value = "nearest", value_name = "FORMULA", value_parser = parse_filter_type)]
     pub resize_filter: FilterType,
+    /// Suppress all terminal output except errors
     #[arg(long, short)]
-    pub quiet: bool,
+    pub silent: bool,
 }
 
 #[derive(Parser, Clone)]
@@ -89,7 +104,7 @@ impl From<Commands> for crate::Command {
 impl From<PalettifyArgs> for crate::PalettifyArgs {
     fn from(args: PalettifyArgs) -> Self {
         crate::PalettifyArgs {
-            input_file: args.input_file,
+            input_path: args.input_path,
             output: args.output,
             palette: args.palette,
             mapping: args.mapping,
@@ -97,15 +112,14 @@ impl From<PalettifyArgs> for crate::PalettifyArgs {
             quant_level: args.quant_level,
             alpha_threshold: args.alpha_threshold,
             threads: args.threads,
-            weighting_kernel: args.weighting_kernel,
-            shape_parameter: args.shape_parameter,
-            power_parameter: args.power_parameter,
+            smoothing_style: args.smoothing_style,
+            smoothing_strength: args.smoothing_strength,
             lab_scales: args.lab_scales,
             width: args.width,
             height: args.height,
             scale: args.scale,
             resize_filter: args.resize_filter,
-            quiet: args.quiet,
+            silent: args.silent,
         }
     }
 }
@@ -146,10 +160,10 @@ fn parse_delta_e(method: &str) -> Result<DeltaEMethod, String> {
     }
 }
 
-fn parse_kernel(kernel: &str) -> Result<WeightingKernelType, String> {
+fn parse_smoothing_style(kernel: &str) -> Result<SmoothingStyle, String> {
     match kernel.to_lowercase().as_str() {
-        "gaussian" => Ok(WeightingKernelType::Gaussian),
-        "inverse_distance_power" => Ok(WeightingKernelType::InverseDistancePower),
+        "idw" => Ok(SmoothingStyle::IDW),
+        "gaussian" => Ok(SmoothingStyle::Gaussian),
         _ => Err(format!("Invalid weighting kernel: {}", kernel)),
     }
 }

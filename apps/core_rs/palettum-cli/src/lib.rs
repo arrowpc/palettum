@@ -4,7 +4,7 @@ use image::{imageops::FilterType, ImageFormat, Rgb};
 use include_dir::{include_dir, Dir};
 use palettum::{
     palettify_gif, palettify_image, Config as PalettumConfig, DeltaEMethod, Gif as PalettumGif,
-    Image as PalettumImage, Mapping, WeightingKernelType,
+    Image as PalettumImage, Mapping, SmoothingStyle,
 };
 use serde_json::Value;
 use std::{
@@ -245,7 +245,7 @@ pub fn save_custom_palette(id: &str, data: &Value, force: bool) -> Result<PathBu
 
 #[derive(Debug, Clone)]
 pub struct PalettifyArgs {
-    pub input_file: PathBuf,
+    pub input_path: PathBuf,
     pub output: Option<PathBuf>,
     pub palette: String,
     pub mapping: Mapping,
@@ -253,15 +253,14 @@ pub struct PalettifyArgs {
     pub quant_level: u8,
     pub alpha_threshold: u8,
     pub threads: usize,
-    pub weighting_kernel: WeightingKernelType,
-    pub shape_parameter: f64,
-    pub power_parameter: f64,
+    pub smoothing_style: SmoothingStyle,
+    pub smoothing_strength: f64,
     pub lab_scales: [f64; 3],
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub scale: Option<String>,
     pub resize_filter: FilterType,
-    pub quiet: bool,
+    pub silent: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -302,7 +301,7 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
     match command {
         Command::Palettify(args) => {
             let start_time = std::time::Instant::now();
-            let input_path = args.input_file;
+            let input_path = args.input_path;
             let output_path;
 
             let exts = ["gif", "png", "jpg", "jpeg", "webp"];
@@ -314,10 +313,9 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
                 delta_e_method: args.delta_e,
                 quant_level: args.quant_level,
                 transparency_threshold: args.alpha_threshold,
-                anisotropic_kernel: args.weighting_kernel,
-                anisotropic_shape_parameter: args.shape_parameter,
-                anisotropic_power_parameter: args.power_parameter,
-                anisotropic_lab_scales: args.lab_scales,
+                smoothing_style: args.smoothing_style,
+                smoothing_strength: args.smoothing_strength,
+                lab_scales: args.lab_scales,
                 resize_filter: args.resize_filter,
                 resize_width: args.width,
                 resize_height: args.height,

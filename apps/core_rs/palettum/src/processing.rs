@@ -1,5 +1,5 @@
 use crate::color::{ConvertToLab, Lab};
-use crate::config::{Config, Mapping, WeightingKernelType};
+use crate::config::{Config, Mapping, SmoothingStyle};
 use crate::delta_e::delta_e_batch;
 use crate::utils::ThreadLocalCache;
 use image::{Rgb, Rgba, RgbaImage};
@@ -22,17 +22,17 @@ fn find_closest_palette_color(lab: &Lab, lab_palette: &[Lab], config: &Config) -
 
 #[inline]
 fn compute_weight(distance: f64, config: &Config) -> f64 {
-    match config.anisotropic_kernel {
-        WeightingKernelType::Gaussian => {
-            let shape = config
-                .anisotropic_shape_parameter
-                .max(ANISOTROPIC_DIST_EPSILON);
+    let strength = config.smoothing_strength.clamp(0.0, 1.0);
+
+    match config.smoothing_style {
+        SmoothingStyle::Gaussian => {
+            let shape = (0.18 * strength + 0.01).max(ANISOTROPIC_DIST_EPSILON);
+
             let exponent = -(shape * distance).powi(2);
-            exponent.max(-700.0).exp() // exp(-700) is approx 1e-304
+            exponent.max(-700.0).exp()
         }
-        WeightingKernelType::InverseDistancePower => {
-            let power = config.anisotropic_power_parameter.max(0.0);
-            // Add epsilon to prevent division by zero if distance is exactly 0
+        SmoothingStyle::IDW => {
+            let power = 6.0 * strength + 1.0;
             1.0 / (distance.powf(power) + ANISOTROPIC_DIST_EPSILON)
         }
     }
@@ -43,13 +43,22 @@ fn compute_anisotropic_weighted_average(
     config: &Config,
     lab_palette: &[Lab],
 ) -> Rgb<u8> {
+    match config.mapping {
+        Mapping::Palettized => {
+            return find_closest_palette_color(target_lab, lab_palette, config);
+        }
+        Mapping::Smoothed | Mapping::SmoothedPalettized => {
+            if config.smoothing_strength == 0.0 {
+                return find_closest_palette_color(target_lab, lab_palette, config);
+            }
+        }
+    }
+
     let mut total_weight: f64 = 0.0;
     let mut sum_r: f64 = 0.0;
     let mut sum_g: f64 = 0.0;
     let mut sum_b: f64 = 0.0;
-    let scale_l = config.anisotropic_lab_scales[0];
-    let scale_a = config.anisotropic_lab_scales[1];
-    let scale_b = config.anisotropic_lab_scales[2];
+    let [scale_l, scale_a, scale_b] = config.lab_scales;
 
     for (i, palette_lab_color) in lab_palette.iter().enumerate() {
         let dl = target_lab.l as f64 - palette_lab_color.l as f64;
@@ -58,7 +67,7 @@ fn compute_anisotropic_weighted_average(
         let anisotropic_dist_sq = (scale_l * dl * dl).max(0.0)
             + (scale_a * da * da).max(0.0)
             + (scale_b * db * db).max(0.0);
-        let anisotropic_dist = anisotropic_dist_sq.sqrt(); // Now safe
+        let anisotropic_dist = anisotropic_dist_sq.sqrt();
         let weight = compute_weight(anisotropic_dist, config);
 
         if weight > WEIGHT_THRESHOLD {
@@ -77,7 +86,10 @@ fn compute_anisotropic_weighted_average(
         let b_avg = (sum_b / total_weight).round().clamp(0.0, 255.0) as u8;
         Rgb([r_avg, g_avg, b_avg])
     } else {
-        log::warn!("Total weight near zero in weighted average for Lab {:?}, falling back to closest color.", target_lab);
+        log::debug!(
+            "Total weight near zero in weighted average for {:?}, falling back to closest color.",
+            target_lab
+        );
         find_closest_palette_color(target_lab, lab_palette, config)
     }
 }

@@ -1,17 +1,13 @@
 use clap::{Parser, Subcommand};
+use image::imageops::FilterType;
 use palettum::{DeltaEMethod, Mapping, WeightingKernelType};
 use std::path::PathBuf;
-use image::imageops::FilterType;
 
 #[derive(Parser)]
 #[command(name = "palettum", about = "Palette-based image processing tool")]
 pub struct Cli {
     #[arg(short, long, global = true)]
     pub verbose: bool,
-
-    #[cfg(feature = "tui")]
-    #[arg(short, long, global = true, help = "Run in interactive TUI mode")]
-    pub interactive: bool,
 
     #[command(subcommand)]
     pub command: Option<Commands>,
@@ -38,7 +34,7 @@ pub struct PalettifyArgs {
     pub mapping: Mapping,
     #[arg(long, default_value = "ciede2000", value_name = "METHOD", value_parser = parse_delta_e)]
     pub delta_e: DeltaEMethod,
-    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=255), default_value_t = 0)]
+    #[arg(long, value_parser = clap::value_parser!(u8).range(0..=255), default_value_t = 2)]
     pub quant_level: u8,
     #[arg(long, value_parser = clap::value_parser!(u8).range(0..=255), default_value_t = 128)]
     pub alpha_threshold: u8,
@@ -165,7 +161,9 @@ fn parse_lab_scales(scales: &str) -> Result<[f64; 3], String> {
     }
     let mut result = [0.0; 3];
     for (i, part) in parts.iter().enumerate() {
-        result[i] = part.parse::<f64>().map_err(|e| format!("Invalid float: {}", e))?;
+        result[i] = part
+            .parse::<f64>()
+            .map_err(|e| format!("Invalid float: {}", e))?;
     }
     Ok(result)
 }

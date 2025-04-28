@@ -36,8 +36,9 @@ impl Image {
     pub fn from_file<P: AsRef<Path>>(
         path: P,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync + 'static>> {
-        let file = File::open(path)?;
-        let dynamic_image = image::load(BufReader::new(file), ImageFormat::Png)?;
+        let file = File::open(&path)?;
+        let format = ImageFormat::from_path(&path)?;
+        let dynamic_image = image::load(BufReader::new(file), format)?;
         let buffer = dynamic_image.into_rgba8();
         let width = buffer.width();
         let height = buffer.height();

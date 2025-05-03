@@ -10,12 +10,12 @@ import Footer from "@/components/Footer";
 import AdjustmentsAccordion, {
   type MappingKey,
   type FormulaKey,
-  type WeightingKernelKey,
+  type SmoothingStyleKey,
   MAPPING_PALETTIZED,
   MAPPING_SMOOTHED,
   MAPPING_SMOOTHED_PALETTIZED,
   FORMULA_CIEDE2000,
-  WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER,
+  SMOOTHING_STYLE_IDW,
 } from "@/components/AdjustmentsAccordion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -35,13 +35,11 @@ if (import.meta.env.MODE === "development") {
 
 const DEFAULT_MAPPING: MappingKey = MAPPING_PALETTIZED;
 const DEFAULT_FORMULA: FormulaKey = FORMULA_CIEDE2000;
-const DEFAULT_WEIGHTING_KERNEL: WeightingKernelKey =
-  WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER;
+const DEFAULT_SMOOTHING_STYLE: SmoothingStyleKey = SMOOTHING_STYLE_IDW;
 const DEFAULT_TRANSPARENCY_THRESHOLD = 0;
 const DEFAULT_LAB_SCALES: [number, number, number] = [1.0, 1.0, 1.0];
-const DEFAULT_SHAPE_PARAM = 0.1;
-const DEFAULT_POWER_PARAM = 3.0;
-const HARDCODED_QUANT_LEVEL = 2; // Quality level is now fixed
+const DEFAULT_SMOOTHING_STRENGTH = 0.5;
+const HARDCODED_QUANT_LEVEL = 2;
 
 const MAPPING_OPTIONS: MappingKey[] = [
   MAPPING_PALETTIZED,
@@ -65,22 +63,21 @@ function App() {
     width: null as number | null,
     height: null as number | null,
   });
-  const [selectedPalette, setSelectedPalette] = useState<Palette | undefined>(
-    undefined,
-  );
+  const [selectedPalette, setSelectedPalette] = useState<Palette>();
 
   const [transparentThreshold, setTransparentThreshold] = useState<number>(
     DEFAULT_TRANSPARENCY_THRESHOLD,
   );
   const [mapping, setMapping] = useState<MappingKey>(DEFAULT_MAPPING);
   const [formula, setFormula] = useState<FormulaKey>(DEFAULT_FORMULA);
-  const [weightingKernel, setWeightingKernel] = useState<WeightingKernelKey>(
-    DEFAULT_WEIGHTING_KERNEL,
+  const [smoothingStyle, setSmoothingStyle] = useState<SmoothingStyleKey>(
+    DEFAULT_SMOOTHING_STYLE,
   );
   const [labScales, setLabScales] =
     useState<[number, number, number]>(DEFAULT_LAB_SCALES);
-  const [shapeParam, setShapeParam] = useState<number>(DEFAULT_SHAPE_PARAM);
-  const [powerParam, setPowerParam] = useState<number>(DEFAULT_POWER_PARAM);
+  const [smoothingStrength, setSmoothingStrength] = useState<number>(
+    DEFAULT_SMOOTHING_STRENGTH,
+  );
 
   const handleFileSelect = useCallback((file: File | null) => {
     setUploadedFile(file);
@@ -109,9 +106,9 @@ function App() {
     setFormula(newFormula);
   }, []);
 
-  const handleWeightingKernelChange = useCallback(
-    (newKernel: WeightingKernelKey) => {
-      setWeightingKernel(newKernel);
+  const handleSmoothingStyleChange = useCallback(
+    (newStyle: SmoothingStyleKey) => {
+      setSmoothingStyle(newStyle);
     },
     [],
   );
@@ -123,12 +120,8 @@ function App() {
     [],
   );
 
-  const handleShapeParamChange = useCallback((newShape: number) => {
-    setShapeParam(newShape);
-  }, []);
-
-  const handlePowerParamChange = useCallback((newPower: number) => {
-    setPowerParam(newPower);
+  const handleSmoothingStrengthChange = useCallback((s: number) => {
+    setSmoothingStrength(s);
   }, []);
 
   const renderColorMappingMethod = () => (
@@ -207,18 +200,16 @@ function App() {
           file={uploadedFile}
           currentMapping={mapping}
           currentFormula={formula}
-          currentWeightingKernel={weightingKernel}
+          currentSmoothingStyle={smoothingStyle}
           currentThreshold={transparentThreshold}
           currentLabScales={labScales}
-          currentShapeParam={shapeParam}
-          currentPowerParam={powerParam}
+          currentSmoothingStrength={smoothingStrength}
           onMappingChange={handleMappingChange}
           onFormulaChange={handleFormulaChange}
-          onWeightingKernelChange={handleWeightingKernelChange}
+          onSmoothingStyleChange={handleSmoothingStyleChange}
           onThresholdChange={handleThresholdChange}
           onLabScalesChange={handleLabScalesChange}
-          onShapeParamChange={handleShapeParamChange}
-          onPowerParamChange={handlePowerParamChange}
+          onSmoothingStrengthChange={handleSmoothingStrengthChange}
         />
 
         <PalettifyImage
@@ -227,12 +218,11 @@ function App() {
           palette={selectedPalette}
           transparentThreshold={transparentThreshold}
           mapping={mapping}
-          quantLevel={HARDCODED_QUANT_LEVEL} // Use fixed quality level
+          quantLevel={HARDCODED_QUANT_LEVEL}
           formula={formula}
-          weighting_kernel={weightingKernel}
-          anisotropic_labScales={labScales.join(",")}
-          anisotropic_shapeParameter={shapeParam}
-          anisotropic_powerParameter={powerParam}
+          smoothingStyle={smoothingStyle}
+          labScales={labScales}
+          smoothingStrength={smoothingStrength}
         />
       </div>
 

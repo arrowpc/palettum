@@ -146,10 +146,9 @@ interface PalettifyImageProps {
   mapping: string;
   quantLevel: number;
   formula: string;
-  weighting_kernel: string;
-  anisotropic_labScales: string;
-  anisotropic_shapeParameter: number;
-  anisotropic_powerParameter: number;
+  smoothingStyle: string;
+  labScales: [number, number, number];
+  smoothingStrength: number;
 }
 
 interface ProcessedSettings {
@@ -161,10 +160,9 @@ interface ProcessedSettings {
   mapping: string | null;
   quantLevel: number | null;
   formula: string | null;
-  weighting_kernel: string | null;
-  anisotropic_labScales: string | null;
-  anisotropic_shapeParameter: number | null;
-  anisotropic_powerParameter: number | null;
+  smoothingStyle: string | null;
+  labScales: [number, number, number] | null;
+  smoothingStrength: number | null;
 }
 
 interface WasmConfig {
@@ -173,10 +171,9 @@ interface WasmConfig {
   deltaEMethod: string;
   quantLevel: number;
   transparencyThreshold: number;
-  anisotropicKernel: string;
-  anisotropicShapeParameter: number;
-  anisotropicPowerParameter: number;
-  anisotropicLabScales: [number, number, number];
+  smoothingStyle: string;
+  smoothingStrength: number;
+  labScales: [number, number, number];
   resizeWidth: number | null;
   resizeHeight: number | null;
 }
@@ -194,10 +191,9 @@ function PalettifyImage({
   mapping,
   quantLevel,
   formula,
-  weighting_kernel,
-  anisotropic_labScales,
-  anisotropic_shapeParameter,
-  anisotropic_powerParameter,
+  smoothingStyle,
+  labScales,
+  smoothingStrength,
 }: PalettifyImageProps): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -226,10 +222,9 @@ function PalettifyImage({
     mapping: null,
     quantLevel: null,
     formula: null,
-    weighting_kernel: null,
-    anisotropic_labScales: null,
-    anisotropic_shapeParameter: null,
-    anisotropic_powerParameter: null,
+    smoothingStyle: null,
+    labScales: null,
+    smoothingStrength: null,
   });
 
   const isSameSettings: boolean =
@@ -243,13 +238,13 @@ function PalettifyImage({
     mapping === lastProcessedSettings.current.mapping &&
     quantLevel === lastProcessedSettings.current.quantLevel &&
     formula === lastProcessedSettings.current.formula &&
-    weighting_kernel === lastProcessedSettings.current.weighting_kernel &&
-    anisotropic_labScales ===
-      lastProcessedSettings.current.anisotropic_labScales &&
-    anisotropic_shapeParameter ===
-      lastProcessedSettings.current.anisotropic_shapeParameter &&
-    anisotropic_powerParameter ===
-      lastProcessedSettings.current.anisotropic_powerParameter;
+    smoothingStyle === lastProcessedSettings.current.smoothingStyle &&
+    smoothingStrength === lastProcessedSettings.current.smoothingStrength &&
+    labScales.length ===
+      (lastProcessedSettings.current.labScales?.length ?? 0) &&
+    labScales.every(
+      (v, i) => v === lastProcessedSettings.current.labScales?.[i],
+    );
 
   useEffect(() => {
     if (!workerRef.current) {
@@ -303,10 +298,9 @@ function PalettifyImage({
         mapping: null,
         quantLevel: null,
         formula: null,
-        weighting_kernel: null,
-        anisotropic_labScales: null,
-        anisotropic_shapeParameter: null,
-        anisotropic_powerParameter: null,
+        smoothingStyle: null,
+        labScales: null,
+        smoothingStrength: null,
       };
     }
   }, [file, currentProcessedFile, processedImageUrl]);
@@ -367,7 +361,7 @@ function PalettifyImage({
         reject: (workerError: any) => {
           reject(workerError);
         },
-      } as TaskCallbacks);
+      });
 
       const clonedBytes = new Uint8Array(imageBytes);
 
@@ -399,28 +393,19 @@ function PalettifyImage({
       const arrayBuffer = await file.arrayBuffer();
       const imageBytes = new Uint8Array(arrayBuffer);
 
-      const labScalesParsed = anisotropic_labScales.split(",").map(Number);
-      if (labScalesParsed.length !== 3 || labScalesParsed.some(isNaN)) {
-        throw new Error(
-          "Invalid anisotropic_labScales format. Expected three numbers separated by commas.",
-        );
-      }
-      const labScales = labScalesParsed as [number, number, number];
-
       const configJs: WasmConfig = {
         palette: palette.colors.map((color) => ({
           r: color.r,
           g: color.g,
           b: color.b,
         })),
-        mapping: mapping,
+        mapping,
         deltaEMethod: formula,
-        quantLevel: quantLevel,
+        quantLevel,
         transparencyThreshold: transparentThreshold,
-        anisotropicKernel: weighting_kernel,
-        anisotropicShapeParameter: anisotropic_shapeParameter,
-        anisotropicPowerParameter: anisotropic_powerParameter,
-        anisotropicLabScales: labScales,
+        smoothingStyle,
+        smoothingStrength,
+        labScales,
         resizeWidth: dimensions.width || null,
         resizeHeight: dimensions.height || null,
       };
@@ -445,14 +430,13 @@ function PalettifyImage({
         width: dimensions.width,
         height: dimensions.height,
         paletteId: palette.id,
-        transparentThreshold: transparentThreshold,
-        mapping: mapping,
-        quantLevel: quantLevel,
-        formula: formula,
-        weighting_kernel: weighting_kernel,
-        anisotropic_labScales: anisotropic_labScales,
-        anisotropic_shapeParameter: anisotropic_shapeParameter,
-        anisotropic_powerParameter: anisotropic_powerParameter,
+        transparentThreshold,
+        mapping,
+        quantLevel,
+        formula,
+        smoothingStyle,
+        labScales,
+        smoothingStrength,
       };
     } catch (err: any) {
       console.error("Processing error:", err);

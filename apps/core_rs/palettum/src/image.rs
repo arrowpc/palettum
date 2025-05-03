@@ -92,6 +92,7 @@ pub fn palettify_image(
         image,
         config.resize_width,
         config.resize_height,
+        config.resize_scale,
         config.resize_filter,
     );
 

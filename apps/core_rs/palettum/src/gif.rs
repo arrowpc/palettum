@@ -113,8 +113,13 @@ pub fn palettify_gif(
             };
 
             // Resize the image if needed
-            let mut res =
-                resize_image_if_needed(&image, target_dims.0, target_dims.1, config.resize_filter);
+            let mut res = resize_image_if_needed(
+                &image,
+                target_dims.0,
+                target_dims.1,
+                config.resize_scale,
+                config.resize_filter,
+            );
 
             processing::process_pixels(&mut res.buffer, config, &lab_palette, lookup_opt);
 

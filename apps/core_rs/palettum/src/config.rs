@@ -45,6 +45,7 @@ pub struct Config {
     pub lab_scales: [f64; 3],
     pub resize_width: Option<u32>,
     pub resize_height: Option<u32>,
+    pub resize_scale: Option<f32>,
     #[cfg_attr(feature = "serde", serde(skip))]
     pub resize_filter: FilterType,
 }
@@ -68,6 +69,7 @@ impl Default for Config {
             lab_scales: [1.0, 1.0, 1.0],
             resize_width: None,
             resize_height: None,
+            resize_scale: None,
             resize_filter: FilterType::Nearest,
         }
     }
@@ -91,6 +93,9 @@ pub enum ConfigError {
 
     #[error("Invalid resize dimensions: width and height must be positive")]
     InvalidResizeDimensions,
+
+    #[error("Invalid resize scale: Scale factor must be positive")]
+    InvalidResizeScale,
 
     #[error(
         "Invalid thread count: Specifying more threads than available CPU cores ({0}) is redundant"
@@ -132,6 +137,12 @@ impl Config {
         if let Some(height) = self.resize_height {
             if height == 0 {
                 return Err(ConfigError::InvalidResizeDimensions);
+            }
+        }
+
+        if let Some(scale) = self.resize_scale {
+            if scale < 0.0 {
+                return Err(ConfigError::InvalidResizeScale);
             }
         }
 

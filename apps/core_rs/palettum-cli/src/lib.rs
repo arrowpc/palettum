@@ -319,6 +319,7 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
                 resize_filter: args.resize_filter,
                 resize_width: args.width,
                 resize_height: args.height,
+                resize_scale: parse_scale(args.scale.as_deref()),
                 num_threads: args.threads,
             };
             config.validate()?;
@@ -457,19 +458,19 @@ pub fn format_dimensions(dimensions: (u32, u32)) -> String {
     format!("{}x{}", dimensions.0, dimensions.1)
 }
 
-pub fn parse_scale(scale_str: &str) -> Result<f64> {
-    let trimmed = scale_str.trim();
-    let scale_val = if let Some(factor_str) = trimmed.strip_suffix('x') {
-        factor_str.parse::<f64>()?
-    } else if let Some(percent_str) = trimmed.strip_suffix('%') {
-        percent_str.parse::<f64>()? / 100.0
-    } else {
-        trimmed.parse::<f64>()?
-    };
-    if scale_val > 0.0 {
-        Ok(scale_val)
-    } else {
-        bail!("Scale factor must be positive")
+pub fn parse_scale(scale_str: Option<&str>) -> Option<f32> {
+    match scale_str {
+        Some(s) => {
+            let trimmed = s.trim();
+            if let Some(factor_str) = trimmed.strip_suffix('x') {
+                factor_str.parse::<f32>().ok()
+            } else if let Some(percent_str) = trimmed.strip_suffix('%') {
+                percent_str.parse::<f32>().ok().map(|v| v / 100.0)
+            } else {
+                trimmed.parse::<f32>().ok()
+            }
+        }
+        None => None,
     }
 }
 

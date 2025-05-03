@@ -43,6 +43,7 @@ pub fn resize_image_if_needed(
     filter: image::imageops::FilterType,
 ) -> Image {
     match (target_width, target_height) {
+        // Both width and height specified
         (Some(new_w), Some(new_h)) if new_w > 0 && new_h > 0 => {
             if new_w != image.width || new_h != image.height {
                 log::debug!(
@@ -55,7 +56,55 @@ pub fn resize_image_if_needed(
                 );
                 Image {
                     buffer: image::imageops::resize(&image.buffer, new_w, new_h, filter),
-                    width: new_h,
+                    width: new_w,
+                    height: new_h,
+                }
+            } else {
+                log::debug!("Skipping resize: Target dimensions match original.");
+                image.clone()
+            }
+        }
+        // Only width specified, preserve aspect ratio
+        (Some(new_w), None) if new_w > 0 => {
+            let aspect_ratio = image.height as f32 / image.width as f32;
+            let new_h = (new_w as f32 * aspect_ratio).round() as u32;
+
+            if new_w != image.width || new_h != image.height {
+                log::debug!(
+                    "Resizing image from {}x{} to {}x{} (preserved aspect ratio) using filter {:?}",
+                    image.width,
+                    image.height,
+                    new_w,
+                    new_h,
+                    filter
+                );
+                Image {
+                    buffer: image::imageops::resize(&image.buffer, new_w, new_h, filter),
+                    width: new_w,
+                    height: new_h,
+                }
+            } else {
+                log::debug!("Skipping resize: Target dimensions match original.");
+                image.clone()
+            }
+        }
+        // Only height specified, preserve aspect ratio
+        (None, Some(new_h)) if new_h > 0 => {
+            let aspect_ratio = image.width as f32 / image.height as f32;
+            let new_w = (new_h as f32 * aspect_ratio).round() as u32;
+
+            if new_w != image.width || new_h != image.height {
+                log::debug!(
+                    "Resizing image from {}x{} to {}x{} (preserved aspect ratio) using filter {:?}",
+                    image.width,
+                    image.height,
+                    new_w,
+                    new_h,
+                    filter
+                );
+                Image {
+                    buffer: image::imageops::resize(&image.buffer, new_w, new_h, filter),
+                    width: new_w,
                     height: new_h,
                 }
             } else {

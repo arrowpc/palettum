@@ -450,15 +450,11 @@ pub fn format_duration(duration: Duration) -> String {
     }
 }
 
-pub fn format_filesize(size: u64) -> String {
+fn format_filesize(size: u64) -> String {
     humansize::format_size(size, humansize::BINARY)
 }
 
-pub fn format_dimensions(dimensions: (u32, u32)) -> String {
-    format!("{}x{}", dimensions.0, dimensions.1)
-}
-
-pub fn parse_scale(scale_str: Option<&str>) -> Option<f32> {
+fn parse_scale(scale_str: Option<&str>) -> Option<f32> {
     match scale_str {
         Some(s) => {
             let trimmed = s.trim();

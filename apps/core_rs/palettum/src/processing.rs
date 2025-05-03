@@ -86,10 +86,10 @@ fn compute_anisotropic_weighted_average(
         let b_avg = (sum_b / total_weight).round().clamp(0.0, 255.0) as u8;
         Rgb([r_avg, g_avg, b_avg])
     } else {
-        log::debug!(
-            "Total weight near zero in weighted average for {:?}, falling back to closest color.",
-            target_lab
-        );
+        // log::debug!(
+        //     "Total weight near zero in weighted average for {:?}, falling back to closest color.",
+        //     target_lab
+        // );
         find_closest_palette_color(target_lab, lab_palette, config)
     }
 }

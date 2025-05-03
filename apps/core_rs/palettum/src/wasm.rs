@@ -34,18 +34,16 @@ export interface PalettumWasmConfig {
     mapping?: 'PALETTIZED' | 'SMOOTHED' | 'SMOOTHED-PALETTIZED';
     /** The Delta E method for color difference calculation. Defaults to 'CIEDE2000'. */
     deltaEMethod?: 'CIE76' | 'CIE94' | 'CIEDE2000';
-    /** Quantization level for LUT optimization (0=disabled, 1-5). Defaults to 0. */
+    /** Quantization level for LUT optimization (0=disabled, 1-5). Defaults to 2. */
     quantLevel?: number;
     /** Alpha threshold below which pixels are treated as fully transparent (0-255). Defaults to 128. */
     transparencyThreshold?: number;
-    /** Weighting kernel for 'SMOOTHED' and 'SMOOTHED-PALETTIZED' mappings. Defaults to 'INVERSE_DISTANCE_POWER'. */
-    anisotropicKernel?: 'GAUSSIAN' | 'INVERSE_DISTANCE_POWER';
-    /** Shape parameter for the Gaussian kernel. Defaults to 0.08. */
-    anisotropicShapeParameter?: number;
-    /** Power parameter for the Inverse Distance Power kernel. Defaults to 3.5. */
-    anisotropicPowerParameter?: number;
+    /** Smoothing style for 'SMOOTHED' and 'SMOOTHED-PALETTIZED' mappings. Defaults to 'IDW'. */
+    smoothingStyle?: 'GAUSSIAN' | 'IDW';
+    /** Smoothing strength. Range: 0.1-1.0 */
+    smoothingStrength?: number;
     /** Scaling factors [L, A, B] for Lab color space distance in smoothing. Defaults to [1.0, 1.0, 1.0]. */
-    anisotropicLabScales?: [number, number, number];
+    labScales?: [number, number, number];
     /** Target width for resizing (pixels). If omitted/null, aspect ratio is preserved based on height. */
     resizeWidth?: number | null;
     /** Target height for resizing (pixels). If omitted/null, aspect ratio is preserved based on width. */

@@ -8,7 +8,6 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,24 +46,23 @@ const FORMULA_TOOLTIPS: Record<FormulaKey, string> = {
   [FORMULA_CIE76]: "Fastest color matching (less accurate)",
 };
 
-export const WEIGHTING_KERNEL_GAUSSIAN = "Gaussian";
-export const WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER = "InverseDistancePower";
-export type WeightingKernelKey =
-  | typeof WEIGHTING_KERNEL_GAUSSIAN
-  | typeof WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER;
+export const SMOOTHING_STYLE_GAUSSIAN = "Gaussian";
+export const SMOOTHING_STYLE_IDW = "IDW";
+export type SmoothingStyleKey =
+  | typeof SMOOTHING_STYLE_GAUSSIAN
+  | typeof SMOOTHING_STYLE_IDW;
 
-const WEIGHTING_KERNEL_OPTIONS: WeightingKernelKey[] = [
-  WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER,
-  WEIGHTING_KERNEL_GAUSSIAN,
+const SMOOTHING_STYLE_OPTIONS: SmoothingStyleKey[] = [
+  SMOOTHING_STYLE_IDW,
+  SMOOTHING_STYLE_GAUSSIAN,
 ];
-const WEIGHTING_KERNEL_NAMES: Record<WeightingKernelKey, string> = {
-  [WEIGHTING_KERNEL_GAUSSIAN]: "Gaussian",
-  [WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER]: "Inverse Distance",
+const SMOOTHING_STYLE_NAMES: Record<SmoothingStyleKey, string> = {
+  [SMOOTHING_STYLE_GAUSSIAN]: "Gaussian",
+  [SMOOTHING_STYLE_IDW]: "Inverse Distance",
 };
-const WEIGHTING_KERNEL_TOOLTIPS: Record<WeightingKernelKey, string> = {
-  [WEIGHTING_KERNEL_GAUSSIAN]: "Smooth falloff with bell curve distribution",
-  [WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER]:
-    "Sharper falloff with more defined color transitions",
+const SMOOTHING_STYLE_TOOLTIPS: Record<SmoothingStyleKey, string> = {
+  [SMOOTHING_STYLE_GAUSSIAN]: "Smooth falloff with bell curve distribution",
+  [SMOOTHING_STYLE_IDW]: "Sharper falloff with more defined color transitions",
 };
 
 const DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED = 128;
@@ -75,46 +73,40 @@ const MIN_SMOOTHED_SCALE = 0.1;
 const MAX_SMOOTHED_SCALE = 10.0;
 const SMOOTHED_SCALE_STEP = 0.1;
 const DEFAULT_SMOOTHED_SCALE = 1.0;
-const MIN_SMOOTHED_SHAPE = 0.02;
-const MAX_SMOOTHED_SHAPE = 0.2;
-const SMOOTHED_SHAPE_STEP = 0.01;
-const MIN_SMOOTHED_POWER = 2.0;
-const MAX_SMOOTHED_POWER = 5.0;
-const SMOOTHED_POWER_STEP = 0.1;
+
+const MIN_SMOOTHING_STRENGTH = 0.1;
+const MAX_SMOOTHING_STRENGTH = 1.0;
+const SMOOTHING_STRENGTH_STEP = 0.01;
 
 interface AdjustmentsAccordionProps {
   file: File | null;
   currentMapping: MappingKey;
   currentFormula: FormulaKey;
-  currentWeightingKernel: WeightingKernelKey;
+  currentSmoothingStyle: SmoothingStyleKey;
   currentThreshold: number;
   currentLabScales: [number, number, number];
-  currentShapeParam: number;
-  currentPowerParam: number;
+  currentSmoothingStrength: number;
   onMappingChange: (mapping: MappingKey) => void;
   onFormulaChange: (formula: FormulaKey) => void;
-  onWeightingKernelChange: (kernel: WeightingKernelKey) => void;
+  onSmoothingStyleChange: (style: SmoothingStyleKey) => void;
   onThresholdChange: (threshold: number) => void;
   onLabScalesChange: (scales: [number, number, number]) => void;
-  onShapeParamChange: (shape: number) => void;
-  onPowerParamChange: (power: number) => void;
+  onSmoothingStrengthChange: (strength: number) => void;
 }
 
 const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
   file,
   currentMapping,
   currentFormula,
-  currentWeightingKernel,
+  currentSmoothingStyle,
   currentThreshold,
   currentLabScales,
-  currentShapeParam,
-  currentPowerParam,
+  currentSmoothingStrength,
   onFormulaChange,
-  onWeightingKernelChange,
+  onSmoothingStyleChange,
   onThresholdChange,
   onLabScalesChange,
-  onShapeParamChange,
-  onPowerParamChange,
+  onSmoothingStrengthChange,
 }) => {
   const [imageSupportsTransparency, setImageSupportsTransparency] =
     useState(false);
@@ -217,11 +209,10 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
     onThresholdChange,
   ]);
 
-  const isGaussianActive =
-    usesSmoothed && currentWeightingKernel === WEIGHTING_KERNEL_GAUSSIAN;
-  const isInverseDistanceActive =
-    usesSmoothed &&
-    currentWeightingKernel === WEIGHTING_KERNEL_INVERSE_DISTANCE_POWER;
+  const isPalettizedActive = isImageUploaded && usesPalettized;
+  const isSmoothedActive = isImageUploaded && usesSmoothed;
+  const isTransparencyControlDisabled =
+    !isPalettizedActive || !imageSupportsTransparency;
 
   const handleTransparencySwitchChange = useCallback(
     (checked: boolean) => {
@@ -251,24 +242,12 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
     [currentLabScales, onLabScalesChange],
   );
 
-  const handleShapeSliderChange = useCallback(
+  const handleStrengthSliderChange = useCallback(
     (value: number[]) => {
-      onShapeParamChange(value[0]);
+      onSmoothingStrengthChange(value[0]);
     },
-    [onShapeParamChange],
+    [onSmoothingStrengthChange],
   );
-
-  const handlePowerSliderChange = useCallback(
-    (value: number[]) => {
-      onPowerParamChange(value[0]);
-    },
-    [onPowerParamChange],
-  );
-
-  const isPalettizedActive = isImageUploaded && usesPalettized;
-  const isSmoothedActive = isImageUploaded && usesSmoothed;
-  const isTransparencyControlDisabled =
-    !isPalettizedActive || !imageSupportsTransparency;
 
   return (
     <Accordion type="single" collapsible>
@@ -291,7 +270,6 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                 {isPalettizedActive ? "Active" : "Inactive"}
               </Badge>
             </div>
-
             <div className="grid grid-cols-2 gap-8 items-start">
               <div className="space-y-4 p-4 border rounded-lg bg-background">
                 <div
@@ -319,7 +297,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                               disabled={!isPalettizedActive}
                               className={cn(
                                 !isPalettizedActive &&
-                                "opacity-60 cursor-not-allowed",
+                                  "opacity-60 cursor-not-allowed",
                               )}
                             >
                               {option}
@@ -342,7 +320,6 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                   </TooltipProvider>
                 </div>
               </div>
-
               <div className="space-y-4 p-4 border rounded-lg bg-background">
                 <div
                   className={cn(
@@ -365,13 +342,12 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                       className={cn(
                         "text-xs font-medium",
                         isTransparencyControlDisabled &&
-                        "opacity-60 cursor-not-allowed",
+                          "opacity-60 cursor-not-allowed",
                       )}
                     >
                       Enable Transparency
                     </Label>
                   </div>
-
                   <div className="space-y-2">
                     <Label
                       htmlFor="transparency-slider"
@@ -379,7 +355,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                         "block text-center text-xs",
                         (isTransparencyControlDisabled ||
                           !transparencyEnabled) &&
-                        "opacity-60",
+                          "opacity-60",
                       )}
                     >
                       Alpha Threshold
@@ -398,7 +374,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                         "w-full",
                         (isTransparencyControlDisabled ||
                           !transparencyEnabled) &&
-                        "opacity-60",
+                          "opacity-60",
                       )}
                     />
                     <div className="text-center text-xs text-secondary-foreground">
@@ -417,7 +393,6 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
               </div>
             </div>
           </div>
-
           <div
             className={cn(
               "space-y-6 p-4 rounded-md border",
@@ -440,28 +415,28 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                     !isSmoothedActive && "opacity-60",
                   )}
                 >
-                  Blending Method
+                  Smoothing Style
                 </Label>
                 <TooltipProvider delayDuration={200}>
                   <div className="flex flex-wrap gap-2 justify-center">
-                    {WEIGHTING_KERNEL_OPTIONS.map((option) => (
+                    {SMOOTHING_STYLE_OPTIONS.map((option) => (
                       <Tooltip key={option}>
                         <TooltipTrigger asChild>
                           <Button
                             variant={
-                              currentWeightingKernel === option
+                              currentSmoothingStyle === option
                                 ? "default"
                                 : "outline"
                             }
                             size="sm"
-                            onClick={() => onWeightingKernelChange(option)}
+                            onClick={() => onSmoothingStyleChange(option)}
                             disabled={!isSmoothedActive}
                             className={cn(
                               !isSmoothedActive &&
-                              "opacity-60 cursor-not-allowed",
+                                "opacity-60 cursor-not-allowed",
                             )}
                           >
-                            {WEIGHTING_KERNEL_NAMES[option]}
+                            {SMOOTHING_STYLE_NAMES[option]}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent
@@ -473,14 +448,13 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                             ? "Upload an image first"
                             : !usesSmoothed
                               ? "Requires blend mode"
-                              : WEIGHTING_KERNEL_TOOLTIPS[option]}
+                              : SMOOTHING_STYLE_TOOLTIPS[option]}
                         </TooltipContent>
                       </Tooltip>
                     ))}
                   </div>
                 </TooltipProvider>
               </div>
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
                 <div className="space-y-4 p-4 border rounded-lg bg-background">
                   <h3
@@ -491,11 +465,9 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                   >
                     LAB Color Component Weights
                   </h3>
-
                   {(() => {
                     const sliderHeight = 100;
                     const labels = ["L", "a", "b"];
-
                     return (
                       <div className="grid grid-cols-3 gap-4">
                         {[
@@ -527,7 +499,6 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                             >
                               <span className="text-xs">{labels[index]}</span>
                             </div>
-
                             <div
                               className="relative flex justify-center mb-2"
                               style={{ height: sliderHeight }}
@@ -557,7 +528,6 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                                 />
                               </div>
                             </div>
-
                             <div className="flex flex-col items-center mt-1">
                               <Input
                                 type="number"
@@ -584,44 +554,42 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                                 )}
                                 disabled={!isSmoothedActive}
                               />
-
                               {currentLabScales[index] !==
                                 DEFAULT_SMOOTHED_SCALE && (
-                                  <button
-                                    onClick={() =>
-                                      handleLabScaleChange(
-                                        index as 0 | 1 | 2,
-                                        DEFAULT_SMOOTHED_SCALE,
-                                      )
-                                    }
-                                    className={cn(
-                                      "text-xs text-primary",
-                                      !isSmoothedActive &&
+                                <button
+                                  onClick={() =>
+                                    handleLabScaleChange(
+                                      index as 0 | 1 | 2,
+                                      DEFAULT_SMOOTHED_SCALE,
+                                    )
+                                  }
+                                  className={cn(
+                                    "text-xs text-primary",
+                                    !isSmoothedActive &&
                                       "opacity-60 cursor-not-allowed",
-                                    )}
-                                    disabled={!isSmoothedActive}
-                                  >
-                                    Reset
-                                  </button>
-                                )}
+                                  )}
+                                  disabled={!isSmoothedActive}
+                                >
+                                  Reset
+                                </button>
+                              )}
                               {currentLabScales[index] ===
                                 DEFAULT_SMOOTHED_SCALE && (
-                                  <span
-                                    className={cn(
-                                      "text-xs text-secondary-foreground",
-                                      !isSmoothedActive && "opacity-60",
-                                    )}
-                                  >
-                                    Default
-                                  </span>
-                                )}
+                                <span
+                                  className={cn(
+                                    "text-xs text-secondary-foreground",
+                                    !isSmoothedActive && "opacity-60",
+                                  )}
+                                >
+                                  Default
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))}
                       </div>
                     );
                   })()}
-
                   <div
                     className={cn(
                       "space-y-4 transition-opacity duration-200",
@@ -637,82 +605,36 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                     </p>
                   </div>
                 </div>
-
-                <div className="space-y-8 p-4 border rounded-lg bg-background">
-                  <div
+                <div className="space-y-4 p-4 border rounded-lg bg-background">
+                  <Label
+                    htmlFor="strength-slider"
                     className={cn(
-                      "space-y-4 transition-opacity duration-200",
-                      (!isSmoothedActive || !isInverseDistanceActive) &&
-                      "opacity-60",
+                      "block text-center text-xs font-medium",
+                      !isSmoothedActive && "opacity-60",
                     )}
                   >
-                    <Label
-                      htmlFor="power-slider"
-                      className="block text-center text-xs font-medium"
-                    >
-                      Blend Intensity (Power)
-                    </Label>
-                    <Slider
-                      id="power-slider"
-                      min={MIN_SMOOTHED_POWER}
-                      max={MAX_SMOOTHED_POWER}
-                      step={SMOOTHED_POWER_STEP}
-                      value={[currentPowerParam]}
-                      onValueChange={handlePowerSliderChange}
-                      disabled={!isSmoothedActive || !isInverseDistanceActive}
-                      className="mt-2"
-                    />
-                    <div className="text-center text-xs text-secondary-foreground">
-                      {currentPowerParam.toFixed(1)}
-                    </div>
-                    <p className="text-xs text-secondary-foreground text-center">
-                      {!isImageUploaded
-                        ? "Upload an image first"
-                        : !usesSmoothed
-                          ? "Requires blend mode"
-                          : isInverseDistanceActive
-                            ? "Controls the influence falloff between colors"
-                            : "Available with Inverse Distance blending method"}
-                    </p>
+                    Smoothing Strength
+                  </Label>
+                  <Slider
+                    id="strength-slider"
+                    min={MIN_SMOOTHING_STRENGTH}
+                    max={MAX_SMOOTHING_STRENGTH}
+                    step={SMOOTHING_STRENGTH_STEP}
+                    value={[currentSmoothingStrength]}
+                    onValueChange={handleStrengthSliderChange}
+                    disabled={!isSmoothedActive}
+                    className={cn("mt-2", !isSmoothedActive && "opacity-60")}
+                  />
+                  <div className="text-center text-xs text-secondary-foreground">
+                    {currentSmoothingStrength.toFixed(2)}
                   </div>
-
-                  <Separator />
-
-                  <div
-                    className={cn(
-                      "space-y-4 transition-opacity duration-200",
-                      (!isSmoothedActive || !isGaussianActive) && "opacity-60",
-                    )}
-                  >
-                    <Label
-                      htmlFor="shape-slider"
-                      className="block text-center text-xs font-medium"
-                    >
-                      Blend Radius (Shape)
-                    </Label>
-                    <Slider
-                      id="shape-slider"
-                      min={MIN_SMOOTHED_SHAPE}
-                      max={MAX_SMOOTHED_SHAPE}
-                      step={SMOOTHED_SHAPE_STEP}
-                      value={[currentShapeParam]}
-                      onValueChange={handleShapeSliderChange}
-                      disabled={!isSmoothedActive || !isGaussianActive}
-                      className="mt-2"
-                    />
-                    <div className="text-center text-xs text-secondary-foreground">
-                      {currentShapeParam.toFixed(2)}
-                    </div>
-                    <p className="text-xs text-secondary-foreground text-center">
-                      {!isImageUploaded
-                        ? "Upload an image first"
-                        : !usesSmoothed
-                          ? "Requires blend mode"
-                          : isGaussianActive
-                            ? "Controls how far colors influence each other"
-                            : "Available with Gaussian blending method"}
-                    </p>
-                  </div>
+                  <p className="text-xs text-secondary-foreground text-center">
+                    {!isImageUploaded
+                      ? "Upload an image first"
+                      : !usesSmoothed
+                        ? "Requires blend mode"
+                        : "Controls smoothing intensity between colors"}
+                  </p>
                 </div>
               </div>
             </div>

@@ -7,9 +7,6 @@ mod lut;
 mod processing;
 mod utils;
 
-#[cfg(feature = "wasm")]
-mod wasm;
-
 pub use config::{Config, DeltaEMethod, Mapping, SmoothingStyle};
 pub use gif::palettify_gif;
 pub use gif::Gif;

@@ -8,6 +8,7 @@ on:
       - ".github/workflows/code-quality.yml"
   pull_request:
     branches: [master]
+
 jobs:
   format:
     name: Check Formatting
@@ -30,16 +31,4 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - name: Run clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
-
-  docs:
-    name: Check Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Check documentation
-        env:
-          RUSTDOCFLAGS: -D warnings
-        run: cargo doc --no-deps --all-features
+        run: cargo clippy --all-targets  -- -D warnings

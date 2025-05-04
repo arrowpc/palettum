@@ -1,0 +1,33 @@
+name: Test
+
+on:
+  push:
+    paths:
+      - "packages/**"
+      - "Cargo.toml"
+      - ".github/workflows/test.yml"
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    name: Test ${{ matrix.os }} ${{ matrix.rust }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-13, macos-15]
+        rust: [stable]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run tests
+        run: cargo test

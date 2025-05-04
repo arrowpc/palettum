@@ -1,4 +1,6 @@
-use crate::{Command, CommandResult, Palette, execute_command, find_palette, list_available_palettes};
+use crate::{
+    execute_command, find_palette, list_available_palettes, Command, CommandResult, Palette,
+};
 use anyhow::Result;
 use image::Rgb;
 use palettum::{DeltaEMethod, Mapping, WeightingKernelType};
@@ -53,7 +55,10 @@ impl<T> StatefulList<T> {
         if self.items.is_empty() {
             return;
         }
-        let i = self.state.selected().map_or(0, |i| (i + 1) % self.items.len());
+        let i = self
+            .state
+            .selected()
+            .map_or(0, |i| (i + 1) % self.items.len());
         self.state.select(Some(i));
     }
 
@@ -61,7 +66,10 @@ impl<T> StatefulList<T> {
         if self.items.is_empty() {
             return;
         }
-        let i = self.state.selected().map_or(0, |i| if i == 0 { self.items.len() - 1 } else { i - 1 });
+        let i = self
+            .state
+            .selected()
+            .map_or(0, |i| if i == 0 { self.items.len() - 1 } else { i - 1 });
         self.state.select(Some(i));
     }
 
@@ -150,9 +158,15 @@ impl App {
         if let Some(selected) = self.palettes.selected_item() {
             if let Ok(palette) = find_palette(&selected.id) {
                 self.selected_palette_colors = Some(palette.colors);
-                self.log(LogLevel::Info, format!("Selected palette: {}", selected.name));
+                self.log(
+                    LogLevel::Info,
+                    format!("Selected palette: {}", selected.name),
+                );
             } else {
-                self.log(LogLevel::Warning, format!("Could not load palette '{}'", selected.id));
+                self.log(
+                    LogLevel::Warning,
+                    format!("Could not load palette '{}'", selected.id),
+                );
                 self.selected_palette_colors = None;
             }
         } else {
@@ -172,7 +186,8 @@ impl App {
                 self.current_task = format!("Palettifying with {} palette", args.palette);
             }
             Command::SavePalette(args) => {
-                self.current_task = format!("Saving palette {}", args.id.as_deref().unwrap_or("unknown"));
+                self.current_task =
+                    format!("Saving palette {}", args.id.as_deref().unwrap_or("unknown"));
             }
             Command::ListPalettes(_) => {
                 self.current_task = "Refreshing palette list".to_string();
@@ -190,11 +205,21 @@ impl App {
             self.is_processing = false;
             self.progress = None;
             match result {
-                CommandResult::PalettifySuccess { input_path, output_path, duration } => {
+                CommandResult::PalettifySuccess {
+                    input_path,
+                    output_path,
+                    duration,
+                } => {
                     self.current_task = "Ready".to_string();
                     self.last_processed_time = Some(duration);
-                    self.log(LogLevel::Success, format!("✨ Palettify completed in {:?}", duration));
-                    self.log(LogLevel::Info, format!("Output saved to: {}", output_path.display()));
+                    self.log(
+                        LogLevel::Success,
+                        format!("✨ Palettify completed in {:?}", duration),
+                    );
+                    self.log(
+                        LogLevel::Info,
+                        format!("Output saved to: {}", output_path.display()),
+                    );
                     self.last_input_path = Some(input_path);
                     self.last_output_path = Some(output_path);
                 }
@@ -204,7 +229,10 @@ impl App {
                 }
                 CommandResult::SavePaletteSuccess { id, path } => {
                     self.current_task = "Ready".to_string();
-                    self.log(LogLevel::Success, format!("Palette '{}' saved successfully", id));
+                    self.log(
+                        LogLevel::Success,
+                        format!("Palette '{}' saved successfully", id),
+                    );
                     self.log(LogLevel::Info, format!("Source: {}", path.display()));
                     self.refresh_palettes()?;
                 }
@@ -245,16 +273,29 @@ impl App {
                             if !selected_item.is_dir() {
                                 let path = selected_item.path().clone();
                                 self.last_input_path = Some(path.clone());
-                                self.log(LogLevel::Info, format!("Selected file: {}", path.display()));
+                                self.log(
+                                    LogLevel::Info,
+                                    format!("Selected file: {}", path.display()),
+                                );
                                 match image::open(&path) {
                                     Ok(img) => {
                                         let mut picker = Picker::from_fontsize((8, 12));
                                         self.input_protocol = Some(picker.new_resize_protocol(img));
-                                        self.log(LogLevel::Success, format!("✓ Loaded image: {}", path.display()));
+                                        self.log(
+                                            LogLevel::Success,
+                                            format!("✓ Loaded image: {}", path.display()),
+                                        );
                                         self.last_output_path = None;
                                     }
                                     Err(e) => {
-                                        self.log(LogLevel::Error, format!("Failed to open image {}: {}", path.display(), e));
+                                        self.log(
+                                            LogLevel::Error,
+                                            format!(
+                                                "Failed to open image {}: {}",
+                                                path.display(),
+                                                e
+                                            ),
+                                        );
                                         self.input_protocol = None;
                                     }
                                 }
@@ -278,7 +319,11 @@ impl App {
                 KeyCode::Char('q') => self.running = false,
                 KeyCode::Char('?') => {
                     self.show_help = !self.show_help;
-                    self.focused_pane = if self.show_help { Focus::Help } else { Focus::PaletteList };
+                    self.focused_pane = if self.show_help {
+                        Focus::Help
+                    } else {
+                        Focus::PaletteList
+                    };
                 }
                 KeyCode::Char('f') => {
                     if self.file_explorer.is_none() {
@@ -290,7 +335,10 @@ impl App {
                                 self.log(LogLevel::Info, "Select an image file...".to_string());
                             }
                             Err(e) => {
-                                self.log(LogLevel::Error, format!("Failed to open file explorer: {}", e));
+                                self.log(
+                                    LogLevel::Error,
+                                    format!("Failed to open file explorer: {}", e),
+                                );
                             }
                         }
                     }
@@ -298,7 +346,10 @@ impl App {
                 KeyCode::Char('p') => {
                     if let Some(input) = self.last_input_path.clone() {
                         if let Some(palette) = self.palettes.selected_item().cloned() {
-                            self.log(LogLevel::Info, format!("Palettifying with {} palette...", palette.name));
+                            self.log(
+                                LogLevel::Info,
+                                format!("Palettifying with {} palette...", palette.name),
+                            );
                             let args = crate::PalettifyArgs {
                                 input_file: input,
                                 output: None,
@@ -323,7 +374,10 @@ impl App {
                             self.log(LogLevel::Warning, "No palette selected.".to_string());
                         }
                     } else {
-                        self.log(LogLevel::Warning, "No input file selected. Press 'f' to select an image.".to_string());
+                        self.log(
+                            LogLevel::Warning,
+                            "No input file selected. Press 'f' to select an image.".to_string(),
+                        );
                     }
                 }
                 KeyCode::Tab => {
@@ -341,14 +395,18 @@ impl App {
                         }
                     };
                 }
-                KeyCode::Up => if self.focused_pane == Focus::PaletteList {
-                    self.palettes.previous();
-                    self.update_selected_palette_detail();
-                },
-                KeyCode::Down => if self.focused_pane == Focus::PaletteList {
-                    self.palettes.next();
-                    self.update_selected_palette_detail();
-                },
+                KeyCode::Up => {
+                    if self.focused_pane == Focus::PaletteList {
+                        self.palettes.previous();
+                        self.update_selected_palette_detail();
+                    }
+                }
+                KeyCode::Down => {
+                    if self.focused_pane == Focus::PaletteList {
+                        self.palettes.next();
+                        self.update_selected_palette_detail();
+                    }
+                }
                 KeyCode::Esc => {
                     self.show_help = false;
                     self.focused_pane = Focus::PaletteList;

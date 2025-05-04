@@ -3,10 +3,7 @@ use clap::Parser;
 use palettum_cli::cli::args::Cli;
 
 #[cfg(feature = "tui")]
-use {
-    console::style,
-    palettum_cli::tui::run_tui,
-};
+use {console::style, palettum_cli::tui::run_tui};
 
 use palettum_cli::cli::runner::run_cli;
 

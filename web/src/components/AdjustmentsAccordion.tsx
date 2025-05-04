@@ -297,7 +297,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                               disabled={!isPalettizedActive}
                               className={cn(
                                 !isPalettizedActive &&
-                                  "opacity-60 cursor-not-allowed",
+                                "opacity-60 cursor-not-allowed",
                               )}
                             >
                               {option}
@@ -342,7 +342,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                       className={cn(
                         "text-xs font-medium",
                         isTransparencyControlDisabled &&
-                          "opacity-60 cursor-not-allowed",
+                        "opacity-60 cursor-not-allowed",
                       )}
                     >
                       Enable Transparency
@@ -355,7 +355,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                         "block text-center text-xs",
                         (isTransparencyControlDisabled ||
                           !transparencyEnabled) &&
-                          "opacity-60",
+                        "opacity-60",
                       )}
                     >
                       Alpha Threshold
@@ -374,7 +374,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                         "w-full",
                         (isTransparencyControlDisabled ||
                           !transparencyEnabled) &&
-                          "opacity-60",
+                        "opacity-60",
                       )}
                     />
                     <div className="text-center text-xs text-secondary-foreground">
@@ -433,7 +433,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                             disabled={!isSmoothedActive}
                             className={cn(
                               !isSmoothedActive &&
-                                "opacity-60 cursor-not-allowed",
+                              "opacity-60 cursor-not-allowed",
                             )}
                           >
                             {SMOOTHING_STYLE_NAMES[option]}
@@ -556,34 +556,34 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                               />
                               {currentLabScales[index] !==
                                 DEFAULT_SMOOTHED_SCALE && (
-                                <button
-                                  onClick={() =>
-                                    handleLabScaleChange(
-                                      index as 0 | 1 | 2,
-                                      DEFAULT_SMOOTHED_SCALE,
-                                    )
-                                  }
-                                  className={cn(
-                                    "text-xs text-primary",
-                                    !isSmoothedActive &&
+                                  <button
+                                    onClick={() =>
+                                      handleLabScaleChange(
+                                        index as 0 | 1 | 2,
+                                        DEFAULT_SMOOTHED_SCALE,
+                                      )
+                                    }
+                                    className={cn(
+                                      "text-xs text-primary",
+                                      !isSmoothedActive &&
                                       "opacity-60 cursor-not-allowed",
-                                  )}
-                                  disabled={!isSmoothedActive}
-                                >
-                                  Reset
-                                </button>
-                              )}
+                                    )}
+                                    disabled={!isSmoothedActive}
+                                  >
+                                    Reset
+                                  </button>
+                                )}
                               {currentLabScales[index] ===
                                 DEFAULT_SMOOTHED_SCALE && (
-                                <span
-                                  className={cn(
-                                    "text-xs text-secondary-foreground",
-                                    !isSmoothedActive && "opacity-60",
-                                  )}
-                                >
-                                  Default
-                                </span>
-                              )}
+                                  <span
+                                    className={cn(
+                                      "text-xs text-secondary-foreground",
+                                      !isSmoothedActive && "opacity-60",
+                                    )}
+                                  >
+                                    Default
+                                  </span>
+                                )}
                             </div>
                           </div>
                         ))}
@@ -606,35 +606,39 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                   </div>
                 </div>
                 <div className="space-y-4 p-4 border rounded-lg bg-background">
-                  <Label
-                    htmlFor="strength-slider"
+                  <div
                     className={cn(
-                      "block text-center text-xs font-medium",
+                      "space-y-2",
                       !isSmoothedActive && "opacity-60",
                     )}
                   >
-                    Smoothing Strength
-                  </Label>
-                  <Slider
-                    id="strength-slider"
-                    min={MIN_SMOOTHING_STRENGTH}
-                    max={MAX_SMOOTHING_STRENGTH}
-                    step={SMOOTHING_STRENGTH_STEP}
-                    value={[currentSmoothingStrength]}
-                    onValueChange={handleStrengthSliderChange}
-                    disabled={!isSmoothedActive}
-                    className={cn("mt-2", !isSmoothedActive && "opacity-60")}
-                  />
-                  <div className="text-center text-xs text-secondary-foreground">
-                    {currentSmoothingStrength.toFixed(2)}
+                    <Label
+                      htmlFor="strength-slider"
+                      className="block text-center text-xs font-medium"
+                    >
+                      Smoothing Strength
+                    </Label>
+                    <Slider
+                      id="strength-slider"
+                      min={MIN_SMOOTHING_STRENGTH}
+                      max={MAX_SMOOTHING_STRENGTH}
+                      step={SMOOTHING_STRENGTH_STEP}
+                      value={[currentSmoothingStrength]}
+                      onValueChange={handleStrengthSliderChange}
+                      disabled={!isSmoothedActive}
+                      className="mt-2"
+                    />
+                    <div className="text-center text-xs text-secondary-foreground">
+                      {currentSmoothingStrength.toFixed(2)}
+                    </div>
+                    <p className="text-xs text-secondary-foreground text-center">
+                      {!isImageUploaded
+                        ? "Upload an image first"
+                        : !usesSmoothed
+                          ? "Requires blend mode"
+                          : "Controls smoothing intensity between colors"}
+                    </p>
                   </div>
-                  <p className="text-xs text-secondary-foreground text-center">
-                    {!isImageUploaded
-                      ? "Upload an image first"
-                      : !usesSmoothed
-                        ? "Requires blend mode"
-                        : "Controls smoothing intensity between colors"}
-                  </p>
                 </div>
               </div>
             </div>

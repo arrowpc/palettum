@@ -1,4 +1,4 @@
-import { processImageBytes } from "palettum";
+import { palettify } from "palettum";
 
 self.onmessage = function(e) {
   try {
@@ -6,7 +6,7 @@ self.onmessage = function(e) {
 
     console.log("Worker: Processing image, size:", imageBytes.length);
 
-    const result = processImageBytes(imageBytes, config);
+    const result = palettify(imageBytes, config);
 
     console.log("Worker: Processing complete, result size:", result.length);
 

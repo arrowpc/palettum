@@ -48,10 +48,7 @@ export interface PalettumWasmConfig {
 "#;
 
 #[wasm_bindgen]
-pub fn processImageBytes(
-    image_bytes: Uint8Array,
-    config_js: JsValue,
-) -> Result<Uint8Array, JsValue> {
+pub fn palettify(image_bytes: Uint8Array, config_js: JsValue) -> Result<Uint8Array, JsValue> {
     log::info!("Received image bytes for processing in WASM...");
 
     let config: Config = serde_wasm_bindgen::from_value(config_js)

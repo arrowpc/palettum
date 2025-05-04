@@ -331,7 +331,7 @@ function PalettifyImage({
     }
   }, [processedImageUrl]);
 
-  const processImageWithWorker = (
+  const  palettifyWithWorker = (
     imageBytes: Uint8Array,
     config: WasmConfig,
     mimeType: string,
@@ -414,7 +414,7 @@ function PalettifyImage({
         file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
       const mimeType = isGif ? "image/gif" : "image/png";
 
-      const outputBlob = await processImageWithWorker(
+      const outputBlob = await palettifyWithWorker(
         imageBytes,
         configJs,
         mimeType,

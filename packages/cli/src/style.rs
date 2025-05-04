@@ -1,7 +1,6 @@
+// Kind of a useless file rn
 use anstyle::{AnsiColor, Style as Anstyle};
 use clap::builder::Styles as ClapStyles;
-#[cfg(feature = "tui")]
-use ratatui::style::{Color, Style as RatatuiStyle};
 
 pub fn get_clap_styles() -> ClapStyles {
     ClapStyles::plain()

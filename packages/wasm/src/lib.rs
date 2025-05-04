@@ -1,12 +1,8 @@
-#![cfg(feature = "wasm")]
-use crate::{
-    config::Config,
-    gif::{palettify_gif, Gif},
-    image::{palettify_image, Image},
-};
 use image::ImageFormat;
 use js_sys::Uint8Array;
-use serde::{Deserialize, Serialize};
+use palettum::{
+    Config, {palettify_gif, Gif}, {palettify_image, Image},
+};
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
 

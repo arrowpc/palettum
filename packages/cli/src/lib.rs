@@ -18,7 +18,7 @@ pub mod style;
 #[cfg(feature = "tui")]
 pub mod tui;
 
-static DEFAULT_PALETTES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/default_palettes");
+static DEFAULT_PALETTES_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../palettes");
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum PaletteKind {

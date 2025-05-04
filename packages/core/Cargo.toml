@@ -18,12 +18,12 @@ serde = { workspace = true, optional = true }
 
 [features]
 default = ["image/png", "image/gif"]
-profiling = ["dep:pprof", "dep:prost"]
+# profiling = ["dep:pprof", "dep:prost"]
 serde = ["dep:serde", "image/serde"]
 
-[dependencies.pprof]
-workspace = true
-optional = true
+# [dependencies.pprof]
+# workspace = true
+# optional = true
 
 [dependencies.prost]
 workspace = true

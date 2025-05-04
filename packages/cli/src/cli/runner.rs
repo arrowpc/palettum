@@ -5,11 +5,7 @@ use anyhow::Result;
 use console::Term;
 use indicatif::TermLike;
 use tabled::{
-    settings::{
-        object::{Rows, Segment},
-        width::Width,
-        Color, Modify, Style,
-    },
+    settings::{object::Segment, width::Width, Modify, Style},
     Table, Tabled,
 };
 

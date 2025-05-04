@@ -5,7 +5,12 @@ use ratatui::style::{Color, Style as RatatuiStyle};
 
 pub fn get_clap_styles() -> ClapStyles {
     ClapStyles::plain()
-        .header(Anstyle::new().fg_color(Some(AnsiColor::Cyan.into())).bold().underline())
+        .header(
+            Anstyle::new()
+                .fg_color(Some(AnsiColor::Cyan.into()))
+                .bold()
+                .underline(),
+        )
         .usage(Anstyle::new().fg_color(Some(AnsiColor::Yellow.into())))
         .literal(Anstyle::new().fg_color(Some(AnsiColor::Green.into())))
         .placeholder(Anstyle::new().fg_color(Some(AnsiColor::Blue.into())))

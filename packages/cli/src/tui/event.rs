@@ -27,23 +27,43 @@ impl EventHandler {
             thread::spawn(move || {
                 let mut last_tick = Instant::now();
                 loop {
-                    let timeout = tick_rate.checked_sub(last_tick.elapsed()).unwrap_or(Duration::from_secs(0));
+                    let timeout = tick_rate
+                        .checked_sub(last_tick.elapsed())
+                        .unwrap_or(Duration::from_secs(0));
                     if event::poll(timeout).expect("Failed to poll events") {
                         match event::read().expect("Failed to read event") {
-                            CrosstermEvent::Key(e) => { if sender.send(Event::Key(e)).is_err() { break; } },
-                            CrosstermEvent::Mouse(e) => { if sender.send(Event::Mouse(e)).is_err() { break; } },
-                            CrosstermEvent::Resize(w, h) => { if sender.send(Event::Resize(w, h)).is_err() { break; } },
-                            _ => {},
+                            CrosstermEvent::Key(e) => {
+                                if sender.send(Event::Key(e)).is_err() {
+                                    break;
+                                }
+                            }
+                            CrosstermEvent::Mouse(e) => {
+                                if sender.send(Event::Mouse(e)).is_err() {
+                                    break;
+                                }
+                            }
+                            CrosstermEvent::Resize(w, h) => {
+                                if sender.send(Event::Resize(w, h)).is_err() {
+                                    break;
+                                }
+                            }
+                            _ => {}
                         }
                     }
                     if last_tick.elapsed() >= tick_rate {
-                        if sender.send(Event::Tick).is_err() { break; }
+                        if sender.send(Event::Tick).is_err() {
+                            break;
+                        }
                         last_tick = Instant::now();
                     }
                 }
             })
         };
-        Self { sender, receiver, handler }
+        Self {
+            sender,
+            receiver,
+            handler,
+        }
     }
 
     pub fn next(&self) -> Result<Event> {

@@ -62,28 +62,36 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                             .to_string(),
                     )?;
                     let label_width = 7; // Based on longest label "Output:"
+                    let input_info = format!(
+                        "{} ({})",
+                        input_path.display(),
+                        format_filesize(std::fs::metadata(input_path)?.len())
+                    );
                     term.write_line(&format!(
                         "  {:<label_width$} {}",
                         style::classic_bold().apply_to("Input:"),
-                        format!(
-                            "{} ({})",
-                            input_path.display(),
-                            format_filesize(std::fs::metadata(input_path)?.len())
-                        )
+                        input_info,
+                        label_width = label_width
                     ))?;
+
+                    let output_info = format!(
+                        "{} ({})",
+                        output_path.display(),
+                        format_filesize(std::fs::metadata(output_path)?.len())
+                    );
                     term.write_line(&format!(
                         "  {:<label_width$} {}",
                         style::classic_bold().apply_to("Output:"),
-                        format!(
-                            "{} ({})",
-                            output_path.display(),
-                            format_filesize(std::fs::metadata(output_path)?.len())
-                        )
+                        output_info,
+                        label_width = label_width
                     ))?;
+
+                    let time_info = format_duration(*duration);
                     term.write_line(&format!(
                         "  {:<label_width$} {}",
                         style::classic_bold().apply_to("Time:"),
-                        format_duration(*duration)
+                        time_info,
+                        label_width = label_width
                     ))?;
                 }
             }

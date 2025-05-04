@@ -47,7 +47,7 @@ impl ConvertToLab for Rgba<u8> {
         // Linear RGB to XYZ (D65 illuminant)
         let x = (r_lin * 0.4124564 + g_lin * 0.3575761 + b_lin * 0.1804375) * 100.0;
         let y = (r_lin * 0.2126729 + g_lin * 0.7151522 + b_lin * 0.0721750) * 100.0;
-        let z = (r_lin * 0.0193339 + g_lin * 0.1191920 + b_lin * 0.9503041) * 100.0;
+        let z = (r_lin * 0.0193339 + g_lin * 0.119_192 + b_lin * 0.9503041) * 100.0;
 
         // XYZ to Lab
         let xr = x / WHITE_X;

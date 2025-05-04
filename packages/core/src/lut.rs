@@ -49,9 +49,8 @@ pub(crate) fn generate_lookup_table(
 
         let target_pixel = Rgba([r_val, g_val, b_val, 255]);
 
-        match compute_mapped_color_rgb(target_pixel, config, lab_palette) {
-            result_rgb => Some((index, result_rgb)),
-        }
+        let result_rgb = compute_mapped_color_rgb(target_pixel, config, lab_palette);
+        Some((index, result_rgb))
     };
 
     if config.num_threads > 1 {
@@ -63,9 +62,9 @@ pub(crate) fn generate_lookup_table(
             lookup[index] = rgb;
         }
     } else {
-        for index in 0..table_size {
+        for (index, item) in lookup.iter_mut().enumerate().take(table_size) {
             if let Some((_, rgb)) = process_index(index) {
-                lookup[index] = rgb;
+                *item = rgb;
             }
         }
     }

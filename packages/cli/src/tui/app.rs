@@ -3,8 +3,8 @@ use crate::{
 };
 use anyhow::Result;
 use image::Rgb;
-use palettum::{DeltaEMethod, Mapping, WeightingKernelType};
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, KeyModifiers, MouseEvent};
+use palettum::{DeltaEMethod, Mapping, SmoothingStyle};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, MouseEvent};
 use ratatui::widgets::ListState;
 use ratatui_explorer::{FileExplorer, Input as ExplorerInput, Theme as ExplorerTheme};
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
@@ -253,12 +253,13 @@ impl App {
     }
 
     pub fn handle_key_event(&mut self, key_event: KeyEvent) -> Result<()> {
-        if self.show_help && self.focused_pane == Focus::Help {
-            if key_event.kind == KeyEventKind::Press {
-                self.show_help = false;
-                self.focused_pane = Focus::PaletteList;
-                return Ok(());
-            }
+        if self.show_help
+            && self.focused_pane == Focus::Help
+            && key_event.kind == KeyEventKind::Press
+        {
+            self.show_help = false;
+            self.focused_pane = Focus::PaletteList;
+            return Ok(());
         }
 
         if self.focused_pane == Focus::FileSelector {
@@ -279,7 +280,7 @@ impl App {
                                 );
                                 match image::open(&path) {
                                     Ok(img) => {
-                                        let mut picker = Picker::from_fontsize((8, 12));
+                                        let picker = Picker::from_fontsize((8, 12));
                                         self.input_protocol = Some(picker.new_resize_protocol(img));
                                         self.log(
                                             LogLevel::Success,
@@ -351,23 +352,22 @@ impl App {
                                 format!("Palettifying with {} palette...", palette.name),
                             );
                             let args = crate::PalettifyArgs {
-                                input_file: input,
+                                input_path: input,
                                 output: None,
                                 palette: palette.id,
                                 mapping: Mapping::Palettized,
                                 delta_e: DeltaEMethod::CIEDE2000,
-                                quant_level: 0,
+                                quant_level: 2,
                                 alpha_threshold: 128,
-                                threads: 1,
-                                weighting_kernel: WeightingKernelType::InverseDistancePower,
-                                shape_parameter: 0.08,
-                                power_parameter: 3.5,
+                                threads: 4,
+                                smoothing_style: SmoothingStyle::IDW,
+                                smoothing_strength: 0.5,
                                 lab_scales: [1.0, 1.0, 1.0],
                                 width: None,
                                 height: None,
                                 scale: None,
                                 resize_filter: image::imageops::FilterType::Lanczos3,
-                                quiet: false,
+                                silent: false,
                             };
                             self.trigger_command(Command::Palettify(args));
                         } else {
@@ -381,18 +381,10 @@ impl App {
                     }
                 }
                 KeyCode::Tab => {
-                    self.focused_pane = if key_event.modifiers.contains(KeyModifiers::SHIFT) {
-                        match self.focused_pane {
-                            Focus::PaletteList => Focus::LogView,
-                            Focus::LogView => Focus::PaletteList,
-                            _ => Focus::PaletteList,
-                        }
-                    } else {
-                        match self.focused_pane {
-                            Focus::PaletteList => Focus::LogView,
-                            Focus::LogView => Focus::PaletteList,
-                            _ => Focus::PaletteList,
-                        }
+                    self.focused_pane = match self.focused_pane {
+                        Focus::PaletteList => Focus::LogView,
+                        Focus::LogView => Focus::PaletteList,
+                        _ => Focus::PaletteList,
                     };
                 }
                 KeyCode::Up => {

@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     #[cfg(feature = "tui")]
-    if cli.interactive || cli.command.is_none() {
+    if cli.command.is_none() {
         eprintln!(
             "{}",
             style("Warning: the TUI is experimental, lacking most features, and may not work as expected.")

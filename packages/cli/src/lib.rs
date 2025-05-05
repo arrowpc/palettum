@@ -41,6 +41,7 @@ trait PaletteSource<'a> {
 
 trait PaletteFile {
     fn read_to_string(&self) -> Result<String>;
+    fn filename(&self) -> &str;
 }
 
 struct EmbeddedPaletteSource<'a> {
@@ -64,6 +65,15 @@ struct EmbeddedPaletteFile<'a> {
 impl PaletteFile for EmbeddedPaletteFile<'_> {
     fn read_to_string(&self) -> Result<String> {
         Ok(self.file.contents_utf8().unwrap().to_string())
+    }
+    fn filename(&self) -> &str {
+        // include_dir::File::path() returns &Path
+        // file_stem() returns Option<&OsStr>, to_str() returns Option<&str>
+        self.file
+            .path()
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
     }
 }
 
@@ -94,10 +104,44 @@ impl PaletteFile for FsPaletteFile {
     fn read_to_string(&self) -> Result<String> {
         Ok(std::fs::read_to_string(&self.path)?)
     }
+    fn filename(&self) -> &str {
+        self.path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+    }
 }
 
-fn palette_from_value(v: &Value, kind: PaletteKind) -> Option<Palette> {
-    let id = v["id"].as_str()?.to_string();
+fn to_kebab_case(s: &str) -> String {
+    let mut result = String::new();
+    let mut prev_is_lower = false;
+    for c in s.chars() {
+        if c.is_ascii_alphanumeric() {
+            if c.is_uppercase() {
+                if prev_is_lower {
+                    result.push('-');
+                }
+                result.push(c.to_ascii_lowercase());
+                prev_is_lower = false;
+            } else {
+                result.push(c);
+                prev_is_lower = c.is_ascii_lowercase();
+            }
+        } else if !result.ends_with('-') {
+            result.push('-');
+            prev_is_lower = false;
+        }
+    }
+    while result.ends_with('-') {
+        result.pop();
+    }
+    result
+}
+
+fn palette_from_value(v: &Value, kind: PaletteKind, filename: &str) -> Option<Palette> {
+    let stem = Path::new(filename).file_stem()?.to_str()?;
+    let id = to_kebab_case(stem);
+
     let name = v["name"].as_str()?.to_string();
     let source = v["source"].as_str().map(str::to_string);
 
@@ -124,9 +168,10 @@ fn load_palettes_from_source<'a>(
 ) -> Result<Vec<Palette>> {
     let mut palettes = Vec::new();
     for file in source.list_palette_files() {
+        let filename = file.filename();
         let text = file.read_to_string()?;
         let v: Value = serde_json::from_str(&text)?;
-        if let Some(p) = palette_from_value(&v, kind.clone()) {
+        if let Some(p) = palette_from_value(&v, kind.clone(), filename) {
             palettes.push(p);
         }
     }
@@ -134,49 +179,17 @@ fn load_palettes_from_source<'a>(
 }
 
 pub fn find_palette_by_id(id: &str) -> Option<Palette> {
-    let m = |v: &Value| v["id"].as_str() == Some(id);
-    let default_source = EmbeddedPaletteSource {
-        dir: &DEFAULT_PALETTES_DIR,
-    };
-    let custom_source = FsPaletteSource {
-        dir: get_custom_palettes_dir().ok()?,
-    };
-    for (source, kind) in [
-        (&default_source as &dyn PaletteSource, PaletteKind::Default),
-        (&custom_source as &dyn PaletteSource, PaletteKind::Custom),
-    ] {
-        for file in source.list_palette_files() {
-            let text = file.read_to_string().ok()?;
-            let v: Value = serde_json::from_str(&text).ok()?;
-            if m(&v) {
-                return palette_from_value(&v, kind.clone());
-            }
-        }
-    }
-    None
+    list_available_palettes()
+        .ok()?
+        .into_iter()
+        .find(|p| p.id == id)
 }
 
 pub fn find_palette_by_name(name: &str) -> Option<Palette> {
-    let m = |v: &Value| v["name"].as_str() == Some(name);
-    let default_source = EmbeddedPaletteSource {
-        dir: &DEFAULT_PALETTES_DIR,
-    };
-    let custom_source = FsPaletteSource {
-        dir: get_custom_palettes_dir().ok()?,
-    };
-    for (source, kind) in [
-        (&default_source as &dyn PaletteSource, PaletteKind::Default),
-        (&custom_source as &dyn PaletteSource, PaletteKind::Custom),
-    ] {
-        for file in source.list_palette_files() {
-            let text = file.read_to_string().ok()?;
-            let v: Value = serde_json::from_str(&text).ok()?;
-            if m(&v) {
-                return palette_from_value(&v, kind.clone());
-            }
-        }
-    }
-    None
+    list_available_palettes()
+        .ok()?
+        .into_iter()
+        .find(|p| p.name == name)
 }
 
 pub fn find_palette_by_file<P: AsRef<Path>>(file: P) -> Option<Palette> {
@@ -184,7 +197,11 @@ pub fn find_palette_by_file<P: AsRef<Path>>(file: P) -> Option<Palette> {
     let text = fs::read_to_string(path).ok()?;
     let v: Value = serde_json::from_str(&text).ok()?;
     let kind = PaletteKind::Custom;
-    palette_from_value(&v, kind)
+    let filename = path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    palette_from_value(&v, kind, filename)
 }
 
 pub fn find_palette(input: &str) -> Result<Palette> {
@@ -225,22 +242,44 @@ pub fn list_available_palettes() -> Result<Vec<Palette>> {
     Ok(palettes)
 }
 
+fn custom_palette_path(id: &str) -> Result<PathBuf> {
+    let custom_dir = get_custom_palettes_dir()?;
+    Ok(custom_dir.join(format!("{}.json", id)))
+}
+
 pub fn save_custom_palette(id: &str, data: &Value, force: bool) -> Result<PathBuf> {
     if !is_palette_id_valid(id) {
         bail!("Invalid palette ID: '{}'", id);
     }
-    let custom_dir = get_custom_palettes_dir()?;
-    let palette_path = custom_dir.join(format!("{}.json", id));
-    if palette_path.exists() && !force {
-        bail!("Palette already exists: {}", palette_path.display());
+
+    let all_palettes = list_available_palettes()?;
+    let custom_path = custom_palette_path(id)?;
+
+    if let Some(palette) = all_palettes.iter().find(|p| p.id == id) {
+        match palette.kind {
+            PaletteKind::Default => {
+                bail!("Cannot override default palette: '{}'", id);
+            }
+            PaletteKind::Custom => {
+                if !force {
+                    bail!(
+                        "Custom palette already exists: {}\n\
+                        Use the --force flag to override.",
+                        custom_path.display()
+                    );
+                }
+                // else: allow overwrite
+            }
+        }
     }
+
     let mut palette_data = data.clone();
     if let Some(obj) = palette_data.as_object_mut() {
         obj.insert("id".to_string(), serde_json::json!(id));
     }
     let json_string = serde_json::to_string_pretty(&palette_data)?;
-    std::fs::write(&palette_path, json_string)?;
-    Ok(palette_path)
+    std::fs::write(&custom_path, json_string)?;
+    Ok(custom_path)
 }
 
 #[derive(Debug, Clone)]

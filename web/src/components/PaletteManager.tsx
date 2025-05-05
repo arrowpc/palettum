@@ -14,19 +14,88 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PaletteEditor from "@/components/PaletteEditor";
-import {
-  type Color,
-  type Palette,
-  defaultPalettes,
-  rgbToHex,
-  LIMITS,
-} from "@/lib/palettes";
+import { type Color, type Palette, rgbToHex, LIMITS } from "@/lib/palettes";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+
+interface PaletteJsonData {
+  name: string;
+  colors: Color[];
+  source?: string;
+}
+
+const paletteModules = import.meta.glob<{ default: PaletteJsonData }>(
+  "palettes/*.json",
+  { eager: true },
+);
+
+const createKebabId = (name: string) => {
+  return name
+    .toLowerCase()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_-]+/g, "-")
+    .trim();
+};
+
+const generateUniqueId = (baseId: string, existingIds: Set<string>): string => {
+  let id = baseId;
+  let counter = 1;
+  while (existingIds.has(id)) {
+    id = `${baseId}-${counter}`;
+    counter++;
+  }
+  return id;
+};
+
+export const loadDefaultPalettes = (): Palette[] => {
+  const loadedPalettes: Palette[] = [];
+  const existingIds = new Set<string>();
+
+  for (const path in paletteModules) {
+    const module = paletteModules[path];
+    const paletteData = module.default;
+
+    const filename = path.split("/").pop()?.replace(".json", "");
+
+    if (!filename) {
+      console.warn(`Could not extract filename from path: ${path}`);
+      continue;
+    }
+
+    if (!paletteData) {
+      console.warn(`No default export found or data is invalid in: ${path}`);
+      continue;
+    }
+
+    if (
+      typeof paletteData.name !== "string" ||
+      !Array.isArray(paletteData.colors)
+    ) {
+      console.warn(`Invalid palette structure in: ${path}`, paletteData);
+      continue;
+    }
+
+    const baseId = createKebabId(filename);
+    const id = generateUniqueId(baseId, existingIds);
+    existingIds.add(id);
+
+    const palette: Palette = {
+      id,
+      name: paletteData.name,
+      colors: paletteData.colors,
+      source: paletteData.source,
+      isDefault: true,
+    };
+
+    loadedPalettes.push(palette);
+  }
+
+  return loadedPalettes;
+};
 
 const LOCAL_STORAGE_KEY = "userPalettes";
 const SELECTED_PALETTE_KEY = "selectedPaletteId";
@@ -39,15 +108,25 @@ interface PaletteManagerProps {
 }
 
 function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
-  const initialPalettes = defaultPalettes.map((palette) => ({
-    ...palette,
-    isDefault: true,
-  }));
+  const initialPalettes = loadDefaultPalettes();
 
   const loadSavedPalettes = (): Palette[] => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      return saved ? JSON.parse(saved) : [];
+      const savedPalettes: PaletteJsonData[] = saved ? JSON.parse(saved) : [];
+      const existingIds = new Set(initialPalettes.map((p) => p.id));
+      return savedPalettes.map((data) => {
+        const baseId = createKebabId(data.name);
+        const id = generateUniqueId(baseId, existingIds);
+        existingIds.add(id);
+        return {
+          id,
+          name: data.name,
+          colors: data.colors,
+          source: data.source,
+          isDefault: false,
+        };
+      });
     } catch (error) {
       console.error("Failed to load palettes:", error);
       return [];
@@ -108,7 +187,9 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   }, [showMobileMenu]);
 
   useEffect(() => {
-    const userPalettes = palettes.filter((p) => !p.isDefault);
+    const userPalettes = palettes
+      .filter((p) => !p.isDefault)
+      .map(({ id, ...rest }) => rest); // Exclude id from saved JSON
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(userPalettes));
     } catch (error) {
@@ -219,9 +300,13 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   };
 
   const handleCreatePalette = () => {
+    const newName = "New Palette";
+    const baseId = createKebabId(newName);
+    const existingIds = new Set(palettes.map((p) => p.id));
+    const id = generateUniqueId(baseId, existingIds);
     const newPalette: Palette = {
-      id: crypto.randomUUID(),
-      name: "New Palette",
+      id,
+      name: newName,
       colors: [],
       isDefault: false,
     };
@@ -266,8 +351,12 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
         ? `${truncatedBaseName} (copy)`
         : `${truncatedBaseName} (copy-${copyNumber})`;
 
+    const baseId = createKebabId(newName);
+    const existingIds = new Set(palettes.map((p) => p.id));
+    const id = generateUniqueId(baseId, existingIds);
+
     const newPalette: Palette = {
-      id: crypto.randomUUID(),
+      id,
       name: newName.slice(0, LIMITS.MAX_NAME_LENGTH),
       colors: [...palette.colors],
       isDefault: false,
@@ -277,12 +366,16 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   };
 
   const handleExportPalette = (palette: Palette) => {
-    const json = JSON.stringify(palette, null, 2);
+    // Exclude id from exported JSON
+    const { id, isDefault, ...exportData } = palette;
+    const json = JSON.stringify(exportData, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${palette.name}.json`;
+    // Use kebab case for filename
+    const filename = createKebabId(palette.name);
+    a.download = `${filename}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -302,22 +395,30 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
             throw new Error("Invalid palette format");
           }
 
-          const importedPalette: Palette = {
-            ...imported,
-            id: crypto.randomUUID(),
-            isDefault: false,
-          };
-
+          let name = imported.name;
           const existingNames = palettes.map((p) => p.name);
-          if (existingNames.includes(importedPalette.name)) {
+          if (existingNames.includes(name)) {
             let counter = 1;
-            let newName = `${importedPalette.name} (${counter})`;
+            let newName = `${name} (${counter})`;
             while (existingNames.includes(newName)) {
               counter++;
-              newName = `${importedPalette.name} (${counter})`;
+              newName = `${name} (${counter})`;
             }
-            importedPalette.name = newName;
+            name = newName;
           }
+
+          const filename = file.name.replace(/\.json$/, "");
+          const baseId = createKebabId(filename);
+          const existingIds = new Set(palettes.map((p) => p.id));
+          const id = generateUniqueId(baseId, existingIds);
+
+          const importedPalette: Palette = {
+            id,
+            name,
+            colors: imported.colors,
+            source: imported.source,
+            isDefault: false,
+          };
 
           setPalettes((current) => [...current, importedPalette]);
           setSelectedPalette(importedPalette);

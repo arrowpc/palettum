@@ -1,5 +1,4 @@
 {
-  "id": "catppuccin-mocha",
   "name": "Catppuccin Mocha",
   "source": "https://catppuccin.com/palette/",
   "colors": [
@@ -133,6 +132,5 @@
       "g": 224,
       "b": 220
     }
-  ],
-  "isDefault": true
+  ]
 }

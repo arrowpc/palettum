@@ -234,14 +234,14 @@ function PalettifyImage({
     dimensions.height === lastProcessedSettings.current.height &&
     palette?.id === lastProcessedSettings.current.paletteId &&
     transparentThreshold ===
-      lastProcessedSettings.current.transparentThreshold &&
+    lastProcessedSettings.current.transparentThreshold &&
     mapping === lastProcessedSettings.current.mapping &&
     quantLevel === lastProcessedSettings.current.quantLevel &&
     formula === lastProcessedSettings.current.formula &&
     smoothingStyle === lastProcessedSettings.current.smoothingStyle &&
     smoothingStrength === lastProcessedSettings.current.smoothingStrength &&
     labScales.length ===
-      (lastProcessedSettings.current.labScales?.length ?? 0) &&
+    (lastProcessedSettings.current.labScales?.length ?? 0) &&
     labScales.every(
       (v, i) => v === lastProcessedSettings.current.labScales?.[i],
     );
@@ -331,7 +331,7 @@ function PalettifyImage({
     }
   }, [processedImageUrl]);
 
-  const  palettifyWithWorker = (
+  const palettifyWithWorker = (
     imageBytes: Uint8Array,
     config: WasmConfig,
     mimeType: string,

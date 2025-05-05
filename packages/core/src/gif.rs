@@ -4,7 +4,10 @@ use crate::image::Image;
 use crate::lut;
 use crate::processing;
 use crate::utils::resize_image_if_needed;
-use image::{codecs::gif::GifEncoder, AnimationDecoder, Frame, ImageDecoder};
+use image::{
+    codecs::gif::{GifEncoder, Repeat},
+    AnimationDecoder, Frame, ImageDecoder,
+};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor};
 use std::path::Path;
@@ -68,6 +71,10 @@ impl Gif {
         writer: W,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
         let mut encoder = GifEncoder::new_with_speed(writer, 10);
+
+        //TODO: Derive this information from the original GIF (if exists)
+        encoder.set_repeat(Repeat::Infinite)?;
+
         encoder.encode_frames(self.frames.clone())?;
         Ok(())
     }

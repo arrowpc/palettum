@@ -1,5 +1,4 @@
 {
-  "id": "gruvbox",
   "name": "gruvbox",
   "source": "https://github.com/morhetz/gruvbox",
   "colors": [
@@ -188,6 +187,5 @@
       "g": 58,
       "b": 3
     }
-  ],
-  "isDefault": true
+  ]
 }

@@ -1,5 +1,4 @@
 {
-  "id": "rplace-22",
   "name": "r/place 2022",
   "source": "https://www.reddit.com/r/place/",
   "colors": [
@@ -123,6 +122,5 @@
       "g": 255,
       "b": 255
     }
-  ],
-  "isDefault": true
+  ]
 }

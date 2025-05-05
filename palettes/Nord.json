@@ -1,5 +1,4 @@
 {
-  "id": "nord",
   "name": "Nord",
   "source": "https://www.nordtheme.com/",
   "colors": [
@@ -83,6 +82,5 @@
       "g": 142,
       "b": 173
     }
-  ],
-  "isDefault": true
+  ]
 }

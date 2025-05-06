@@ -1,0 +1,24 @@
+[package]
+name = "palettum-wasm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+palettum = { path = "../core", features = ["serde"] }
+image = { workspace = true, features = ["png", "gif", "webp"] }
+log.workspace = true
+serde.workspace = true
+serde-wasm-bindgen = "0.4"
+wasm-bindgen = "0.2.100"
+js-sys = "0.3"
+console_error_panic_hook = "0.1.7"
+wasm-logger = "0.2"
+web-time = "1.1.0"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O3", "--enable-mutable-globals"]

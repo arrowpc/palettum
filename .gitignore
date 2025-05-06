@@ -163,3 +163,15 @@ compile_commands.json
 *.key
 *.pub
 notes.md
+
+# Rust target directory
+/target
+
+# Cargo lock file
+Cargo.lock
+
+# Test output
+test_output.*
+
+# WASM build artifacts
+pkg/

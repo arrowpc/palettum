@@ -8,11 +8,6 @@ on:
       - ".github/workflows/release.yml"
     tags:
       - "v*"
-  pull_request:
-    paths:
-      - "packages/**"
-      - "Cargo.toml"
-      - ".github/workflows/release.yml"
 
 jobs:
   build:
@@ -58,7 +53,7 @@ jobs:
         with:
           command: build
           target: ${{ matrix.platform.target }}
-          args: "--release --features tui -p palettum-cli"
+          args: "--release -p palettum-cli"
           strip: true
 
       - name: Publish artifact

@@ -6,8 +6,6 @@ on:
       - "packages/**"
       - "Cargo.toml"
       - ".github/workflows/code-quality.yml"
-  pull_request:
-    branches: [master]
 
 jobs:
   format:

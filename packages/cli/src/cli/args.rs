@@ -4,7 +4,11 @@ use palettum::{DeltaEMethod, Mapping, SmoothingStyle};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "palettum", about = "Map images & GIFs to custom palettes")]
+#[command(
+    name = "palettum",
+    about = "Map images & GIFs to custom palettes",
+    version = env!("CARGO_PKG_VERSION")
+)]
 pub struct Cli {
     #[arg(short, long, global = true)]
     pub verbose: bool,

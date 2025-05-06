@@ -57,6 +57,7 @@ jobs:
           strip: true
 
       - name: Publish artifact
+        if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: houseabsolute/actions-rust-release@v0
         with:
           executable-name: palettum

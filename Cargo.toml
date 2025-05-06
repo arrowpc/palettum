@@ -1,0 +1,27 @@
+[workspace]
+members = [
+    "packages/core",
+    "packages/wasm",
+    "packages/cli",
+]
+resolver = "2"
+
+[workspace.dependencies]
+image = { version = "0.25.6", default-features = false }
+log = "0.4"
+rayon = "1.10.0"
+thiserror = "1.0"
+clap = { version = "4.5", features = ["derive", "env"] }
+num_cpus = "1.16"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+env_logger = "0.11"
+# pprof = { version = "0.14", features = ["flamegraph", "protobuf-codec"] }
+prost = "0.13.5"
+anyhow = "1.0"
+
+[workspace.package]
+edition = "2021"
+license = "AGPL-3.0"
+version = "0.5.0"
+description = "Tool for recoloring images and GIFs with any palette of your choice"

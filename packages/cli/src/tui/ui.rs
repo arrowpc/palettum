@@ -100,7 +100,7 @@ pub fn render_palette_list(app: &mut App, rect: Rect, f: &mut Frame<'_>) {
     let list = List::new(items)
         .block(list_block)
         .highlight_style(selected_style())
-        .highlight_symbol(">> ");
+        .highlight_symbol("* ");
     f.render_stateful_widget(list, rect, &mut app.palettes.state);
 }
 
@@ -351,6 +351,7 @@ pub fn render_file_explorer(app: &App, f: &mut Frame<'_>) {
 
 pub fn render(f: &mut Frame<'_>, app: &mut App) {
     let size = f.area();
+    // Top: Logo
     let logo_area = Rect {
         x: size.x,
         y: size.y,
@@ -358,46 +359,58 @@ pub fn render(f: &mut Frame<'_>, app: &mut App) {
         height: 9,
     };
     f.render_widget(render_logo(app), logo_area);
+
+    // Main area below logo
     let main_area = Rect {
         x: size.x,
         y: logo_area.y + logo_area.height,
         width: size.width,
         height: size.height.saturating_sub(logo_area.height),
     };
+    // Split main area into left and right columns
     let main_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
-        .split(main_area);
-    let content_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
+        .split(main_area);
+
+    // Left column: Split vertically into palette list and palette detail
+    let left_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
         .split(main_layout[0]);
+
+    // Right column: Split vertically into previews and log view
     let right_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(30),
-            Constraint::Percentage(40),
-            Constraint::Percentage(30),
-        ])
-        .split(content_layout[1]);
+        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        .split(main_layout[1]);
+
+    // Previews: Split horizontally into input and output
     let preview_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(right_layout[1]);
+        .split(right_layout[0]);
 
-    render_palette_list(app, content_layout[0], f);
+    // Render components
+    render_palette_list(app, left_layout[1], f);
     let selected_info = app.palettes.selected_item().cloned();
     let selected_colors = app.selected_palette_colors.as_ref();
-    render_palette_detail(selected_info.as_ref(), selected_colors, right_layout[0], f);
+    render_palette_detail(selected_info.as_ref(), selected_colors, left_layout[0], f);
     render_input_preview(app, preview_layout[0], f);
     render_output_preview(app, preview_layout[1], f);
-    render_log_view(app, right_layout[2], f);
-    render_status_bar(app, main_layout[1], f);
+    render_log_view(app, right_layout[1], f);
 
+    // Status bar at the bottom
+    let status_bar_area = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(main_area)[1];
+    render_status_bar(app, status_bar_area, f);
+
+    // Conditional popups
     if app.show_help {
         render_help_popup(app, f);
     }
-
     if app.focused_pane == Focus::FileSelector {
         render_file_explorer(app, f);
     }

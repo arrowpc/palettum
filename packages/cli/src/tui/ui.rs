@@ -52,12 +52,7 @@ pub fn render_logo(app: &App) -> Paragraph {
         })
         .collect();
     Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Palettum ")
-                .style(Style::default().bg(Color::Black)),
-        )
+        .block(Block::default().borders(Borders::ALL).title(" Palettum "))
         .alignment(Alignment::Center)
 }
 
@@ -91,7 +86,6 @@ pub fn render_palette_list(app: &mut App, rect: Rect, f: &mut Frame<'_>) {
     let list_block = Block::default()
         .borders(Borders::ALL)
         .title(" Palettes ")
-        .style(Style::default().bg(Color::Black))
         .border_style(if app.focused_pane == Focus::PaletteList {
             focused_border_style()
         } else {

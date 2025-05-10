@@ -291,19 +291,19 @@ pub fn render_status_bar(app: &App, rect: Rect, f: &mut Frame<'_>) {
 }
 
 pub fn render_help_popup(_app: &App, f: &mut Frame<'_>) {
-    let area = centered_rect(50, 60, f.area());
+    let area = centered_rect(10, 10, f.area());
     f.render_widget(Clear, area);
     let help_text = vec![
         Line::from(vec![
             Span::styled("?", accent_style()),
             Span::raw(" - Toggle Help"),
         ]),
+        // Line::from(vec![
+        //     Span::styled("Tab", accent_style()),
+        //     Span::raw(" - Cycle Focus"),
+        // ]),
         Line::from(vec![
-            Span::styled("Tab", accent_style()),
-            Span::raw(" - Cycle Focus"),
-        ]),
-        Line::from(vec![
-            Span::styled("↑/↓", accent_style()),
+            Span::styled("j/k", accent_style()),
             Span::raw(" - Navigate Palettes"),
         ]),
         Line::from(vec![
@@ -342,7 +342,7 @@ pub fn render_help_popup(_app: &App, f: &mut Frame<'_>) {
 
 pub fn render_file_explorer(app: &App, f: &mut Frame<'_>) {
     if let Some(ref explorer) = app.file_explorer {
-        let area = centered_rect(80, 80, f.area());
+        let area = centered_rect(40, 40, f.area());
         f.render_widget(Clear, area);
         let explorer_widget = explorer.widget();
         f.render_widget_ref(explorer_widget, area);
@@ -382,7 +382,7 @@ pub fn render(f: &mut Frame<'_>, app: &mut App) {
     // Right column: Split vertically into previews and log view
     let right_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
+        .constraints([Constraint::Percentage(100), Constraint::Percentage(0)])
         .split(main_layout[1]);
 
     // Previews: Split horizontally into input and output
@@ -398,14 +398,15 @@ pub fn render(f: &mut Frame<'_>, app: &mut App) {
     render_palette_detail(selected_info.as_ref(), selected_colors, left_layout[0], f);
     render_input_preview(app, preview_layout[0], f);
     render_output_preview(app, preview_layout[1], f);
-    render_log_view(app, right_layout[1], f);
+
+    // render_log_view(app, right_layout[1], f);
 
     // Status bar at the bottom
-    let status_bar_area = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
-        .split(main_area)[1];
-    render_status_bar(app, status_bar_area, f);
+    // let status_bar_area = Layout::default()
+    //     .direction(Direction::Vertical)
+    //     .constraints([Constraint::Min(0), Constraint::Length(1)])
+    //     .split(main_area)[1];
+    // render_status_bar(app, status_bar_area, f);
 
     // Conditional popups
     if app.show_help {

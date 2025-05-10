@@ -179,7 +179,7 @@ impl App {
         });
         let mut app = App {
             running: true,
-            show_help: true,
+            show_help: false,
             focused_pane: Focus::PaletteList,
             palettes: StatefulList::with_items(list_available_palettes()?),
             selected_palette_colors: None,
@@ -499,20 +499,23 @@ impl App {
                         );
                     }
                 }
-                KeyCode::Tab => {
-                    self.focused_pane = match self.focused_pane {
-                        Focus::PaletteList => Focus::LogView,
-                        Focus::LogView => Focus::PaletteList,
-                        _ => Focus::PaletteList,
-                    };
-                }
-                KeyCode::Up => {
+                // TODO: Add ability to enlarge before/after images
+                // TODO: Add ability to edit image by cycling with tab to palette info and then
+                // editing to bring up a palette editor
+                // KeyCode::Tab => {
+                //     self.focused_pane = match self.focused_pane {
+                //         Focus::PaletteList => Focus::LogView,
+                //         Focus::LogView => Focus::PaletteList,
+                //         _ => Focus::PaletteList,
+                //     };
+                // }
+                KeyCode::Char('k') => {
                     if self.focused_pane == Focus::PaletteList {
                         self.palettes.previous();
                         self.update_selected_palette_detail();
                     }
                 }
-                KeyCode::Down => {
+                KeyCode::Char('j') => {
                     if self.focused_pane == Focus::PaletteList {
                         self.palettes.next();
                         self.update_selected_palette_detail();

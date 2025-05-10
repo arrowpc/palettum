@@ -41,5 +41,4 @@ crossterm = { version = "0.27.0", optional = true }
 viuer = { version = "0.8.1", optional = true }
 
 [features]
-default = []
-tui = ["dep:ratatui", "dep:ratatui-image", "dep:ratatui-explorer", "dep:crossterm", "dep:viuer"]
+default = ["dep:ratatui", "dep:ratatui-image", "dep:ratatui-explorer", "dep:crossterm", "dep:viuer"]

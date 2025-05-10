@@ -45,7 +45,6 @@ pub fn classic_bold() -> console::Style {
     console::Style::new().bold()
 }
 
-#[cfg(feature = "tui")]
 pub mod tui {
     use ratatui::style::{Color, Style};
 

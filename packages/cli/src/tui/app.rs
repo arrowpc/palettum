@@ -4,10 +4,11 @@ use crate::{
 use anyhow::Result;
 use image::Rgb;
 use palettum::{DeltaEMethod, Mapping, SmoothingStyle};
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind, MouseEvent};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use ratatui::widgets::ListState;
 use ratatui_explorer::{FileExplorer, Input as ExplorerInput, Theme as ExplorerTheme};
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
+use ratatui_image::picker::Picker;
+use ratatui_image::thread::{ResizeRequest, ResizeResponse, ThreadProtocol};
 use std::path::PathBuf;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
@@ -78,6 +79,17 @@ impl<T> StatefulList<T> {
     }
 }
 
+#[derive(Debug)]
+pub enum Target {
+    Input,
+    Output,
+}
+
+pub struct TargetedResizeResponse {
+    pub response: ResizeResponse,
+    pub target: Target,
+}
+
 pub struct App {
     pub running: bool,
     pub show_help: bool,
@@ -89,10 +101,16 @@ pub struct App {
     pub is_processing: bool,
     pub progress: Option<f32>,
     pub current_task: String,
+    pub input_protocol: Option<ThreadProtocol>,
+    pub output_protocol: Option<ThreadProtocol>,
+    pub image_picker: Option<Picker>,
+    pub tx_worker_input: Sender<ResizeRequest>,
+    pub rx_main_input: Receiver<ResizeResponse>,
+    pub tx_worker_output: Sender<ResizeRequest>,
+    pub rx_main_output: Receiver<ResizeResponse>,
     pub last_input_path: Option<PathBuf>,
     pub last_output_path: Option<PathBuf>,
     pub file_explorer: Option<FileExplorer>,
-    pub input_protocol: Option<StatefulProtocol>,
     pub last_processed_time: Option<Duration>,
     command_sender: Sender<CommandResult>,
     command_receiver: Receiver<CommandResult>,
@@ -102,6 +120,45 @@ pub struct App {
 impl App {
     pub fn new(initial_command: Option<Command>) -> Result<Self> {
         let (sender, receiver) = mpsc::channel();
+        let image_picker = match Picker::from_query_stdio() {
+            Ok(picker) => Some(picker),
+            Err(e) => {
+                eprintln!("Failed to create image picker: {:?}", e);
+                None
+            }
+        };
+
+        let (tx_worker_input, rx_worker_input) = mpsc::channel::<ResizeRequest>();
+        let (tx_main_input, rx_main_input) = mpsc::channel::<ResizeResponse>();
+
+        let (tx_worker_output, rx_worker_output) = mpsc::channel::<ResizeRequest>();
+        let (tx_main_output, rx_main_output) = mpsc::channel::<ResizeResponse>();
+
+        thread::spawn(move || {
+            while let Ok(request) = rx_worker_input.recv() {
+                match request.resize_encode() {
+                    Ok(response) => {
+                        tx_main_input.send(response).unwrap();
+                    }
+                    Err(e) => {
+                        eprintln!("input resize_encode failed: {:?}", e);
+                    }
+                }
+            }
+        });
+
+        thread::spawn(move || {
+            while let Ok(request) = rx_worker_output.recv() {
+                match request.resize_encode() {
+                    Ok(response) => {
+                        tx_main_output.send(response).unwrap();
+                    }
+                    Err(e) => {
+                        eprintln!("output resize_encode failed: {:?}", e);
+                    }
+                }
+            }
+        });
         let mut app = App {
             running: true,
             show_help: true,
@@ -113,10 +170,16 @@ impl App {
             is_processing: false,
             progress: None,
             current_task: "Ready".to_string(),
+            input_protocol: None,
+            output_protocol: None,
+            image_picker,
+            tx_worker_input,
+            rx_main_input,
+            tx_worker_output,
+            rx_main_output,
             last_input_path: None,
             last_output_path: None,
             file_explorer: None,
-            input_protocol: None,
             last_processed_time: None,
             command_sender: sender,
             command_receiver: receiver,
@@ -222,7 +285,32 @@ impl App {
                     );
                     self.last_input_path = Some(input_path);
                     self.last_output_path = Some(output_path);
+                    if let Some(output_path) = &self.last_output_path {
+                        if let Ok(img) = image::open(output_path) {
+                            if let Some(picker) = &self.image_picker {
+                                self.output_protocol = Some(ThreadProtocol::new(
+                                    self.tx_worker_output.clone(),
+                                    Some(picker.new_resize_protocol(img)),
+                                ));
+                            } else {
+                                self.log(
+                                    LogLevel::Error,
+                                    "Image picker not initialized.".to_string(),
+                                );
+                                self.output_protocol = None;
+                            }
+                        } else {
+                            self.log(
+                                LogLevel::Error,
+                                format!("Failed to open output image {}", output_path.display()),
+                            );
+                            self.output_protocol = None;
+                        }
+                    } else {
+                        self.output_protocol = None;
+                    }
                 }
+
                 CommandResult::ListPalettesSuccess(_) => {
                     self.current_task = "Ready".to_string();
                     self.refresh_palettes()?;
@@ -280,14 +368,27 @@ impl App {
                                 );
                                 match image::open(&path) {
                                     Ok(img) => {
-                                        let picker = Picker::from_fontsize((8, 12));
-                                        self.input_protocol = Some(picker.new_resize_protocol(img));
-                                        self.log(
-                                            LogLevel::Success,
-                                            format!("✓ Loaded image: {}", path.display()),
-                                        );
-                                        self.last_output_path = None;
+                                        if let Some(picker) = &self.image_picker {
+                                            self.input_protocol = Some(ThreadProtocol::new(
+                                                self.tx_worker_input.clone(),
+                                                Some(picker.new_resize_protocol(img)),
+                                            ));
+                                            self.log(
+                                                LogLevel::Success,
+                                                format!("✓ Loaded image: {}", path.display()),
+                                            );
+                                            // Clear output preview when a new input is loaded
+                                            self.last_output_path = None;
+                                            self.output_protocol = None;
+                                        } else {
+                                            self.log(
+                                                LogLevel::Error,
+                                                "Image picker not initialized.".to_string(),
+                                            );
+                                            self.input_protocol = None;
+                                        }
                                     }
+
                                     Err(e) => {
                                         self.log(
                                             LogLevel::Error,
@@ -407,10 +508,6 @@ impl App {
             }
         }
         Ok(())
-    }
-
-    pub fn handle_mouse_event(&mut self, mouse_event: MouseEvent) {
-        self.log(LogLevel::Debug, format!("Mouse Event: {:?}", mouse_event));
     }
 
     pub fn handle_resize(&mut self, width: u16, height: u16) {

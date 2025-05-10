@@ -4,7 +4,7 @@ use crate::{
     tui::app::{App, Focus, LogLevel},
     Palette, PaletteKind,
 };
-use image::{imageops::FilterType, GenericImageView, Pixel, Rgb as ImgRgb};
+use image::Rgb as ImgRgb;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -12,6 +12,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph},
     Frame,
 };
+use ratatui_image::thread::ThreadImage;
 
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let vertical = Layout::default()
@@ -213,73 +214,41 @@ pub fn render_log_view(app: &App, rect: Rect, f: &mut Frame<'_>) {
 }
 
 pub fn render_input_preview(app: &mut App, rect: Rect, f: &mut Frame<'_>) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(border_style())
-        .title(" Before ");
-    if let Some(_protocol) = &app.input_protocol {
-        if let Some(path) = &app.last_input_path {
-            if let Ok(img) = image::open(path) {
-                let inner_rect = block.inner(rect);
-                let target_w = inner_rect.width as u32;
-                let target_h = inner_rect.height as u32;
-                let resized = img.resize_exact(target_w, target_h, FilterType::Nearest);
-                let mut lines = Vec::new();
-                for y in 0..resized.height().min(inner_rect.height as u32) {
-                    let mut spans = Vec::new();
-                    for x in 0..resized.width().min(inner_rect.width as u32) {
-                        let pixel = resized.get_pixel(x, y).to_rgb();
-                        let ImgRgb([r, g, b]) = pixel;
-                        spans.push(Span::styled(" ", Style::default().bg(Color::Rgb(r, g, b))));
-                    }
-                    lines.push(Line::from(spans));
-                }
-                f.render_widget(block.clone(), rect);
-                f.render_widget(Paragraph::new(lines), inner_rect);
-                return;
-            }
-        }
-    }
-    f.render_widget(
-        Paragraph::new("No image selected")
-            .alignment(Alignment::Center)
-            .style(dim_style()),
-        block.inner(rect),
-    );
+    let block = Block::default().borders(Borders::ALL).title(" Before ");
+    let area = block.inner(rect);
+
     f.render_widget(block, rect);
+
+    if let Some(protocol) = &mut app.input_protocol {
+        let image = ThreadImage::default();
+        f.render_stateful_widget(image, area, protocol);
+    } else {
+        f.render_widget(
+            Paragraph::new("No image selected")
+                .alignment(Alignment::Center)
+                .style(dim_style()),
+            area,
+        );
+    }
 }
 
-pub fn render_output_preview(app: &App, rect: Rect, f: &mut Frame<'_>) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(border_style())
-        .title(" After ");
-    let paragraph = if let Some(p) = app.last_output_path.as_ref() {
-        if let Ok(img) = image::open(p) {
-            let inner_rect = block.inner(rect);
-            let target_w = inner_rect.width as u32;
-            let target_h = inner_rect.height as u32;
-            let resized = img.resize_exact(target_w, target_h, FilterType::Nearest);
-            let mut lines = Vec::new();
-            for y in 0..resized.height().min(inner_rect.height as u32) {
-                let mut spans = Vec::new();
-                for x in 0..resized.width().min(inner_rect.width as u32) {
-                    let pixel = resized.get_pixel(x, y).to_rgb();
-                    let ImgRgb([r, g, b]) = pixel;
-                    spans.push(Span::styled(" ", Style::default().bg(Color::Rgb(r, g, b))));
-                }
-                lines.push(Line::from(spans));
-            }
-            Paragraph::new(lines)
-        } else {
-            Paragraph::new("Error loading image").style(error_style())
-        }
-    } else {
-        Paragraph::new("No output image").style(dim_style())
-    }
-    .alignment(Alignment::Center);
-    f.render_widget(paragraph, block.inner(rect));
+pub fn render_output_preview(app: &mut App, rect: Rect, f: &mut Frame<'_>) {
+    let block = Block::default().borders(Borders::ALL).title(" After ");
+    let area = block.inner(rect);
+
     f.render_widget(block, rect);
+
+    if let Some(protocol) = &mut app.output_protocol {
+        let image = ThreadImage::default();
+        f.render_stateful_widget(image, area, protocol);
+    } else {
+        f.render_widget(
+            Paragraph::new("No output image")
+                .alignment(Alignment::Center)
+                .style(dim_style()),
+            area,
+        );
+    }
 }
 
 pub fn render_status_bar(app: &App, rect: Rect, f: &mut Frame<'_>) {

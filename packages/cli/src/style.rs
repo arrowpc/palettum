@@ -45,7 +45,6 @@ pub fn classic_bold() -> console::Style {
     console::Style::new().bold()
 }
 
-#[cfg(feature = "tui")]
 pub mod tui {
     use ratatui::style::{Color, Style};
 
@@ -78,7 +77,7 @@ pub mod tui {
     }
 
     pub fn selected_style() -> Style {
-        Style::default().fg(Color::White).bg(Color::Blue)
+        Style::default().fg(Color::LightCyan).bg(Color::DarkGray)
     }
 
     pub fn border_style() -> Style {

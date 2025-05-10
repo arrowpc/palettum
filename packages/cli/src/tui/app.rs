@@ -117,14 +117,32 @@ pub struct App {
     initial_command: Option<Command>,
 }
 
+use std::env;
+#[cfg(windows)]
+const IS_WINDOWS: bool = true;
+#[cfg(not(windows))]
+const IS_WINDOWS: bool = false;
+// Stolen from https://docs.rs/ratatui-image/latest/src/ratatui_image/picker.rs.html#223
+// Have to do it this hacky way since ratatui-image's from_query_stdio lacks when it comes to
+// windows & tmux
+fn is_tmux() -> bool {
+    env::var("TERM").is_ok_and(|term| term.starts_with("tmux"))
+        || env::var("TERM_PROGRAM").is_ok_and(|term_program| term_program == "tmux")
+}
+
 impl App {
     pub fn new(initial_command: Option<Command>) -> Result<Self> {
         let (sender, receiver) = mpsc::channel();
-        let image_picker = match Picker::from_query_stdio() {
-            Ok(picker) => Some(picker),
-            Err(e) => {
-                eprintln!("Failed to create image picker: {:?}", e);
-                None
+
+        let image_picker = if IS_WINDOWS || is_tmux() {
+            Some(Picker::from_fontsize((10, 20)))
+        } else {
+            match Picker::from_query_stdio() {
+                Ok(picker) => Some(picker),
+                Err(e) => {
+                    eprintln!("Failed to create image picker: {:?}", e);
+                    None
+                }
             }
         };
 

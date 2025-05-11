@@ -1,97 +1,105 @@
-use crate::color::{ConvertToLab, Lab};
-use crate::config::{Config, Mapping, SmoothingStyle};
-use crate::delta_e::delta_e_batch;
-use crate::utils::ThreadLocalCache;
+use crate::{
+    color::{ConvertToLab, Lab},
+    config::{Config, Mapping},
+    errors::Errors,
+    palettized, smoothed,
+};
+
 use image::{Rgb, Rgba, RgbaImage};
-use rayon::ThreadPoolBuilder;
 
-const WEIGHT_THRESHOLD: f64 = 1e-9;
-const TOTAL_WEIGHT_THRESHOLD: f64 = 1e-9;
-const ANISOTROPIC_DIST_EPSILON: f64 = 1e-9;
+use rayon::{prelude::*, ThreadPoolBuilder};
 
-fn find_closest_palette_color(lab: &Lab, lab_palette: &[Lab], config: &Config) -> Rgb<u8> {
-    let index = delta_e_batch(config.delta_e_method, lab, lab_palette)
-        .iter()
-        .enumerate()
-        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        .map(|(index, _)| index)
-        .unwrap();
+use std::collections::HashMap;
 
-    config.palette[index]
+#[derive(Debug)]
+pub struct ThreadLocalCache {
+    cache: HashMap<Rgba<u8>, Rgba<u8>>,
 }
 
-#[inline]
-fn compute_weight(distance: f64, config: &Config) -> f64 {
-    let strength = config.smoothing_strength.clamp(0.0, 1.0);
-
-    match config.smoothing_style {
-        SmoothingStyle::Gaussian => {
-            let shape = (0.18 * strength + 0.01).max(ANISOTROPIC_DIST_EPSILON);
-
-            let exponent = -(shape * distance).powi(2);
-            exponent.max(-700.0).exp()
+impl ThreadLocalCache {
+    pub(crate) fn new() -> Self {
+        ThreadLocalCache {
+            cache: HashMap::with_capacity(4096),
         }
-        SmoothingStyle::IDW => {
-            let power = 6.0 * strength + 1.0;
-            1.0 / (distance.powf(power) + ANISOTROPIC_DIST_EPSILON)
-        }
+    }
+
+    #[inline]
+    pub(crate) fn get(&self, key: &Rgba<u8>) -> Option<&Rgba<u8>> {
+        self.cache.get(key)
+    }
+
+    #[inline]
+    pub(crate) fn set(&mut self, key: Rgba<u8>, value: Rgba<u8>) {
+        self.cache.insert(key, value);
     }
 }
 
-fn compute_anisotropic_weighted_average(
-    target_lab: &Lab,
+pub fn generate_lookup_table(
     config: &Config,
     lab_palette: &[Lab],
-) -> Rgb<u8> {
-    match config.mapping {
-        Mapping::Palettized => {
-            return find_closest_palette_color(target_lab, lab_palette, config);
-        }
-        Mapping::Smoothed | Mapping::SmoothedPalettized => {
-            if config.smoothing_strength == 0.0 {
-                return find_closest_palette_color(target_lab, lab_palette, config);
-            }
-        }
-    }
+    image_size: Option<usize>,
+) -> Vec<Rgb<u8>> {
+    let q = config.quant_level;
 
-    let mut total_weight: f64 = 0.0;
-    let mut sum_r: f64 = 0.0;
-    let mut sum_g: f64 = 0.0;
-    let mut sum_b: f64 = 0.0;
-    let [scale_l, scale_a, scale_b] = config.lab_scales;
+    let bins_per_channel = 256usize >> q;
+    let table_size = bins_per_channel.pow(3);
 
-    for (i, palette_lab_color) in lab_palette.iter().enumerate() {
-        let dl = target_lab.l as f64 - palette_lab_color.l as f64;
-        let da = target_lab.a as f64 - palette_lab_color.a as f64;
-        let db = target_lab.b as f64 - palette_lab_color.b as f64;
-        let anisotropic_dist_sq = (scale_l * dl * dl).max(0.0)
-            + (scale_a * da * da).max(0.0)
-            + (scale_b * db * db).max(0.0);
-        let anisotropic_dist = anisotropic_dist_sq.sqrt();
-        let weight = compute_weight(anisotropic_dist, config);
-
-        if weight > WEIGHT_THRESHOLD {
-            total_weight += weight;
-            if let Some(palette_rgb) = config.palette.get(i) {
-                sum_r += weight * palette_rgb.0[0] as f64;
-                sum_g += weight * palette_rgb.0[1] as f64;
-                sum_b += weight * palette_rgb.0[2] as f64;
-            }
+    if let Some(size) = image_size {
+        const LUT_SIZE_HEURISTIC_DIVISOR: usize = 4;
+        if size > 0 && table_size > size / LUT_SIZE_HEURISTIC_DIVISOR {
+            log::debug!(
+                "Skipping LUT generation: LUT size ({}) > image size ({}) / {}",
+                table_size,
+                size,
+                LUT_SIZE_HEURISTIC_DIVISOR
+            );
+            return Vec::new();
         }
     }
 
-    if total_weight > TOTAL_WEIGHT_THRESHOLD {
-        let r_avg = (sum_r / total_weight).round().clamp(0.0, 255.0) as u8;
-        let g_avg = (sum_g / total_weight).round().clamp(0.0, 255.0) as u8;
-        let b_avg = (sum_b / total_weight).round().clamp(0.0, 255.0) as u8;
-        Rgb([r_avg, g_avg, b_avg])
+    log::debug!(
+        "Generating lookup table (quant={}, bins={}, size={})...",
+        q,
+        bins_per_channel,
+        table_size
+    );
+
+    let mut lookup = vec![Rgb([0, 0, 0]); table_size];
+    let rounding = if q > 0 { 1u16 << (q - 1) } else { 0 };
+
+    let process_index = |index: usize| -> Option<(usize, Rgb<u8>)> {
+        let b_bin = index % bins_per_channel;
+        let g_bin = (index / bins_per_channel) % bins_per_channel;
+        let r_bin = index / (bins_per_channel * bins_per_channel);
+
+        let r_val = (((r_bin as u16) << q) + rounding).min(255) as u8;
+        let g_val = (((g_bin as u16) << q) + rounding).min(255) as u8;
+        let b_val = (((b_bin as u16) << q) + rounding).min(255) as u8;
+
+        let target_pixel = Rgba([r_val, g_val, b_val, 255]);
+
+        let result_rgb = compute_mapped_color_rgb(target_pixel, config, lab_palette);
+        Some((index, result_rgb))
+    };
+
+    if config.num_threads > 1 {
+        let results: Vec<Option<(usize, Rgb<u8>)>> =
+            (0..table_size).into_par_iter().map(process_index).collect();
+
+        for result in results.into_iter().flatten() {
+            let (index, rgb) = result;
+            lookup[index] = rgb;
+        }
     } else {
-        // log::debug!(
-        //     "Total weight near zero in weighted average for {:?}, falling back to closest color.",
-        //     target_lab
-        // );
-        find_closest_palette_color(target_lab, lab_palette, config)
+        for (index, item) in lookup.iter_mut().enumerate().take(table_size) {
+            if let Some((_, rgb)) = process_index(index) {
+                *item = rgb;
+            }
+        }
     }
+
+    log::debug!("Lookup table generation complete.");
+    lookup
 }
 
 pub(crate) fn compute_mapped_color_rgb(
@@ -99,30 +107,28 @@ pub(crate) fn compute_mapped_color_rgb(
     config: &Config,
     lab_palette: &[Lab],
 ) -> Rgb<u8> {
-    let target_lab = target.to_lab();
+    let reference = target.to_lab();
 
     match config.mapping {
-        Mapping::Palettized => find_closest_palette_color(&target_lab, lab_palette, config),
-        Mapping::Smoothed => compute_anisotropic_weighted_average(&target_lab, config, lab_palette),
+        Mapping::Palettized => palettized::closest_rgb(&reference, lab_palette, config),
+        Mapping::Smoothed => smoothed::closest_rgb(&reference, lab_palette, config),
         Mapping::SmoothedPalettized => {
-            let smoothed_rgb =
-                compute_anisotropic_weighted_average(&target_lab, config, lab_palette);
+            let smoothed_rgb = smoothed::closest_rgb(&reference, lab_palette, config);
             let smoothed_lab = smoothed_rgb.to_lab();
-            find_closest_palette_color(&smoothed_lab, lab_palette, config)
+            palettized::closest_rgb(&smoothed_lab, lab_palette, config)
         }
     }
 }
 
-#[inline]
 fn get_mapped_color_for_pixel(
     pixel: Rgba<u8>,
     config: &Config,
     lab_palette: &[Lab],
     cache: &mut ThreadLocalCache,
     lookup: Option<&[Rgb<u8>]>,
-) -> Rgba<u8> {
+) -> Result<Rgba<u8>, Errors> {
     if pixel.0[3] < config.transparency_threshold && config.mapping != Mapping::Smoothed {
-        return Rgba([0, 0, 0, 0]);
+        return Ok(Rgba([0, 0, 0, 0]));
     }
 
     if let Some(lut) = lookup {
@@ -138,16 +144,19 @@ fn get_mapped_color_for_pixel(
                     r_q * bins_per_channel * bins_per_channel + g_q * bins_per_channel + b_q;
 
                 if let Some(rgb_color) = lut.get(index) {
-                    return Rgba([rgb_color.0[0], rgb_color.0[1], rgb_color.0[2], 255]);
+                    return Ok(Rgba([rgb_color.0[0], rgb_color.0[1], rgb_color.0[2], 255]));
                 } else {
-                    log::warn!("LUT index {} out of bounds (size {})", index, lut.len());
+                    return Err(Errors::LutIndexOutOfBounds {
+                        index,
+                        size: lut.len(),
+                    });
                 }
             }
         }
     }
 
     if let Some(cached_color) = cache.get(&pixel) {
-        return *cached_color;
+        return Ok(*cached_color);
     }
 
     let result_rgb = compute_mapped_color_rgb(pixel, config, lab_palette);
@@ -160,7 +169,7 @@ fn get_mapped_color_for_pixel(
     let result_rgba = Rgba([result_rgb.0[0], result_rgb.0[1], result_rgb.0[2], alpha]);
     cache.set(pixel, result_rgba);
 
-    result_rgba
+    Ok(result_rgba)
 }
 
 pub(crate) fn process_pixels(
@@ -168,7 +177,7 @@ pub(crate) fn process_pixels(
     config: &Config,
     lab_palette: &[Lab],
     lookup: Option<&[Rgb<u8>]>,
-) {
+) -> Result<(), Errors> {
     let width = image.width();
     let height = image.height();
     log::debug!("Processing image pixels ({}x{})", width, height);
@@ -188,7 +197,7 @@ pub(crate) fn process_pixels(
             let pixel = Rgba([r, g, b, a]);
 
             let mapped_pixel =
-                get_mapped_color_for_pixel(pixel, config, lab_palette, &mut cache, lookup);
+                get_mapped_color_for_pixel(pixel, config, lab_palette, &mut cache, lookup)?;
 
             pixel_chunk[0] = mapped_pixel.0[0];
             pixel_chunk[1] = mapped_pixel.0[1];
@@ -196,15 +205,12 @@ pub(crate) fn process_pixels(
             pixel_chunk[3] = mapped_pixel.0[3];
         }
     } else {
-        // Multi-threaded processing using Rayon
+        // Multi-threaded processing
 
         let chunk_size = (raw_data.len() / bytes_per_pixel).div_ceil(num_threads);
         let pixel_chunks: Vec<_> = raw_data.chunks_mut(chunk_size * bytes_per_pixel).collect();
 
-        let pool = ThreadPoolBuilder::new()
-            .num_threads(num_threads)
-            .build()
-            .expect("Failed to build thread pool");
+        let pool = ThreadPoolBuilder::new().num_threads(num_threads).build()?;
 
         pool.scope(|scope| {
             for chunk in pixel_chunks {
@@ -218,18 +224,23 @@ pub(crate) fn process_pixels(
                         let a = pixel_chunk[3];
                         let pixel = Rgba([r, g, b, a]);
 
-                        let mapped_pixel = get_mapped_color_for_pixel(
+                        match get_mapped_color_for_pixel(
                             pixel,
                             config,
                             lab_palette,
                             &mut cache,
                             lookup,
-                        );
-
-                        pixel_chunk[0] = mapped_pixel.0[0];
-                        pixel_chunk[1] = mapped_pixel.0[1];
-                        pixel_chunk[2] = mapped_pixel.0[2];
-                        pixel_chunk[3] = mapped_pixel.0[3];
+                        ) {
+                            Ok(mapped_pixel) => {
+                                pixel_chunk[0] = mapped_pixel.0[0];
+                                pixel_chunk[1] = mapped_pixel.0[1];
+                                pixel_chunk[2] = mapped_pixel.0[2];
+                                pixel_chunk[3] = mapped_pixel.0[3];
+                            }
+                            Err(e) => {
+                                log::error!("Error processing pixel: {:?}", e);
+                            }
+                        }
                     }
                 });
             }
@@ -237,4 +248,5 @@ pub(crate) fn process_pixels(
     }
 
     log::debug!("Pixel processing complete.");
+    Ok(())
 }

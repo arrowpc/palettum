@@ -18,6 +18,66 @@ const WHITE_Z: f32 = 108.883;
 const EPSILON: f32 = 0.008856;
 const KAPPA: f32 = 903.3;
 
+impl Lab {
+    pub fn to_rgb(&self) -> Rgb<u8> {
+        let y = (self.l + 16.0) / 116.0;
+        let x = self.a / 500.0 + y;
+        let z = y - self.b / 200.0;
+
+        let x3 = x * x * x;
+        let z3 = z * z * z;
+
+        let mut xyz_x = WHITE_X
+            * if x3 > EPSILON {
+                x3
+            } else {
+                (x - 16.0 / 116.0) / 7.787
+            };
+        let mut xyz_y = WHITE_Y
+            * if self.l > (KAPPA * EPSILON) {
+                ((self.l + 16.0) / 116.0).powf(3.0)
+            } else {
+                self.l / KAPPA
+            };
+        let mut xyz_z = WHITE_Z
+            * if z3 > EPSILON {
+                z3
+            } else {
+                (z - 16.0 / 116.0) / 7.787
+            };
+
+        xyz_x /= 100.0;
+        xyz_y /= 100.0;
+        xyz_z /= 100.0;
+
+        let mut r = xyz_x * 3.2404542 - xyz_y * 1.5371385 - xyz_z * 0.4985314;
+        let mut g = xyz_x * -0.9692660 + xyz_y * 1.8760108 + xyz_z * 0.0415560;
+        let mut b = xyz_x * 0.0556434 - xyz_y * 0.2040259 + xyz_z * 1.0572252;
+
+        r = if r > 0.0031308 {
+            1.055 * r.powf(1.0 / 2.4) - 0.055
+        } else {
+            12.92 * r
+        };
+        g = if g > 0.0031308 {
+            1.055 * g.powf(1.0 / 2.4) - 0.055
+        } else {
+            12.92 * g
+        };
+        b = if b > 0.0031308 {
+            1.055 * b.powf(1.0 / 2.4) - 0.055
+        } else {
+            12.92 * b
+        };
+
+        r = r.clamp(0.0, 1.0) * 255.0;
+        g = g.clamp(0.0, 1.0) * 255.0;
+        b = b.clamp(0.0, 1.0) * 255.0;
+
+        Rgb([r.round() as u8, g.round() as u8, b.round() as u8])
+    }
+}
+
 #[inline]
 fn pivot_xyz(n: f32) -> f32 {
     if n > EPSILON {

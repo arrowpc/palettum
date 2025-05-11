@@ -5,14 +5,17 @@ import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 
 const palettesPath = path.resolve(__dirname, "../palettes");
+const palettumPath = path.resolve(__dirname, "./src/wasm/pkg");
 console.log("Resolved palettes alias path:", palettesPath);
+console.log("Resolved palettum alias path:", palettumPath);
 
 export default defineConfig({
   plugins: [react(), wasm(), topLevelAwait()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "palettes": palettesPath,
+      palettes: palettesPath,
+      palettum: palettumPath,
     },
   },
   worker: {

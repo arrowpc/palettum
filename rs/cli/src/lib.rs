@@ -2,10 +2,7 @@ use anyhow::{anyhow, bail, Result};
 use directories::ProjectDirs;
 use image::{imageops::FilterType, ImageFormat, Rgb};
 use include_dir::{include_dir, Dir};
-use palettum::{
-    palettify_gif, palettify_image, Config as PalettumConfig, DeltaEMethod, Gif as PalettumGif,
-    Image as PalettumImage, Mapping, SmoothingStyle,
-};
+use palettum::{Config as PalettumConfig, Gif as PalettumGif, Image as PalettumImage, Mapping};
 use serde_json::Value;
 use std::{
     fs,
@@ -293,8 +290,8 @@ pub struct PalettifyArgs {
     pub alpha_threshold: u8,
     pub threads: usize,
     pub smoothing_style: SmoothingStyle,
-    pub smoothing_strength: f64,
-    pub lab_scales: [f64; 3],
+    pub smoothing_strength: f32,
+    pub lab_scales: [f32; 3],
     pub width: Option<u32>,
     pub height: Option<u32>,
     pub scale: Option<String>,
@@ -349,7 +346,7 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
             let config = PalettumConfig {
                 palette: palette.colors,
                 mapping: args.mapping,
-                delta_e_method: args.delta_e,
+                palettized_formula: args.delta_e,
                 quant_level: args.quant_level,
                 transparency_threshold: args.alpha_threshold,
                 smoothing_style: args.smoothing_style,
@@ -415,16 +412,13 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
                     log::debug!("Palettifying {} - {}/{}...", path.display(), i + 1, total);
                     let is_gif = ImageFormat::from_path(&path).is_ok_and(|f| f == ImageFormat::Gif);
                     if is_gif {
-                        let gif = PalettumGif::from_file(&path).map_err(|e| anyhow!(e))?;
-                        let processed_gif = palettify_gif(&gif, &config).map_err(|e| anyhow!(e))?;
-                        processed_gif.write_to_file(&path).map_err(|e| anyhow!(e))?
+                        let mut gif = PalettumGif::from_file(&path).map_err(|e| anyhow!(e))?;
+                        gif.palettify(&config).map_err(|e| anyhow!(e))?;
+                        gif.write_to_file(&path).map_err(|e| anyhow!(e))?
                     } else {
-                        let img = PalettumImage::from_file(&path).map_err(|e| anyhow!(e))?;
-                        let processed_img =
-                            palettify_image(&img, &config).map_err(|e| anyhow!(e))?;
-                        processed_img
-                            .write_to_file(&path, ImageFormat::Png)
-                            .map_err(|e| anyhow!(e))?
+                        let mut img = PalettumImage::from_file(&path).map_err(|e| anyhow!(e))?;
+                        img.palettify(&config).map_err(|e| anyhow!(e))?;
+                        img.write_to_file(&path).map_err(|e| anyhow!(e))?
                     };
                 }
             } else {
@@ -434,17 +428,13 @@ pub fn execute_command(command: Command) -> Result<CommandResult> {
                     determine_output_path(&input_path, args.output.as_ref(), is_gif, args.mapping)?;
 
                 if is_gif {
-                    let gif = PalettumGif::from_file(&input_path).map_err(|e| anyhow!(e))?;
-                    let processed_gif = palettify_gif(&gif, &config).map_err(|e| anyhow!(e))?;
-                    processed_gif
-                        .write_to_file(&output_path)
-                        .map_err(|e| anyhow!(e))?
+                    let mut gif = PalettumGif::from_file(&input_path).map_err(|e| anyhow!(e))?;
+                    gif.palettify(&config).map_err(|e| anyhow!(e))?;
+                    gif.write_to_file(&output_path).map_err(|e| anyhow!(e))?
                 } else {
-                    let img = PalettumImage::from_file(&input_path).map_err(|e| anyhow!(e))?;
-                    let processed_img = palettify_image(&img, &config).map_err(|e| anyhow!(e))?;
-                    processed_img
-                        .write_to_file(&output_path, ImageFormat::Png)
-                        .map_err(|e| anyhow!(e))?
+                    let mut img = PalettumImage::from_file(&input_path).map_err(|e| anyhow!(e))?;
+                    img.palettify(&config).map_err(|e| anyhow!(e))?;
+                    img.write_to_file(&output_path).map_err(|e| anyhow!(e))?
                 };
             }
 

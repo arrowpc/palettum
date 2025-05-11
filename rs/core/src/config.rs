@@ -1,14 +1,18 @@
-#[cfg(feature = "serde")]
+use std::fmt;
+
+#[cfg(feature = "wasm")]
 use crate::color::rgb_vec_serde;
-#[cfg(feature = "serde")]
+#[cfg(feature = "wasm")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "wasm")]
+use tsify::Tsify;
 
 use crate::{errors::Errors, palettized, smoothed};
 
 use image::{imageops::FilterType, Rgb};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
 pub enum Mapping {
     Palettized,
     Smoothed,
@@ -16,25 +20,28 @@ pub enum Mapping {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
-#[cfg_attr(feature = "serde", serde(default))]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
+#[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+#[cfg_attr(feature = "wasm", serde(default))]
+#[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct Config {
-    #[cfg_attr(feature = "serde", serde(with = "rgb_vec_serde"))]
+    #[cfg_attr(feature = "wasm", serde(with = "rgb_vec_serde"))]
     pub palette: Vec<Rgb<u8>>,
     pub mapping: Mapping,
+    #[cfg_attr(feature = "wasm", tsify(type = "PalettizedFormula"))]
     pub palettized_formula: palettized::Formula,
     pub quant_level: u8,
     pub transparency_threshold: u8,
-    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "wasm", serde(skip))]
     pub num_threads: usize,
+    #[cfg_attr(feature = "wasm", tsify(type = "SmoothedFormula"))]
     pub smoothed_formula: smoothed::Formula,
     pub smoothing_strength: f32,
     pub lab_scales: [f32; 3],
     pub resize_width: Option<u32>,
     pub resize_height: Option<u32>,
     pub resize_scale: Option<f32>,
-    #[cfg_attr(feature = "serde", serde(skip))]
+    #[cfg_attr(feature = "wasm", serde(skip))]
     pub resize_filter: FilterType,
 }
 
@@ -60,6 +67,48 @@ impl Default for Config {
             resize_scale: None,
             resize_filter: FilterType::Nearest,
         }
+    }
+}
+
+impl fmt::Display for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Config {{
+    palette: [{}],
+    mapping: {:?},
+    palettized_formula: {:?},
+    quant_level: {},
+    transparency_threshold: {},
+    num_threads: {},
+    smoothed_formula: {:?},
+    smoothing_strength: {},
+    lab_scales: [{}, {}, {}],
+    resize_width: {:?},
+    resize_height: {:?},
+    resize_scale: {:?},
+    resize_filter: {:?}
+}}",
+            self.palette
+                .iter()
+                .map(|c| format!("{:?}", c))
+                .collect::<Vec<_>>()
+                .join(", "),
+            self.mapping,
+            self.palettized_formula,
+            self.quant_level,
+            self.transparency_threshold,
+            self.num_threads,
+            self.smoothed_formula,
+            self.smoothing_strength,
+            self.lab_scales[0],
+            self.lab_scales[1],
+            self.lab_scales[2],
+            self.resize_width,
+            self.resize_height,
+            self.resize_scale,
+            self.resize_filter
+        )
     }
 }
 

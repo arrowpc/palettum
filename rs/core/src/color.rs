@@ -131,7 +131,7 @@ impl ConvertToLab for Rgba<u8> {
 }
 
 // --- Helper module for Vec<Rgb<u8>> serialization ---
-#[cfg(feature = "serde")]
+#[cfg(feature = "wasm")]
 pub mod rgb_vec_serde {
     use image::Rgb;
     use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};

@@ -49,10 +49,10 @@ pub struct PalettifyArgs {
     pub smoothing_style: SmoothingStyle,
     /// higher increases sharpness [range: 0.1 - 1.0]
     #[arg(long, default_value_t = 0.5)]
-    pub smoothing_strength: f64,
+    pub smoothing_strength: f32,
     /// [range for each: 0.1 - 10.0]
     #[arg(long, default_value = "1.0,1.0,1.0", value_name = "L,A,B", value_parser = parse_lab_scales)]
-    pub lab_scales: [f64; 3],
+    pub lab_scales: [f32; 3],
     #[arg(short, long, value_parser = clap::value_parser!(u8).range(0..=255), default_value_t = 2)]
     /// [range: 0 - 5]
     pub quant_level: u8,
@@ -172,7 +172,7 @@ fn parse_smoothing_style(kernel: &str) -> Result<SmoothingStyle, String> {
     }
 }
 
-fn parse_lab_scales(scales: &str) -> Result<[f64; 3], String> {
+fn parse_lab_scales(scales: &str) -> Result<[f32; 3], String> {
     let parts: Vec<&str> = scales.split(',').map(|s| s.trim()).collect();
     if parts.len() != 3 {
         return Err("LAB scales must be three comma-separated values".into());
@@ -180,7 +180,7 @@ fn parse_lab_scales(scales: &str) -> Result<[f64; 3], String> {
     let mut result = [0.0; 3];
     for (i, part) in parts.iter().enumerate() {
         result[i] = part
-            .parse::<f64>()
+            .parse::<f32>()
             .map_err(|e| format!("Invalid float: {}", e))?;
     }
     Ok(result)

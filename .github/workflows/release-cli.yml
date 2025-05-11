@@ -3,7 +3,7 @@ name: Build and Release CLI
 on:
   push:
     paths:
-      - "packages/**"
+      - "rs/**"
       - "Cargo.toml"
       - ".github/workflows/release.yml"
     tags:

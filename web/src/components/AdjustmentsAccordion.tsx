@@ -47,7 +47,7 @@ const FORMULA_TOOLTIPS: Record<FormulaKey, string> = {
 };
 
 export const SMOOTHING_STYLE_GAUSSIAN = "Gaussian";
-export const SMOOTHING_STYLE_IDW = "IDW";
+export const SMOOTHING_STYLE_IDW = "Idw";
 export type SmoothingStyleKey =
   | typeof SMOOTHING_STYLE_GAUSSIAN
   | typeof SMOOTHING_STYLE_IDW;

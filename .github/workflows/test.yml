@@ -3,7 +3,7 @@ name: Test
 on:
   push:
     paths:
-      - "packages/**"
+      - "rs/**"
       - "Cargo.toml"
       - ".github/workflows/test.yml"
 

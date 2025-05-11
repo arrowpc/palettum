@@ -1,11 +1,17 @@
 use crate::{color::Lab, config::Config, math::FastMath};
 use image::Rgb;
 
-#[cfg(feature = "serde")]
+#[cfg(feature = "wasm")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "wasm")]
+use tsify::Tsify;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(
+    feature = "wasm",
+    derive(Tsify, Serialize, Deserialize),
+    tsify(type_prefix = "Palettized")
+)]
 pub enum Formula {
     CIE76,
     CIE94,

@@ -343,6 +343,10 @@ pub fn render_file_explorer(app: &App, f: &mut Frame<'_>) {
     }
 }
 
+pub fn render_palette_editor(_app: &App, _f: &mut Frame<'_>) {
+    todo!()
+}
+
 pub fn render(f: &mut Frame<'_>, app: &mut App) {
     let size = f.area();
     // Top: Logo
@@ -376,7 +380,7 @@ pub fn render(f: &mut Frame<'_>, app: &mut App) {
     // Right column: Split vertically into previews and log view
     let right_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(100), Constraint::Percentage(0)])
+        .constraints([Constraint::Percentage(100), Constraint::Percentage(10)])
         .split(main_layout[1]);
 
     // Previews: Split horizontally into input and output
@@ -393,7 +397,7 @@ pub fn render(f: &mut Frame<'_>, app: &mut App) {
     render_input_preview(app, preview_layout[0], f);
     render_output_preview(app, preview_layout[1], f);
 
-    // render_log_view(app, right_layout[1], f);
+    render_log_view(app, right_layout[1], f);
 
     // Status bar at the bottom
     // let status_bar_area = Layout::default()
@@ -406,6 +410,11 @@ pub fn render(f: &mut Frame<'_>, app: &mut App) {
     if app.show_help {
         render_help_popup(app, f);
     }
+
+    if app.show_editor {
+        render_palette_editor(app, f);
+    }
+
     if app.focused_pane == Focus::FileSelector {
         render_file_explorer(app, f);
     }

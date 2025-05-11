@@ -20,6 +20,7 @@ pub enum Focus {
     LogView,
     FileSelector,
     Help,
+    PaletteEditor,
 }
 
 #[derive(Debug, Clone)]
@@ -93,6 +94,7 @@ pub struct TargetedResizeResponse {
 pub struct App {
     pub running: bool,
     pub show_help: bool,
+    pub show_editor: bool,
     pub focused_pane: Focus,
     pub palettes: StatefulList<Palette>,
     pub selected_palette_colors: Option<Vec<Rgb<u8>>>,
@@ -180,6 +182,7 @@ impl App {
         let mut app = App {
             running: true,
             show_help: false,
+            show_editor: false,
             focused_pane: Focus::PaletteList,
             palettes: StatefulList::with_items(list_available_palettes()?),
             selected_palette_colors: None,
@@ -521,8 +524,15 @@ impl App {
                         self.update_selected_palette_detail();
                     }
                 }
+                KeyCode::Char('e') => {
+                    if self.focused_pane == Focus::PaletteList {
+                        self.show_editor = true;
+                        self.focused_pane = Focus::PaletteEditor;
+                    }
+                }
                 KeyCode::Esc => {
                     self.show_help = false;
+                    self.show_editor = false;
                     self.focused_pane = Focus::PaletteList;
                 }
                 _ => {}

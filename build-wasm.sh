@@ -3,5 +3,5 @@
 
 set -e
 
-cd packages/wasm
+cd rs/wasm
 RUSTFLAGS='-C target-feature=+simd128' wasm-pack build --target bundler --out-dir ../../web/src/wasm/pkg --release

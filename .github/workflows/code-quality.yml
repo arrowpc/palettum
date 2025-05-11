@@ -3,7 +3,7 @@ name: Code Quality
 on:
   push:
     paths:
-      - "packages/**"
+      - "rs/**"
       - "Cargo.toml"
       - ".github/workflows/code-quality.yml"
 

@@ -12,6 +12,13 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 
+import type {
+  Config,
+  Mapping,
+  PalettizedFormula,
+  SmoothedFormula,
+} from "palettum";
+
 interface ImageDimensions {
   containerWidth: number;
   containerHeight: number;
@@ -163,19 +170,6 @@ interface ProcessedSettings {
   smoothingStyle: string | null;
   labScales: [number, number, number] | null;
   smoothingStrength: number | null;
-}
-
-interface WasmConfig {
-  palette: Array<{ r: number; g: number; b: number }>;
-  mapping: string;
-  deltaEMethod: string;
-  quantLevel: number;
-  transparencyThreshold: number;
-  smoothingStyle: string;
-  smoothingStrength: number;
-  labScales: [number, number, number];
-  resizeWidth: number | null;
-  resizeHeight: number | null;
 }
 
 type TaskCallbacks = {
@@ -333,7 +327,7 @@ function PalettifyImage({
 
   const palettifyWithWorker = (
     imageBytes: Uint8Array,
-    config: WasmConfig,
+    config: Config,
     mimeType: string,
   ): Promise<Blob> => {
     return new Promise<Blob>((resolve, reject) => {
@@ -393,17 +387,17 @@ function PalettifyImage({
       const arrayBuffer = await file.arrayBuffer();
       const imageBytes = new Uint8Array(arrayBuffer);
 
-      const configJs: WasmConfig = {
+      const configJs: Config = {
         palette: palette.colors.map((color) => ({
           r: color.r,
           g: color.g,
           b: color.b,
         })),
-        mapping,
-        deltaEMethod: formula,
+        mapping: mapping as Mapping,
+        palettizedFormula: formula as PalettizedFormula,
         quantLevel,
         transparencyThreshold: transparentThreshold,
-        smoothingStyle,
+        smoothedFormula: smoothingStyle as SmoothedFormula,
         smoothingStrength,
         labScales,
         resizeWidth: dimensions.width || null,

@@ -9,16 +9,12 @@ description.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-palettum = { path = "../core", features = ["serde"] }
-image = { workspace = true, features = ["png", "gif", "webp"] }
+palettum = { path = "../core", features = ["wasm"] }
+image.workspace = true
 log.workspace = true
 serde.workspace = true
-serde-wasm-bindgen = "0.4"
-wasm-bindgen = "0.2.100"
-js-sys = "0.3"
+wasm-bindgen.workspace = true
+tsify.workspace = true
 console_error_panic_hook = "0.1.7"
 wasm-logger = "0.2"
 web-time = "1.1.0"
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O3", "--enable-mutable-globals"]

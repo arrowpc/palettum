@@ -1,14 +1,13 @@
 mod color;
 mod config;
-mod delta_e;
+mod errors;
 mod gif;
 mod image;
-mod lut;
+mod math;
+mod palettized;
 mod processing;
-mod utils;
+mod smoothed;
 
-pub use config::{Config, DeltaEMethod, Mapping, SmoothingStyle};
-pub use gif::palettify_gif;
+pub use config::{Config, Mapping};
 pub use gif::Gif;
-pub use image::palettify_image;
 pub use image::Image;

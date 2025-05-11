@@ -4,7 +4,7 @@ use crate::{
     tui::app::{App, Focus, LogLevel},
     Palette, PaletteKind,
 };
-use image::{imageops::FilterType, GenericImageView, Pixel, Rgb as ImgRgb};
+use image::Rgb as ImgRgb;
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -12,6 +12,7 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Gauge, List, ListItem, Paragraph},
     Frame,
 };
+use ratatui_image::thread::ThreadImage;
 
 pub fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
     let vertical = Layout::default()
@@ -51,12 +52,7 @@ pub fn render_logo(app: &App) -> Paragraph {
         })
         .collect();
     Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(" Palettum ")
-                .style(Style::default().bg(Color::Black)),
-        )
+        .block(Block::default().borders(Borders::ALL).title(" Palettum "))
         .alignment(Alignment::Center)
 }
 
@@ -90,7 +86,6 @@ pub fn render_palette_list(app: &mut App, rect: Rect, f: &mut Frame<'_>) {
     let list_block = Block::default()
         .borders(Borders::ALL)
         .title(" Palettes ")
-        .style(Style::default().bg(Color::Black))
         .border_style(if app.focused_pane == Focus::PaletteList {
             focused_border_style()
         } else {
@@ -99,7 +94,7 @@ pub fn render_palette_list(app: &mut App, rect: Rect, f: &mut Frame<'_>) {
     let list = List::new(items)
         .block(list_block)
         .highlight_style(selected_style())
-        .highlight_symbol(">> ");
+        .highlight_symbol("* ");
     f.render_stateful_widget(list, rect, &mut app.palettes.state);
 }
 
@@ -213,73 +208,41 @@ pub fn render_log_view(app: &App, rect: Rect, f: &mut Frame<'_>) {
 }
 
 pub fn render_input_preview(app: &mut App, rect: Rect, f: &mut Frame<'_>) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(border_style())
-        .title(" Before ");
-    if let Some(_protocol) = &app.input_protocol {
-        if let Some(path) = &app.last_input_path {
-            if let Ok(img) = image::open(path) {
-                let inner_rect = block.inner(rect);
-                let target_w = inner_rect.width as u32;
-                let target_h = inner_rect.height as u32;
-                let resized = img.resize_exact(target_w, target_h, FilterType::Nearest);
-                let mut lines = Vec::new();
-                for y in 0..resized.height().min(inner_rect.height as u32) {
-                    let mut spans = Vec::new();
-                    for x in 0..resized.width().min(inner_rect.width as u32) {
-                        let pixel = resized.get_pixel(x, y).to_rgb();
-                        let ImgRgb([r, g, b]) = pixel;
-                        spans.push(Span::styled(" ", Style::default().bg(Color::Rgb(r, g, b))));
-                    }
-                    lines.push(Line::from(spans));
-                }
-                f.render_widget(block.clone(), rect);
-                f.render_widget(Paragraph::new(lines), inner_rect);
-                return;
-            }
-        }
-    }
-    f.render_widget(
-        Paragraph::new("No image selected")
-            .alignment(Alignment::Center)
-            .style(dim_style()),
-        block.inner(rect),
-    );
+    let block = Block::default().borders(Borders::ALL).title(" Before ");
+    let area = block.inner(rect);
+
     f.render_widget(block, rect);
+
+    if let Some(protocol) = &mut app.input_protocol {
+        let image = ThreadImage::default();
+        f.render_stateful_widget(image, area, protocol);
+    } else {
+        f.render_widget(
+            Paragraph::new("No image selected")
+                .alignment(Alignment::Center)
+                .style(dim_style()),
+            area,
+        );
+    }
 }
 
-pub fn render_output_preview(app: &App, rect: Rect, f: &mut Frame<'_>) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(border_style())
-        .title(" After ");
-    let paragraph = if let Some(p) = app.last_output_path.as_ref() {
-        if let Ok(img) = image::open(p) {
-            let inner_rect = block.inner(rect);
-            let target_w = inner_rect.width as u32;
-            let target_h = inner_rect.height as u32;
-            let resized = img.resize_exact(target_w, target_h, FilterType::Nearest);
-            let mut lines = Vec::new();
-            for y in 0..resized.height().min(inner_rect.height as u32) {
-                let mut spans = Vec::new();
-                for x in 0..resized.width().min(inner_rect.width as u32) {
-                    let pixel = resized.get_pixel(x, y).to_rgb();
-                    let ImgRgb([r, g, b]) = pixel;
-                    spans.push(Span::styled(" ", Style::default().bg(Color::Rgb(r, g, b))));
-                }
-                lines.push(Line::from(spans));
-            }
-            Paragraph::new(lines)
-        } else {
-            Paragraph::new("Error loading image").style(error_style())
-        }
-    } else {
-        Paragraph::new("No output image").style(dim_style())
-    }
-    .alignment(Alignment::Center);
-    f.render_widget(paragraph, block.inner(rect));
+pub fn render_output_preview(app: &mut App, rect: Rect, f: &mut Frame<'_>) {
+    let block = Block::default().borders(Borders::ALL).title(" After ");
+    let area = block.inner(rect);
+
     f.render_widget(block, rect);
+
+    if let Some(protocol) = &mut app.output_protocol {
+        let image = ThreadImage::default();
+        f.render_stateful_widget(image, area, protocol);
+    } else {
+        f.render_widget(
+            Paragraph::new("No output image")
+                .alignment(Alignment::Center)
+                .style(dim_style()),
+            area,
+        );
+    }
 }
 
 pub fn render_status_bar(app: &App, rect: Rect, f: &mut Frame<'_>) {
@@ -322,19 +285,19 @@ pub fn render_status_bar(app: &App, rect: Rect, f: &mut Frame<'_>) {
 }
 
 pub fn render_help_popup(_app: &App, f: &mut Frame<'_>) {
-    let area = centered_rect(50, 60, f.area());
+    let area = centered_rect(10, 10, f.area());
     f.render_widget(Clear, area);
     let help_text = vec![
         Line::from(vec![
             Span::styled("?", accent_style()),
             Span::raw(" - Toggle Help"),
         ]),
+        // Line::from(vec![
+        //     Span::styled("Tab", accent_style()),
+        //     Span::raw(" - Cycle Focus"),
+        // ]),
         Line::from(vec![
-            Span::styled("Tab", accent_style()),
-            Span::raw(" - Cycle Focus"),
-        ]),
-        Line::from(vec![
-            Span::styled("↑/↓", accent_style()),
+            Span::styled("j/k", accent_style()),
             Span::raw(" - Navigate Palettes"),
         ]),
         Line::from(vec![
@@ -373,15 +336,20 @@ pub fn render_help_popup(_app: &App, f: &mut Frame<'_>) {
 
 pub fn render_file_explorer(app: &App, f: &mut Frame<'_>) {
     if let Some(ref explorer) = app.file_explorer {
-        let area = centered_rect(80, 80, f.area());
+        let area = centered_rect(40, 40, f.area());
         f.render_widget(Clear, area);
         let explorer_widget = explorer.widget();
         f.render_widget_ref(explorer_widget, area);
     }
 }
 
+pub fn render_palette_editor(_app: &App, _f: &mut Frame<'_>) {
+    todo!()
+}
+
 pub fn render(f: &mut Frame<'_>, app: &mut App) {
     let size = f.area();
+    // Top: Logo
     let logo_area = Rect {
         x: size.x,
         y: size.y,
@@ -389,44 +357,62 @@ pub fn render(f: &mut Frame<'_>, app: &mut App) {
         height: 9,
     };
     f.render_widget(render_logo(app), logo_area);
+
+    // Main area below logo
     let main_area = Rect {
         x: size.x,
         y: logo_area.y + logo_area.height,
         width: size.width,
         height: size.height.saturating_sub(logo_area.height),
     };
+    // Split main area into left and right columns
     let main_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
-        .split(main_area);
-    let content_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
+        .split(main_area);
+
+    // Left column: Split vertically into palette list and palette detail
+    let left_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
         .split(main_layout[0]);
+
+    // Right column: Split vertically into previews and log view
     let right_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage(30),
-            Constraint::Percentage(40),
-            Constraint::Percentage(30),
-        ])
-        .split(content_layout[1]);
+        .constraints([Constraint::Percentage(100), Constraint::Percentage(10)])
+        .split(main_layout[1]);
+
+    // Previews: Split horizontally into input and output
     let preview_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
-        .split(right_layout[1]);
+        .split(right_layout[0]);
 
-    render_palette_list(app, content_layout[0], f);
+    // Render components
+    render_palette_list(app, left_layout[1], f);
     let selected_info = app.palettes.selected_item().cloned();
     let selected_colors = app.selected_palette_colors.as_ref();
-    render_palette_detail(selected_info.as_ref(), selected_colors, right_layout[0], f);
+    render_palette_detail(selected_info.as_ref(), selected_colors, left_layout[0], f);
     render_input_preview(app, preview_layout[0], f);
     render_output_preview(app, preview_layout[1], f);
-    render_log_view(app, right_layout[2], f);
-    render_status_bar(app, main_layout[1], f);
 
+    render_log_view(app, right_layout[1], f);
+
+    // Status bar at the bottom
+    // let status_bar_area = Layout::default()
+    //     .direction(Direction::Vertical)
+    //     .constraints([Constraint::Min(0), Constraint::Length(1)])
+    //     .split(main_area)[1];
+    // render_status_bar(app, status_bar_area, f);
+
+    // Conditional popups
     if app.show_help {
         render_help_popup(app, f);
+    }
+
+    if app.show_editor {
+        render_palette_editor(app, f);
     }
 
     if app.focused_pane == Focus::FileSelector {

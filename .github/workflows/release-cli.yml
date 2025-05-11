@@ -2,12 +2,11 @@ name: Build and Release CLI
 
 on:
   push:
-    paths:
-      - "packages/**"
-      - "Cargo.toml"
-      - ".github/workflows/release.yml"
     tags:
       - "v*"
+    branches:
+      - "**"
+  workflow_dispatch:
 
 jobs:
   build:
@@ -56,13 +55,12 @@ jobs:
           args: "--release -p palettum-cli"
           strip: true
 
-      - name: Publish artifact
-        if: "!startsWith(github.ref, 'refs/tags/v')"
-        uses: houseabsolute/actions-rust-release@v0
+      - name: Upload artifact
+        if: github.event_name == 'workflow_dispatch' || !startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
         with:
-          executable-name: palettum
-          target: ${{ matrix.platform.target }}
-          changes-file: ""
+          name: palettum-${{ matrix.platform.target }}
+          path: target/${{ matrix.platform.target }}/release/palettum*
 
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')

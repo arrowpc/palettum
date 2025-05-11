@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyEvent, MouseEvent};
+use ratatui::crossterm::event::{self, Event as CrosstermEvent, KeyEvent};
 use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -8,7 +8,6 @@ use std::time::{Duration, Instant};
 pub enum Event {
     Tick,
     Key(KeyEvent),
-    Mouse(MouseEvent),
     Resize(u16, u16),
 }
 
@@ -30,11 +29,6 @@ impl EventHandler {
                     match event::read().expect("Failed to read event") {
                         CrosstermEvent::Key(e) => {
                             if sender.send(Event::Key(e)).is_err() {
-                                break;
-                            }
-                        }
-                        CrosstermEvent::Mouse(e) => {
-                            if sender.send(Event::Mouse(e)).is_err() {
                                 break;
                             }
                         }

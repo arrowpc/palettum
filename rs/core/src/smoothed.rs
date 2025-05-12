@@ -8,13 +8,14 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify::Tsify;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(
     feature = "wasm",
     derive(Tsify, Serialize, Deserialize),
     tsify(type_prefix = "Smoothed")
 )]
 pub enum Formula {
+    #[default]
     Idw,
     Gaussian,
 }

@@ -1,3 +1,4 @@
+use bon::Builder;
 use std::fmt;
 
 #[cfg(feature = "wasm")]
@@ -11,63 +12,63 @@ use crate::{errors::Errors, palettized, smoothed};
 
 use image::{imageops::FilterType, Rgb};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
 pub enum Mapping {
     Palettized,
+    #[default]
     Smoothed,
     SmoothedPalettized,
 }
 
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "wasm", derive(Serialize, Deserialize))]
+pub struct Filter(pub FilterType);
+
+impl Default for Filter {
+    fn default() -> Self {
+        Filter(FilterType::Lanczos3)
+    }
+}
+
+impl From<Filter> for image::imageops::FilterType {
+    fn from(f: Filter) -> Self {
+        f.0
+    }
+}
+
+#[derive(Debug, Clone, Builder)]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "wasm", serde(default))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 pub struct Config {
     #[cfg_attr(feature = "wasm", serde(with = "rgb_vec_serde"))]
     pub palette: Vec<Rgb<u8>>,
+    #[builder(default)]
     pub mapping: Mapping,
     #[cfg_attr(feature = "wasm", tsify(type = "PalettizedFormula"))]
+    #[builder(default)]
     pub palettized_formula: palettized::Formula,
+    #[builder(default = 0)]
     pub quant_level: u8,
+    #[builder(default = 128)]
     pub transparency_threshold: u8,
+    #[builder(default = num_cpus::get())]
     #[cfg_attr(feature = "wasm", serde(skip))]
     pub num_threads: usize,
     #[cfg_attr(feature = "wasm", tsify(type = "SmoothedFormula"))]
+    #[builder(default = smoothed::Formula::Idw)]
     pub smoothed_formula: smoothed::Formula,
+    #[builder(default = 0.5)]
     pub smoothing_strength: f32,
+    #[builder(default = [1.0, 1.0, 1.0])]
     pub lab_scales: [f32; 3],
     pub resize_width: Option<u32>,
     pub resize_height: Option<u32>,
     pub resize_scale: Option<f32>,
-    #[cfg_attr(feature = "wasm", serde(skip))]
-    pub resize_filter: FilterType,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        #[cfg(not(target_arch = "wasm32"))]
-        let num_threads = num_cpus::get();
-        #[cfg(target_arch = "wasm32")]
-        let num_threads = 1;
-
-        Config {
-            palette: Vec::new(),
-            mapping: Mapping::Palettized,
-            palettized_formula: palettized::Formula::CIEDE2000,
-            quant_level: 2,
-            transparency_threshold: 128,
-            num_threads,
-            smoothed_formula: smoothed::Formula::Idw,
-            smoothing_strength: 0.5,
-            lab_scales: [1.0, 1.0, 1.0],
-            resize_width: None,
-            resize_height: None,
-            resize_scale: None,
-            resize_filter: FilterType::Nearest,
-        }
-    }
+    #[builder(default)]
+    pub resize_filter: Filter,
 }
 
 impl fmt::Display for Config {
@@ -87,7 +88,7 @@ impl fmt::Display for Config {
     resize_width: {:?},
     resize_height: {:?},
     resize_scale: {:?},
-    resize_filter: {:?}
+    resize_filter: {:?},
 }}",
             self.palette
                 .iter()
@@ -107,7 +108,7 @@ impl fmt::Display for Config {
             self.resize_width,
             self.resize_height,
             self.resize_scale,
-            self.resize_filter
+            self.resize_filter,
         )
     }
 }

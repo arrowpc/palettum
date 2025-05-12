@@ -1,4 +1,10 @@
-use crate::{color::ConvertToLab, color::Lab, config::Config, errors::Errors, processing};
+use crate::{
+    color::ConvertToLab,
+    color::Lab,
+    config::{Config, Filter},
+    errors::Errors,
+    processing,
+};
 
 use image::{ImageFormat, RgbaImage};
 
@@ -65,116 +71,75 @@ impl Image {
         Ok(())
     }
 
-    // TODO: Simplify branching
     pub fn resize(
         &mut self,
         target_width: Option<u32>,
         target_height: Option<u32>,
         scale: Option<f32>,
-        filter: image::imageops::FilterType,
+        filter: Filter,
     ) {
-        fn apply_scale(dim: u32, scale: Option<f32>) -> u32 {
-            match scale {
-                Some(s) if s > 0.0 => ((dim as f32) * s).round() as u32,
-                _ => dim,
-            }
-        }
+        // Calculate target dimensions based on inputs
+        let (new_width, new_height) = match (target_width, target_height) {
+            (Some(w), Some(h)) if w > 0 && h > 0 => (w, h),
 
-        match (target_width, target_height, scale) {
-            // Both width and height specified
-            (Some(new_w), Some(new_h), scale) if new_w > 0 && new_h > 0 => {
-                let scaled_w = apply_scale(new_w, scale);
-                let scaled_h = apply_scale(new_h, scale);
-
-                if scaled_w != self.width || scaled_h != self.height {
-                    log::debug!(
-                        "Resizing self from {}x{} to {}x{} using filter {:?}",
-                        self.width,
-                        self.height,
-                        scaled_w,
-                        scaled_h,
-                        filter
-                    );
-                    self.buffer = image::imageops::resize(&self.buffer, scaled_w, scaled_h, filter);
-                    self.width = scaled_w;
-                    self.height = scaled_h;
-                } else {
-                    log::debug!("Skipping resize: Target dimensions match original.");
-                }
-            }
-            // Only width specified, preserve aspect ratio
-            (Some(new_w), None, scale) if new_w > 0 => {
+            (Some(w), None) if w > 0 => {
                 let aspect_ratio = self.height as f32 / self.width as f32;
-                let new_h = (new_w as f32 * aspect_ratio).round() as u32;
-
-                let scaled_w = apply_scale(new_w, scale);
-                let scaled_h = apply_scale(new_h, scale);
-
-                if scaled_w != self.width || scaled_h != self.height {
-                    log::debug!(
-                    "Resizing self from {}x{} to {}x{} (preserved aspect ratio) using filter {:?}",
-                    self.width,
-                    self.height,
-                    scaled_w,
-                    scaled_h,
-                    filter
-                );
-                    self.buffer = image::imageops::resize(&self.buffer, scaled_w, scaled_h, filter);
-                    self.width = scaled_w;
-                    self.height = scaled_h;
-                } else {
-                    log::debug!("Skipping resize: Target dimensions match original.");
-                }
+                let h = (w as f32 * aspect_ratio).round() as u32;
+                (w, h)
             }
-            // Only height specified, preserve aspect ratio
-            (None, Some(new_h), scale) if new_h > 0 => {
+
+            (None, Some(h)) if h > 0 => {
                 let aspect_ratio = self.width as f32 / self.height as f32;
-                let new_w = (new_h as f32 * aspect_ratio).round() as u32;
-
-                let scaled_w = apply_scale(new_w, scale);
-                let scaled_h = apply_scale(new_h, scale);
-
-                if scaled_w != self.width || scaled_h != self.height {
-                    log::debug!(
-                    "Resizing self from {}x{} to {}x{} (preserved aspect ratio) using filter {:?}",
-                    self.width,
-                    self.height,
-                    scaled_w,
-                    scaled_h,
-                    filter
-                );
-                    self.buffer = image::imageops::resize(&self.buffer, scaled_w, scaled_h, filter);
-                    self.width = scaled_w;
-                    self.height = scaled_h;
-                } else {
-                    log::debug!("Skipping resize: Target dimensions match original.");
-                }
+                let w = (h as f32 * aspect_ratio).round() as u32;
+                (w, h)
             }
-            // Only scale specified
-            (None, None, Some(s)) if s > 0.0 && (self.width > 0 && self.height > 0) => {
-                let scaled_w = apply_scale(self.width, Some(s));
-                let scaled_h = apply_scale(self.height, Some(s));
 
-                if scaled_w != self.width || scaled_h != self.height {
-                    log::debug!(
-                        "Resizing self from {}x{} to {}x{} (scale only) using filter {:?}",
-                        self.width,
-                        self.height,
-                        scaled_w,
-                        scaled_h,
-                        filter
-                    );
-                    self.buffer = image::imageops::resize(&self.buffer, scaled_w, scaled_h, filter);
-                    self.width = scaled_w;
-                    self.height = scaled_h;
-                } else {
-                    log::debug!("Skipping resize: Target dimensions match original.");
+            (None, None) => match scale {
+                Some(s) if s > 0.0 => {
+                    let w = ((self.width as f32) * s).round() as u32;
+                    let h = ((self.height as f32) * s).round() as u32;
+                    (w, h)
                 }
-            }
-            // No valid dimensions or scale provided
+                _ => {
+                    log::debug!("Skipping resize: No valid dimensions or scale provided.");
+                    return;
+                }
+            },
+
             _ => {
                 log::debug!("Skipping resize: No valid dimensions or scale provided.");
+                return;
             }
+        };
+
+        // Apply scaling if provided
+        let final_width = match scale {
+            Some(s) if s > 0.0 => ((new_width as f32) * s).round() as u32,
+            _ => new_width,
+        };
+
+        let final_height = match scale {
+            Some(s) if s > 0.0 => ((new_height as f32) * s).round() as u32,
+            _ => new_height,
+        };
+
+        // Only resize if dimensions actually change
+        if final_width != self.width || final_height != self.height {
+            log::debug!(
+                "Resizing from {}x{} to {}x{} using filter {:?}",
+                self.width,
+                self.height,
+                final_width,
+                final_height,
+                filter
+            );
+
+            self.buffer =
+                image::imageops::resize(&self.buffer, final_width, final_height, filter.into());
+            self.width = final_width;
+            self.height = final_height;
+        } else {
+            log::debug!("Skipping resize: Target dimensions match original.");
         }
     }
 

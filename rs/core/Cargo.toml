@@ -14,9 +14,14 @@ log.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
 num_cpus.workspace = true
+
 serde = { workspace = true, optional = true }
 wasm-bindgen = { workspace = true, optional = true }
 tsify = { workspace = true, optional = true }
 
+clap = { workspace = true, optional = true }
+bon = "3.6.3"
+
 [features]
-wasm = ["dep:wasm-bindgen", "dep:serde", "dep:tsify"]
+wasm = ["dep:wasm-bindgen", "dep:serde", "dep:tsify", "image/serde"]
+cli = ["dep:clap"]

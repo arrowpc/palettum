@@ -16,9 +16,10 @@ num_cpus = "1.16"
 serde = { version = "1.0", features = ["derive"] }
 tsify = "0.5.5"
 wasm-bindgen = "0.2.100"
-serde_json = "1.0"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 env_logger = "0.11"
 anyhow = "1.0"
+anydir = "0.1.2"
 
 [workspace.package]
 edition = "2021"
@@ -27,4 +28,4 @@ version = "0.5.0"
 description = "Tool for recoloring images and GIFs with any palette of your choice"
 
 [profile.release]
-lto = "fat"
+# lto = "fat"

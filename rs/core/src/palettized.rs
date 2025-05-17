@@ -12,6 +12,7 @@ use tsify::Tsify;
     derive(Tsify, Serialize, Deserialize),
     tsify(type_prefix = "Palettized")
 )]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum, strum_macros::Display))]
 pub enum Formula {
     CIE76,
     CIE94,
@@ -27,7 +28,7 @@ pub(crate) fn closest_rgb(reference: &Lab, colors: &[Lab], config: &Config) -> R
         .map(|(index, _)| index)
         .unwrap();
 
-    config.palette[index]
+    config.palette.colors[index]
 }
 
 fn calculate_delta_e(method: Formula, color1: &Lab, color2: &Lab) -> f32 {

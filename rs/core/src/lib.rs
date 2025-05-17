@@ -1,14 +1,15 @@
 mod color;
 mod config;
-mod errors;
 mod gif;
 mod image;
 mod math;
-mod palettized;
 mod processing;
-mod smoothed;
 
-pub use config::{Config, Mapping};
-pub use errors::Errors;
+pub mod utils;
+pub mod palettized;
+pub mod smoothed;
+pub mod error;
+
+pub use config::{Config, Mapping, Palette, Filter, PaletteKind};
 pub use gif::Gif;
 pub use image::Image;

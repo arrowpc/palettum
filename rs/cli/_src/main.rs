@@ -1,24 +1,14 @@
+use anyhow::Result;
 use clap::Parser;
 use palettum_cli::cli::args::Cli;
 
 #[cfg(feature = "tui")]
 use {console::style, palettum_cli::tui::run_tui};
 
-use palettum::error::Result;
 use palettum_cli::cli::runner::run_cli;
-use palettum_cli::logger;
 
 fn main() -> Result<()> {
-    if let Err(e) = logger::init() {
-        eprintln!("Failed to initialize logger: {}", e);
-    }
-
     let cli = Cli::parse();
-
-    if let Err(e) = run_cli(cli) {
-        log::error!("{}", e);
-        std::process::exit(1);
-    }
 
     #[cfg(feature = "tui")]
     if cli.command.is_none() {
@@ -32,5 +22,6 @@ fn main() -> Result<()> {
         return Ok(());
     }
 
+    run_cli(cli)?;
     Ok(())
 }

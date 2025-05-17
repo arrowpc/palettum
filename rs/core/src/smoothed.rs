@@ -14,6 +14,7 @@ use tsify::Tsify;
     derive(Tsify, Serialize, Deserialize),
     tsify(type_prefix = "Smoothed")
 )]
+#[cfg_attr(feature = "cli", derive(clap::ValueEnum, strum_macros::Display))]
 pub enum Formula {
     #[default]
     Idw,

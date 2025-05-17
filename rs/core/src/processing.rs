@@ -1,7 +1,7 @@
 use crate::{
     color::{ConvertToLab, Lab},
     config::{Config, Mapping},
-    errors::Errors,
+    error::{Error, Result},
     palettized, smoothed,
 };
 
@@ -36,7 +36,7 @@ impl ThreadLocalCache {
 
 pub fn generate_lookup_table(
     config: &Config,
-    lab_palette: &[Lab],
+    lab_colors: &[Lab],
     image_size: Option<usize>,
 ) -> Vec<Rgb<u8>> {
     let q = config.quant_level;
@@ -78,7 +78,7 @@ pub fn generate_lookup_table(
 
         let target_pixel = Rgba([r_val, g_val, b_val, 255]);
 
-        let result_rgb = compute_mapped_color_rgb(target_pixel, config, lab_palette);
+        let result_rgb = compute_mapped_color_rgb(target_pixel, config, lab_colors);
         Some((index, result_rgb))
     };
 
@@ -105,17 +105,17 @@ pub fn generate_lookup_table(
 pub(crate) fn compute_mapped_color_rgb(
     target: Rgba<u8>,
     config: &Config,
-    lab_palette: &[Lab],
+    lab_colors: &[Lab],
 ) -> Rgb<u8> {
     let reference = target.to_lab();
 
     match config.mapping {
-        Mapping::Palettized => palettized::closest_rgb(&reference, lab_palette, config),
-        Mapping::Smoothed => smoothed::closest_rgb(&reference, lab_palette, config),
+        Mapping::Palettized => palettized::closest_rgb(&reference, lab_colors, config),
+        Mapping::Smoothed => smoothed::closest_rgb(&reference, lab_colors, config),
         Mapping::SmoothedPalettized => {
-            let smoothed_rgb = smoothed::closest_rgb(&reference, lab_palette, config);
+            let smoothed_rgb = smoothed::closest_rgb(&reference, lab_colors, config);
             let smoothed_lab = smoothed_rgb.to_lab();
-            palettized::closest_rgb(&smoothed_lab, lab_palette, config)
+            palettized::closest_rgb(&smoothed_lab, lab_colors, config)
         }
     }
 }
@@ -123,10 +123,10 @@ pub(crate) fn compute_mapped_color_rgb(
 fn get_mapped_color_for_pixel(
     pixel: Rgba<u8>,
     config: &Config,
-    lab_palette: &[Lab],
+    lab_colors: &[Lab],
     cache: &mut ThreadLocalCache,
     lookup: Option<&[Rgb<u8>]>,
-) -> Result<Rgba<u8>, Errors> {
+) -> Result<Rgba<u8>> {
     if pixel.0[3] < config.transparency_threshold && config.mapping != Mapping::Smoothed {
         return Ok(Rgba([0, 0, 0, 0]));
     }
@@ -146,7 +146,7 @@ fn get_mapped_color_for_pixel(
                 if let Some(rgb_color) = lut.get(index) {
                     return Ok(Rgba([rgb_color.0[0], rgb_color.0[1], rgb_color.0[2], 255]));
                 } else {
-                    return Err(Errors::LutIndexOutOfBounds {
+                    return Err(Error::LutIndexOutOfBounds {
                         index,
                         size: lut.len(),
                     });
@@ -159,7 +159,7 @@ fn get_mapped_color_for_pixel(
         return Ok(*cached_color);
     }
 
-    let result_rgb = compute_mapped_color_rgb(pixel, config, lab_palette);
+    let result_rgb = compute_mapped_color_rgb(pixel, config, lab_colors);
     let alpha = if config.mapping == Mapping::Smoothed {
         pixel[3]
     } else {
@@ -175,9 +175,9 @@ fn get_mapped_color_for_pixel(
 pub(crate) fn process_pixels(
     image: &mut RgbaImage,
     config: &Config,
-    lab_palette: &[Lab],
+    lab_colors: &[Lab],
     lookup: Option<&[Rgb<u8>]>,
-) -> Result<(), Errors> {
+) -> Result<()> {
     let width = image.width();
     let height = image.height();
     log::debug!("Processing image pixels ({}x{})", width, height);
@@ -197,7 +197,7 @@ pub(crate) fn process_pixels(
             let pixel = Rgba([r, g, b, a]);
 
             let mapped_pixel =
-                get_mapped_color_for_pixel(pixel, config, lab_palette, &mut cache, lookup)?;
+                get_mapped_color_for_pixel(pixel, config, lab_colors, &mut cache, lookup)?;
 
             pixel_chunk[0] = mapped_pixel.0[0];
             pixel_chunk[1] = mapped_pixel.0[1];
@@ -227,7 +227,7 @@ pub(crate) fn process_pixels(
                         match get_mapped_color_for_pixel(
                             pixel,
                             config,
-                            lab_palette,
+                            lab_colors,
                             &mut cache,
                             lookup,
                         ) {

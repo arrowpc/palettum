@@ -1,7 +1,9 @@
-use thiserror::Error;
+use std::path::PathBuf;
 
-#[derive(Debug, Error)]
-pub enum Errors {
+use thiserror::Error as ThisError;
+
+#[derive(Debug, ThisError)]
+pub enum Error {
     #[error("Failed to load image: {0}")]
     ImageLoad(#[from] image::ImageError),
 
@@ -39,4 +41,43 @@ pub enum Errors {
         "Invalid thread count: Specifying more threads than available CPU cores ({0}) is redundant"
     )]
     InvalidThreadCount(usize),
+
+    #[error("Invalid filename (could not extract file stem)")]
+    InvalidFilename,
+
+    #[error("JSON parse error: {0}")]
+    Json(#[from] serde_json::Error),
+
+    #[error("Missing required field in palette data: '{0}'")]
+    MissingField(&'static str),
+
+    #[error("Invalid data format: {0}")]
+    InvalidDataFormat(String),
+
+    #[error("Path contains invalid UTF-8 characters")]
+    InvalidPathUtf8,
+
+    #[error("Palette '{0}' not found by ID, name, or path")]
+    PaletteNotFound(String),
+
+    #[error("Cannot override default palette: '{0}'")]
+    CannotOverrideDefault(String),
+
+    #[error("Custom palette already exists at {0}")]
+    CustomPaletteExists(PathBuf),
+
+    #[error("Could not determine the custom palettes directory")]
+    CannotDetermineCustomDir,
+
+    #[error("Invalid path for saving palette")]
+    InvalidSavePath,
+
+    #[error("Logger error: `{0}`")]
+    LoggerError(String),
+
+    #[error("{0}")]
+    ParseError(String),
 }
+
+/// Result type of the core library.
+pub type Result<T> = core::result::Result<T, Error>;

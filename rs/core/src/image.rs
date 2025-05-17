@@ -2,7 +2,7 @@ use crate::{
     color::ConvertToLab,
     color::Lab,
     config::{Config, Filter},
-    errors::Errors,
+    error::{Error, Result},
     processing,
 };
 
@@ -20,7 +20,7 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn from_memory(image_bytes: &[u8]) -> Result<Self, Errors> {
+    pub fn from_memory(image_bytes: &[u8]) -> Result<Self> {
         let dynamic_image = image::load_from_memory(image_bytes)?;
         let buffer = dynamic_image.into_rgba8();
         let width = buffer.width();
@@ -32,7 +32,7 @@ impl Image {
         })
     }
 
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Errors> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let file = File::open(&path)?;
         let format = ImageFormat::from_path(&path)?;
         let dynamic_image = image::load(BufReader::new(file), format)?;
@@ -46,13 +46,13 @@ impl Image {
         })
     }
 
-    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Errors> {
+    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
         self.write_to_writer(writer, ImageFormat::Png)
     }
 
-    pub fn write_to_memory(&self) -> Result<Vec<u8>, Errors> {
+    pub fn write_to_memory(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         {
             let writer = Cursor::new(&mut buffer);
@@ -66,7 +66,7 @@ impl Image {
         &self,
         mut writer: W,
         format: ImageFormat,
-    ) -> Result<(), Errors> {
+    ) -> Result<()> {
         self.buffer.write_to(&mut writer, format)?;
         Ok(())
     }
@@ -77,7 +77,24 @@ impl Image {
         target_height: Option<u32>,
         scale: Option<f32>,
         filter: Filter,
-    ) {
+    ) -> Result<()> {
+        if let Some(width) = target_width {
+            if width == 0 {
+                return Err(Error::InvalidResizeDimensions);
+            }
+        }
+
+        if let Some(height) = target_height {
+            if height == 0 {
+                return Err(Error::InvalidResizeDimensions);
+            }
+        }
+
+        if let Some(s) = scale {
+            if s < 0.0 {
+                return Err(Error::InvalidResizeScale);
+            }
+        }
         // Calculate target dimensions based on inputs
         let (new_width, new_height) = match (target_width, target_height) {
             (Some(w), Some(h)) if w > 0 && h > 0 => (w, h),
@@ -102,13 +119,13 @@ impl Image {
                 }
                 _ => {
                     log::debug!("Skipping resize: No valid dimensions or scale provided.");
-                    return;
+                    return Ok(());
                 }
             },
 
             _ => {
                 log::debug!("Skipping resize: No valid dimensions or scale provided.");
-                return;
+                return Ok(());
             }
         };
 
@@ -141,35 +158,31 @@ impl Image {
         } else {
             log::debug!("Skipping resize: Target dimensions match original.");
         }
+
+        Ok(())
     }
 
-    pub fn palettify(&mut self, config: &Config) -> Result<(), Errors> {
+    pub fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 
-        let lab_palette = config
+        let lab_colors = config
             .palette
+            .colors
             .iter()
             .map(|rgb| rgb.to_lab())
             .collect::<Vec<Lab>>();
 
         let lookup = if config.quant_level > 0 {
             let img_size = self.width as usize * self.height as usize;
-            processing::generate_lookup_table(config, &lab_palette, Some(img_size))
+            processing::generate_lookup_table(config, &lab_colors, Some(img_size))
         } else {
             Vec::new()
         };
 
-        self.resize(
-            config.resize_width,
-            config.resize_height,
-            config.resize_scale,
-            config.resize_filter,
-        );
-
         processing::process_pixels(
             &mut self.buffer,
             config,
-            &lab_palette,
+            &lab_colors,
             if lookup.is_empty() {
                 None
             } else {

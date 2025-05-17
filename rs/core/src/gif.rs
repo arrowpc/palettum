@@ -1,4 +1,10 @@
-use crate::{color::ConvertToLab, config::Config, errors::Errors, image::Image, processing};
+use crate::{
+    color::ConvertToLab,
+    config::{Config, Filter},
+    error::{Error, Result},
+    image::Image,
+    processing,
+};
 
 use image::{
     codecs::gif::{GifEncoder, Repeat},
@@ -18,7 +24,7 @@ pub struct Gif {
 }
 
 impl Gif {
-    pub fn from_memory(gif_bytes: &[u8]) -> Result<Self, Errors> {
+    pub fn from_memory(gif_bytes: &[u8]) -> Result<Self> {
         let mut cursor = Cursor::new(gif_bytes);
         let (repeat, speed) = Self::extract_metadata(&mut cursor)?;
         cursor.seek(SeekFrom::Start(0))?;
@@ -36,7 +42,7 @@ impl Gif {
         })
     }
 
-    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, Errors> {
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
         let mut file = File::open(&path)?;
         let (repeat, speed) = Self::extract_metadata(&mut file)?;
         file.seek(SeekFrom::Start(0))?;
@@ -54,13 +60,13 @@ impl Gif {
         })
     }
 
-    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Errors> {
+    pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let file = File::create(path)?;
         let writer = BufWriter::new(file);
         self.write_to_writer(writer)
     }
 
-    pub fn write_to_memory(&self) -> Result<Vec<u8>, Errors> {
+    pub fn write_to_memory(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         {
             let writer = Cursor::new(&mut buffer);
@@ -69,7 +75,7 @@ impl Gif {
         Ok(buffer)
     }
 
-    fn write_to_writer<W: std::io::Write>(&self, writer: W) -> Result<(), Errors> {
+    fn write_to_writer<W: std::io::Write>(&self, writer: W) -> Result<()> {
         let mut encoder = GifEncoder::new_with_speed(writer, self.speed.into());
 
         // Use the repeat setting from the original GIF, defaulting to Infinite if not specified
@@ -83,13 +89,47 @@ impl Gif {
         Ok(())
     }
 
-    fn extract_metadata<R: Read + Seek>(reader: &mut R) -> Result<(Option<Repeat>, u16), Errors> {
+    pub fn resize(
+        &mut self,
+        target_width: Option<u32>,
+        target_height: Option<u32>,
+        scale: Option<f32>,
+        filter: Filter,
+    ) -> Result<()> {
+        for frame in &mut self.frames {
+            let mut image = Image {
+                buffer: frame.buffer().clone(),
+                width: frame.buffer().width(),
+                height: frame.buffer().height(),
+            };
+            image.resize(target_width, target_height, scale, filter)?;
+            *frame = Frame::from_parts(image.buffer, frame.left(), frame.top(), frame.delay());
+        }
+
+        // Update GIF dimensions if resizing occurred
+        if let Some(w) = target_width {
+            self.width = w;
+        }
+        if let Some(h) = target_height {
+            self.height = h;
+        }
+        if let Some(s) = scale {
+            if s > 0.0 {
+                self.width = ((self.width as f32) * s).round() as u32;
+                self.height = ((self.height as f32) * s).round() as u32;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn extract_metadata<R: Read + Seek>(reader: &mut R) -> Result<(Option<Repeat>, u16)> {
         // GIF header is 6 bytes ("GIF87a" or "GIF89a")
         let mut header = [0u8; 6];
         reader.read_exact(&mut header)?;
 
         if &header[0..3] != b"GIF" {
-            return Err(Errors::InvalidGifFile);
+            return Err(Error::InvalidGifFile);
         }
 
         // Skip logical screen descriptor (width, height, etc.) - 7 bytes
@@ -203,20 +243,19 @@ impl Gif {
         Ok((repeat, speed))
     }
 
-    pub fn palettify(&mut self, config: &Config) -> Result<(), Errors> {
+    pub fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 
-        let target_dims = (config.resize_width, config.resize_height);
-
-        let lab_palette = config
+        let lab_colors = config
             .palette
+            .colors
             .iter()
             .map(|rgb| rgb.to_lab())
             .collect::<Vec<_>>();
 
         let lookup = if config.quant_level > 0 {
             let avg_frame_size = self.width as usize * self.height as usize;
-            processing::generate_lookup_table(config, &lab_palette, Some(avg_frame_size))
+            processing::generate_lookup_table(config, &lab_colors, Some(avg_frame_size))
         } else {
             Vec::new()
         };
@@ -227,36 +266,8 @@ impl Gif {
             Some(&lookup[..])
         };
 
-        // Don't like how I'm cloning and mutating, will probably have to create a lower level Gif
-        // that takes in an Image as a Frame instead
         for frame in &mut self.frames {
-            let needs_resize =
-                target_dims.0.is_some() || target_dims.1.is_some() || config.resize_scale.is_some();
-
-            if needs_resize {
-                let mut image = Image {
-                    buffer: frame.buffer().clone(),
-                    width: frame.buffer().width(),
-                    height: frame.buffer().height(),
-                };
-                image.resize(
-                    target_dims.0,
-                    target_dims.1,
-                    config.resize_scale,
-                    config.resize_filter,
-                );
-                processing::process_pixels(&mut image.buffer, config, &lab_palette, lookup_opt)?;
-                *frame = Frame::from_parts(image.buffer, frame.left(), frame.top(), frame.delay());
-            } else {
-                processing::process_pixels(frame.buffer_mut(), config, &lab_palette, lookup_opt)?;
-            }
-        }
-
-        if let Some(w) = target_dims.0 {
-            self.width = w;
-        }
-        if let Some(h) = target_dims.1 {
-            self.height = h;
+            processing::process_pixels(frame.buffer_mut(), config, &lab_colors, lookup_opt)?;
         }
 
         Ok(())

@@ -1,18 +1,129 @@
+mod color;
+mod config;
+mod gif;
+mod image;
+mod math;
+mod processing;
+
+pub mod error;
+pub mod palettized;
+pub mod smoothed;
+
 use std::{
     fs,
     path::{Path, PathBuf},
     sync::OnceLock,
 };
 
+use ::image::{imageops::FilterType, ImageFormat, Rgb};
+use bon::Builder;
+pub use config::Config;
+use error::{Error, Result};
+pub use gif::Gif;
+pub use image::Image;
+
+#[cfg(feature = "wasm")]
+use crate::color::rgb_vec_serde;
+#[cfg(feature = "wasm")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "wasm")]
+use tsify::Tsify;
+
+#[cfg(feature = "cli")]
+use clap::ValueEnum;
+
+use strum_macros::Display;
+use tabled::Tabled;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
+#[cfg_attr(feature = "cli", derive(ValueEnum, Display))]
+pub enum Mapping {
+    Palettized,
+    #[default]
+    Smoothed,
+    SmoothedPalettized,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
+#[cfg_attr(feature = "cli", derive(ValueEnum, Display))]
+pub enum Filter {
+    Nearest,
+    Triangle,
+    CatmullRom,
+    Gaussian,
+    #[default]
+    Lanczos3,
+}
+
+impl From<Filter> for FilterType {
+    fn from(f: Filter) -> Self {
+        match f {
+            Filter::Nearest => FilterType::Nearest,
+            Filter::Triangle => FilterType::Triangle,
+            Filter::CatmullRom => FilterType::CatmullRom,
+            Filter::Gaussian => FilterType::Gaussian,
+            Filter::Lanczos3 => FilterType::Lanczos3,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq, Display)]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
+pub enum PaletteKind {
+    Default,
+    Custom,
+    #[default]
+    Unset,
+}
+
+#[derive(Debug, Clone, Builder, Tabled)]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
+#[cfg_attr(feature = "wasm", serde(default))]
+pub struct Palette {
+    #[builder(default = generate_id())]
+    pub id: String,
+
+    #[builder(default = "none".to_string())]
+    pub source: String,
+
+    #[builder(default)]
+    pub kind: PaletteKind,
+
+    #[tabled(skip)]
+    #[cfg_attr(feature = "wasm", serde(with = "rgb_vec_serde"))]
+    pub colors: Vec<Rgb<u8>>,
+}
+
+fn generate_id() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let since_epoch = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+    format!("id{}", since_epoch)
+}
+
+pub fn palettify_io(input: &Path, output: &Path, config: &Config) -> Result<()> {
+    let format = ImageFormat::from_path(input)?;
+    if format == ImageFormat::Gif {
+        let mut gif = Gif::from_file(input)?;
+        gif.palettify(config)?;
+        gif.write_to_file(output)?;
+    } else {
+        let mut img = Image::from_file(input)?;
+        img.palettify(config)?;
+        img.write_to_file(output)?;
+    }
+    Ok(())
+}
+
 use anydir::{anydir, AnyDir, DirOps, FileEntry};
 use env_home::env_home_dir as home_dir;
-use image::Rgb;
 use serde_json::{json, Map, Value};
 
-use crate::config::{Palette, PaletteKind};
-use crate::error::{Error, Result};
-
-static DEFAULT_PALETTES_DIR: AnyDir = anydir!(ct, "$CARGO_MANIFEST_DIR/../../palettes");
+static DEFAULT_PALETTES_DIR: AnyDir = anydir!(ct, "$CARGO_MANIFEST_DIR/../palettes");
 static DEFAULT_PALETTES_CACHE: OnceLock<Vec<Palette>> = OnceLock::new();
 
 static CUSTOM_PALETTES_DIR: OnceLock<AnyDir> = OnceLock::new();

@@ -1,8 +1,8 @@
 [workspace]
 members = [
-    "rs/core",
-    "rs/wasm",
-    "rs/cli",
+    "core",
+    "wasm",
+    "cli",
 ]
 resolver = "2"
 

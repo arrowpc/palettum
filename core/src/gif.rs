@@ -1,9 +1,9 @@
 use crate::{
     color::ConvertToLab,
-    config::{Config, Filter},
+    config::Config,
     error::{Error, Result},
     image::Image,
-    processing,
+    processing, Filter,
 };
 
 use image::{

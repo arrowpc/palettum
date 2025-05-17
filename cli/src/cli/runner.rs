@@ -9,9 +9,9 @@ use anydir::AnyFileEntry;
 use log::{error, info};
 use palettum::{
     error::{Error, Result},
-    utils::{self},
-    Config, Gif, Image, PaletteKind,
+    palettify_io, Config, PaletteKind,
 };
+use palettum::{get_all_palettes, palette_from_file_entry, save_custom_palette};
 use tabled::Table;
 
 use indicatif::{MultiProgress, ProgressBar};
@@ -137,7 +137,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                 if let Some(p) = output.parent() {
                     std::fs::create_dir_all(p)?;
                 }
-                palettify_file(&input, &output, &config)?;
+                palettify_io(&input, &output, &config)?;
 
                 let dt: Duration = start.elapsed();
                 info!("Done in {}", s.secondary.apply_to(format_duration(dt)));
@@ -207,8 +207,8 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                         let fname = input.file_name().unwrap_or_default().to_string_lossy();
                         job_pbs.get(&job_name).unwrap().set_message(format!(
                             "{} → {}",
-                            s.primary.apply_to(&fname), // input file: primary
-                            s.secondary.apply_to(output.display())  // output file: secondary
+                            s.primary.apply_to(&fname),
+                            s.secondary.apply_to(output.display())
                         ));
 
                         if let Some(p) = output.parent() {
@@ -227,7 +227,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                                 .quant_level(q)
                                 .build(),
                         );
-                        match palettify_file(&input, &output, &cfg) {
+                        match palettify_io(&input, &output, &cfg) {
                             Ok(_) => {
                                 job_pbs.get(&job_name).unwrap().inc(1);
                                 if let Some(main_pb) = main_pb.as_ref() {
@@ -283,7 +283,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         }
 
         Commands::List => {
-            let palettes = utils::get_all_palettes();
+            let palettes = get_all_palettes();
             let mut table = Table::new(&palettes);
             table.with(tabled::settings::Style::modern_rounded());
             table = table.fit_to_terminal(None, true);
@@ -298,14 +298,14 @@ pub fn run_cli(cli: Cli) -> Result<()> {
 
         Commands::Save(args) => {
             let path = AnyFileEntry::from_path(args.path)?;
-            let palette = utils::palette_from_file_entry(&path, PaletteKind::Custom)?;
-            let saved_path = utils::save_custom_palette(&palette, args.force)?;
+            let palette = palette_from_file_entry(&path, PaletteKind::Custom)?;
+            let saved_path = save_custom_palette(&palette, args.force)?;
             let s = style::theme();
 
             info!(
                 "{} saved to: {}",
-                s.highlight.apply_to(palette.id), // palette id: primary
-                s.secondary.apply_to(saved_path.display())  // path: secondary
+                s.highlight.apply_to(palette.id),
+                s.secondary.apply_to(saved_path.display())
             );
 
             Ok(())
@@ -407,20 +407,6 @@ fn determine_output_path_dir(
             parent.join(new_dir_name)
         }
     }
-}
-
-fn palettify_file(input: &Path, output: &Path, config: &Config) -> Result<()> {
-    let format = ImageFormat::from_path(input)?;
-    if format == ImageFormat::Gif {
-        let mut gif = Gif::from_file(input)?;
-        gif.palettify(config)?;
-        gif.write_to_file(output)?;
-    } else {
-        let mut img = Image::from_file(input)?;
-        img.palettify(config)?;
-        img.write_to_file(output)?;
-    }
-    Ok(())
 }
 
 fn copy_non_image_files(src_dir: &Path, dst_dir: &Path, image_exts: &[&str]) -> Result<()> {

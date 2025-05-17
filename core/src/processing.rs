@@ -1,8 +1,8 @@
 use crate::{
     color::{ConvertToLab, Lab},
-    config::{Config, Mapping},
+    config::Config,
     error::{Error, Result},
-    palettized, smoothed,
+    palettized, smoothed, Mapping,
 };
 
 use image::{Rgb, Rgba, RgbaImage};
@@ -225,11 +225,7 @@ pub(crate) fn process_pixels(
                         let pixel = Rgba([r, g, b, a]);
 
                         match get_mapped_color_for_pixel(
-                            pixel,
-                            config,
-                            lab_colors,
-                            &mut cache,
-                            lookup,
+                            pixel, config, lab_colors, &mut cache, lookup,
                         ) {
                             Ok(mapped_pixel) => {
                                 pixel_chunk[0] = mapped_pixel.0[0];

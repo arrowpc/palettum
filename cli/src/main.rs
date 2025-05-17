@@ -1,12 +1,12 @@
 use clap::Parser;
-use palettum_cli::cli::args::Cli;
+use cli::cli::args::Cli;
 
 #[cfg(feature = "tui")]
 use {console::style, palettum_cli::tui::run_tui};
 
+use cli::cli::runner::run_cli;
+use cli::logger;
 use palettum::error::Result;
-use palettum_cli::cli::runner::run_cli;
-use palettum_cli::logger;
 
 fn main() -> Result<()> {
     if let Err(e) = logger::init() {

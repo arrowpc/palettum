@@ -1,5 +1,5 @@
 use image::ImageFormat;
-use palettum::{Config, Errors, Gif, Image};
+use palettum::{error::Result, Config, Gif, Image};
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
 // TODO:
@@ -16,7 +16,7 @@ pub fn palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>, JsValu
     _palettify(image_bytes, config).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
-fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>, Errors> {
+fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
     let start_time = Instant::now();
     log::info!("Received image bytes for processing in WASM...");
 

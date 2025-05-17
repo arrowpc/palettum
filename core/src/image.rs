@@ -1,9 +1,9 @@
 use crate::{
     color::ConvertToLab,
     color::Lab,
-    config::{Config, Filter},
+    config::Config,
     error::{Error, Result},
-    processing,
+    processing, Filter,
 };
 
 use image::{ImageFormat, RgbaImage};

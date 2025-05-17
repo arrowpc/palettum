@@ -1,13 +1,7 @@
+use palettum::{find_palette, palettized, smoothed, Filter, Mapping, Palette};
 use std::path::PathBuf;
-use palettum::{palettized, smoothed, utils::find_palette, Filter, Mapping, Palette};
 
-use clap::{
-    ArgAction, Parser , Subcommand, Args
-};
-
-
-
-
+use clap::{ArgAction, Args, Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -24,7 +18,7 @@ use clap::{
     disable_help_flag = true,
     disable_version_flag = false,
     styles(crate::style::clap_styles()),
-    rename_all_env = "screaming-snake",
+    rename_all_env = "screaming-snake"
 )]
 pub struct Cli {
     #[arg(
@@ -38,7 +32,7 @@ pub struct Cli {
     pub help: Option<bool>,
 
     #[arg(short,
-        long, 
+        long,
         action = ArgAction::Count,
         help_heading = Some("FLAGS"))]
     pub verbose: u8,
@@ -52,13 +46,11 @@ pub struct Cli {
 pub enum Commands {
     Palettify(PalettifyArgs),
     List,
-    #[command(
-about = "Saves your palette locally to be used wherever.\n\
+    #[command(about = "Saves your palette locally to be used wherever.\n\
                   You can easily create and export palettes at \
                   \x1b]8;;https://palettum.com\x1b\\\
                   \x1b[4;94mpalettum.com\x1b[0m\
-                  \x1b]8;;\x1b\\",
-     )]
+                  \x1b]8;;\x1b\\")]
     Save(SaveArgs),
     // TODO: Delete,
 }
@@ -66,11 +58,7 @@ about = "Saves your palette locally to be used wherever.\n\
 #[derive(Args, Debug)]
 pub struct PalettifyArgs {
     /// Input files or directories (comma-separated)
-    #[arg(
-        value_name = "PATH",
-        value_delimiter = ',',
-        required = true,
-    )]
+    #[arg(value_name = "PATH", value_delimiter = ',', required = true)]
     pub input_paths: Vec<PathBuf>,
 
     #[arg(
@@ -83,7 +71,6 @@ pub struct PalettifyArgs {
     )]
     pub palette: Palette,
 
-
     #[arg(
         short,
         long,
@@ -93,7 +80,6 @@ pub struct PalettifyArgs {
         // required = true,
     )]
     pub mapping: Mapping,
-
 
     #[arg(
         // short,
@@ -105,9 +91,9 @@ pub struct PalettifyArgs {
     )]
     pub palettized_formula: palettized::Formula,
 
-
     /// 0 To disable transparency [range: 0 - 255]
-    #[arg(short,
+    #[arg(
+        short,
         long,
         value_name = "CHANNEL",
         default_value_t = 128,
@@ -115,14 +101,13 @@ pub struct PalettifyArgs {
     )]
     pub alpha_threshold: u8,
 
-
     #[arg(
         short,
         long,
         value_enum,
         value_name = "FORMULA",
         default_value = "idw",
-        help_heading = "SMOOTHED",
+        help_heading = "SMOOTHED"
     )]
     pub smoothed_formula: smoothed::Formula,
 
@@ -130,11 +115,10 @@ pub struct PalettifyArgs {
     #[arg(
         long,
         value_name = "STRENGTH",
-        default_value_t = 0.5, 
-        help_heading = "SMOOTHED",
+        default_value_t = 0.5,
+        help_heading = "SMOOTHED"
     )]
     pub smoothing_strength: f32,
-
 
     #[arg(
         short,
@@ -148,28 +132,19 @@ pub struct PalettifyArgs {
     )]
     pub lab_scales: [f32; 3],
 
-
     /// Resize output to this width. If height is not set, aspect ratio is preserved
-    #[arg(
-        long,
-        value_name = "PIXELS",
-        help_heading = "SIZE",
-    )]
+    #[arg(long, value_name = "PIXELS", help_heading = "SIZE")]
     pub width: Option<u32>,
 
     /// Resize output to this height. If width is not set, aspect ratio is preserved
-    #[arg(
-        long,
-        value_name = "PIXELS",
-        help_heading = "SIZE",
-    )]
+    #[arg(long, value_name = "PIXELS", help_heading = "SIZE")]
     pub height: Option<u32>,
 
     ///  Resize output by a scale factor. Use 'Nx' format (e.g. '0.5x') or 'N%' format (e.g. '50%')
     #[arg(
         long,
         value_name = "FACTOR",
-        value_parser = parse_scale, 
+        value_parser = parse_scale,
         help_heading = "SIZE",
     )]
     pub scale: Option<f32>,
@@ -177,8 +152,8 @@ pub struct PalettifyArgs {
     #[arg(
         long,
         value_name = "FILTER",
-        default_value = "nearest", 
-        help_heading = "SIZE",
+        default_value = "nearest",
+        help_heading = "SIZE"
     )]
     pub filter: Filter,
 
@@ -186,7 +161,7 @@ pub struct PalettifyArgs {
         short,
         long,
         value_name = "COUNT",
-        default_value_t = num_cpus::get(), 
+        default_value_t = num_cpus::get(),
         help_heading = "PERF",
     )]
     pub threads: usize,
@@ -196,8 +171,8 @@ pub struct PalettifyArgs {
         short,
         long,
         value_name = "LEVEL",
-        default_value_t = 0, 
-        help_heading = "PERF",
+        default_value_t = 0,
+        help_heading = "PERF"
     )]
     pub quantization: u8,
 
@@ -205,12 +180,11 @@ pub struct PalettifyArgs {
     #[clap(short, long)]
     pub output_path: Option<PathBuf>,
 
-    // TODO: fix dis 
+    // TODO: fix dis
     /// Comma-separated list of output files (must match number of inputs)
     #[clap(long, value_delimiter = ',')]
     pub output_files: Option<Vec<PathBuf>>,
-    }
-
+}
 
 #[derive(Args, Debug)]
 pub struct SaveArgs {
@@ -219,24 +193,19 @@ pub struct SaveArgs {
     /// {
     ///   "colors": [ { "r": 255, "g": 0, "b": 0 } ]
     /// }
-    #[arg(
-        value_name = "JSON_PATH",
-        required = true,
-    )]
+    #[arg(value_name = "JSON_PATH", required = true)]
     pub path: PathBuf,
 
-    /// Allows you to overwrite existing custom palettes 
+    /// Allows you to overwrite existing custom palettes
     #[arg(
         short,
         long,
         value_name = "FORCE",
         default_value_t = false,
-        help_heading = "FLAGS",
+        help_heading = "FLAGS"
     )]
     pub force: bool,
-
 }
-
 
 #[derive(Args, Debug)]
 pub struct ListArgs {
@@ -245,23 +214,18 @@ pub struct ListArgs {
     /// {
     ///   "colors": [ { "r": 255, "g": 0, "b": 0 } ]
     /// }
-    #[arg(
-        value_name = "JSON_PATH",
-        required = true,
-    )]
+    #[arg(value_name = "JSON_PATH", required = true)]
     pub path: PathBuf,
 
-    /// Allows you to overwrite existing custom palettes 
+    /// Allows you to overwrite existing custom palettes
     #[arg(
         short,
         long,
         value_name = "FORCE",
         default_value_t = false,
-        help_heading = "FLAGS",
+        help_heading = "FLAGS"
     )]
     pub force: bool,
-
-
 }
 
 // TODO: Support JSON file inputs
@@ -302,4 +266,3 @@ fn parse_scale(s: &str) -> Result<f32, String> {
             .map_err(|e| format!("Invalid scale '{}': {}", trimmed, e))
     }
 }
-

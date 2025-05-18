@@ -189,6 +189,7 @@ impl Image {
             Vec::new()
         };
 
+        log::debug!("Processing image pixels ({}x{})", self.width, self.height);
         processing::process_pixels(
             &mut self.buffer,
             config,
@@ -199,6 +200,8 @@ impl Image {
                 Some(&lookup)
             },
         )?;
+        log::debug!("Pixel processing complete.");
+
         Ok(())
     }
 }

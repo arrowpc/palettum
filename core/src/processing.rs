@@ -180,7 +180,6 @@ pub(crate) fn process_pixels(
 ) -> Result<()> {
     let width = image.width();
     let height = image.height();
-    log::debug!("Processing image pixels ({}x{})", width, height);
 
     let raw_data = image.as_mut();
     let bytes_per_pixel = 4;
@@ -243,6 +242,5 @@ pub(crate) fn process_pixels(
         });
     }
 
-    log::debug!("Pixel processing complete.");
     Ok(())
 }

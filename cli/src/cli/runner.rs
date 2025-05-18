@@ -19,8 +19,8 @@ use style::FitToTerminal;
 use tabled::Table;
 use walkdir::WalkDir;
 
-const INDIVIDUAL_FILES_LABEL: &str = "Individual Files";
-const MAIN_BAR_LABEL: &str = "All Files";
+const INDIVIDUAL_FILES_LABEL: &str = "Individual";
+const MAIN_BAR_LABEL: &str = "Total";
 const JOB_PREFIX_WIDTH: usize = 15;
 
 fn format_prefix(name: &str) -> String {
@@ -32,7 +32,7 @@ fn format_prefix(name: &str) -> String {
     format!("{:width$}", s, width = JOB_PREFIX_WIDTH)
 }
 
-pub fn run_cli(cli: Cli) -> Result<()> {
+pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
     match cli.command {
         Commands::Palettify(args) => {
             // --- 1) BUILD JOB LIST & COUNT FILES ---
@@ -108,7 +108,8 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                 info!(
                     "Palettifying:\n {} → {}\n Palette: {}",
                     s.primary.apply_to(input.display()),
-                    s.secondary.apply_to(output.display()),
+                    s.secondary
+                        .apply_to(output_with_final_ext(&input, &output).display()),
                     s.highlight.apply_to(args.palette.id.clone()),
                 );
 
@@ -146,7 +147,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
 
             // --- 3) MULTI-FILE WITH PROGRESS BARS ---
             let bar_width = 40;
-            let m = Arc::new(MultiProgress::new());
+            let m = multi.clone();
 
             let mut job_pbs = HashMap::new();
             let mut job_names: Vec<_> = jobs.keys().cloned().collect();
@@ -208,7 +209,8 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                         job_pbs.get(&job_name).unwrap().set_message(format!(
                             "{} → {}",
                             s.primary.apply_to(&fname),
-                            s.secondary.apply_to(output.display())
+                            s.secondary
+                                .apply_to(output_with_final_ext(&input, &output).display())
                         ));
 
                         if let Some(p) = output.parent() {
@@ -237,17 +239,19 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                             args.filter,
                         ) {
                             Ok(_) => {
-                                job_pbs.get(&job_name).unwrap().inc(1);
+                                let pb = job_pbs.get(&job_name).unwrap();
+                                pb.inc(1);
+                                if pb.position() >= pb.length().unwrap_or(0) {
+                                    pb.set_message(s.success.apply_to("Completed").to_string());
+                                }
                                 if let Some(main_pb) = main_pb.as_ref() {
                                     main_pb.inc(1);
                                 }
                             }
                             Err(e) => {
-                                job_pbs.get(&job_name).unwrap().inc(1);
-                                job_pbs
-                                    .get(&job_name)
-                                    .unwrap()
-                                    .set_message(s.error.apply_to("Error").to_string());
+                                let pb = job_pbs.get(&job_name).unwrap();
+                                pb.inc(1);
+                                pb.set_message(s.error.apply_to("Error").to_string());
                                 errs.lock().unwrap().push(format!(
                                     "{} → {} ({})",
                                     input.display(),
@@ -406,6 +410,7 @@ fn path_with_stem(original_path: &Path) -> PathBuf {
     parent.join(stem)
 }
 
+// TODO: Check if directory already exists & implement --force flag for palettify command
 fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
     let exts = ["gif", "png", "jpg", "jpeg", "webp"];
     let mut image_files = Vec::new();
@@ -435,4 +440,15 @@ fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(image_files)
+}
+
+fn output_with_final_ext(input: &Path, output: &Path) -> PathBuf {
+    let mut out = output.to_path_buf();
+    let ext = match determine_path_type(input) {
+        Ok(PathType::Gif) => "gif",
+        Ok(PathType::Image) => "png",
+        _ => return out,
+    };
+    out.set_extension(ext);
+    out
 }

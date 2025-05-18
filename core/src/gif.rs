@@ -111,6 +111,36 @@ impl Gif {
         scale: Option<f32>,
         filter: Filter,
     ) -> Result<()> {
+        let (base_width, base_height) = match (target_width, target_height) {
+            (Some(w), Some(h)) => (w, h),
+            (Some(w), None) => {
+                let aspect_ratio = self.height as f32 / self.width as f32;
+                let h = (w as f32 * aspect_ratio).round() as u32;
+                (w, if h == 0 { 1 } else { h })
+            }
+            (None, Some(h)) => {
+                let aspect_ratio = self.width as f32 / self.height as f32;
+                let w = (h as f32 * aspect_ratio).round() as u32;
+                (if w == 0 { 1 } else { w }, h)
+            }
+            (None, None) => (self.width, self.height),
+        };
+
+        let (final_width, final_height) = if let Some(s) = scale {
+            let w = ((base_width as f32) * s).round() as u32;
+            let h = ((base_height as f32) * s).round() as u32;
+            (if w == 0 { 1 } else { w }, if h == 0 { 1 } else { h })
+        } else {
+            (base_width, base_height)
+        };
+
+        // If the final dimensions are the same as the current, skip and log once
+        if final_width == self.width && final_height == self.height {
+            log::debug!("Skipping resize: Target dimensions match original.");
+            return Ok(());
+        }
+
+        // Otherwise, resize all frames
         for frame in &mut self.frames {
             let mut image = Image {
                 buffer: frame.buffer().clone(),
@@ -121,19 +151,8 @@ impl Gif {
             *frame = Frame::from_parts(image.buffer, frame.left(), frame.top(), frame.delay());
         }
 
-        // Update GIF dimensions if resizing occurred
-        if let Some(w) = target_width {
-            self.width = w;
-        }
-        if let Some(h) = target_height {
-            self.height = h;
-        }
-        if let Some(s) = scale {
-            if s > 0.0 {
-                self.width = ((self.width as f32) * s).round() as u32;
-                self.height = ((self.height as f32) * s).round() as u32;
-            }
-        }
+        self.width = final_width;
+        self.height = final_height;
 
         Ok(())
     }
@@ -281,9 +300,11 @@ impl Gif {
             Some(&lookup[..])
         };
 
+        log::debug!("Processing gif pixels ({}x{})", self.width, self.height);
         for frame in &mut self.frames {
             processing::process_pixels(frame.buffer_mut(), config, &lab_colors, lookup_opt)?;
         }
+        log::debug!("Pixel processing complete.");
 
         Ok(())
     }

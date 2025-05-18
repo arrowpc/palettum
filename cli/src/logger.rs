@@ -1,14 +1,17 @@
 use crate::style;
 use console::Style;
 use env_logger::Builder;
-use log::Level;
+use indicatif::MultiProgress;
+use indicatif_log_bridge::LogWrapper;
+use log::{Level, LevelFilter};
 use palettum::error::{Error, Result};
 use std::env;
 use std::io::Write;
 
 const LOGGER_ENV: &str = "RUST_LOG";
 
-pub fn init() -> Result<()> {
+// TODO: Fix flickering on high volume of logs
+pub fn init(multi: MultiProgress) -> Result<LevelFilter> {
     let mut builder = Builder::new();
 
     builder.format(|buf, record| {
@@ -37,10 +40,15 @@ pub fn init() -> Result<()> {
     if let Ok(rust_log_env_var) = env::var(LOGGER_ENV) {
         builder.parse_filters(&rust_log_env_var);
     } else {
-        builder.filter_level(log::LevelFilter::Info);
+        builder.filter_level(LevelFilter::Info);
     }
 
-    builder
+    let logger = builder.build();
+    let level = logger.filter();
+
+    LogWrapper::new(multi.clone(), logger)
         .try_init()
-        .map_err(|e| Error::LoggerError(e.to_string()))
+        .map_err(|e| Error::LoggerError(e.to_string()))?;
+
+    Ok(level)
 }

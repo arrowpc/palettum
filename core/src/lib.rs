@@ -314,7 +314,7 @@ pub fn save_custom_palette(palette: &Palette, force: bool) -> Result<PathBuf> {
         .as_rt()
         .ok_or(Error::CannotDetermineCustomDir)?;
 
-    let path = custom_dir.path().join(format!("{}.palette", palette.id));
+    let path = custom_dir.path().join(format!("{}.json", palette.id));
 
     match find_palette(&palette.id) {
         Some(existing_palette) => {

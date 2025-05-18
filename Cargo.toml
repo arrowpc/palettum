@@ -28,4 +28,13 @@ version = "0.5.0"
 description = "Tool for recoloring images and GIFs with any palette of your choice"
 
 [profile.release]
-# lto = "fat"
+lto = "fat"
+strip = "symbols"
+
+
+[profile.int]
+inherits = "dev"
+opt-level = 3
+lto = false
+strip = "none"
+debug = true

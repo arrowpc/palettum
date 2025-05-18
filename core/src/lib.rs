@@ -85,7 +85,7 @@ pub struct Palette {
     #[builder(default = generate_id())]
     pub id: String,
 
-    #[builder(default = "none".to_string())]
+    #[builder(default = "n/a".to_string())]
     pub source: String,
 
     #[builder(default)]
@@ -193,7 +193,11 @@ fn palette_from_value_inner(
     id: Option<String>,
     kind: Option<PaletteKind>,
 ) -> Result<Palette> {
-    let source = v.get("source").and_then(|s| s.as_str()).map(str::to_string);
+    let source_opt_str = v.get("source").and_then(|s| s.as_str());
+    let source = source_opt_str
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| "n/a".to_string());
 
     let arr = v
         .get("colors")
@@ -221,7 +225,7 @@ fn palette_from_value_inner(
 
     Ok(Palette::builder()
         .id(id.unwrap_or_default())
-        .source(source.unwrap_or_default())
+        .source(source)
         .colors(colors)
         .kind(kind.unwrap_or_default())
         .build())

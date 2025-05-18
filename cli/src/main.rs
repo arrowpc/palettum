@@ -1,9 +1,6 @@
 use clap::Parser;
 use cli::cli::args::Cli;
 
-#[cfg(feature = "tui")]
-use {console::style, palettum_cli::tui::run_tui};
-
 use cli::{cli::runner::run_cli, logger};
 use palettum::error::Result;
 use std::{env, process};
@@ -30,18 +27,6 @@ fn main() -> Result<()> {
             1
         }
     };
-
-    #[cfg(feature = "tui")]
-    if cli.command.is_none() {
-        eprintln!(
-            "{}",
-            style("Warning: the TUI is experimental, lacking most features, and may not work as expected.")
-                .yellow()
-                .bold()
-        );
-        run_tui(cli.command.map(|c| c.into()))?;
-        return Ok(());
-    }
 
     process::exit(exit_code);
 }

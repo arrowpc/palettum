@@ -11,9 +11,12 @@ use image::{
     AnimationDecoder, Frame, ImageDecoder,
 };
 
-use std::io::{BufReader, BufWriter, Cursor, Read, Seek};
 use std::path::Path;
 use std::{fs::File, io::SeekFrom};
+use std::{
+    io::{BufReader, BufWriter, Cursor, Read, Seek},
+    path::PathBuf,
+};
 
 pub struct Gif {
     pub frames: Vec<Frame>,
@@ -61,7 +64,19 @@ impl Gif {
     }
 
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let file = File::create(path)?;
+        let path = path.as_ref();
+
+        if path.extension().is_some() {
+            log::debug!(
+                "{}",
+                Error::FileExtensionAlreadySupplied(path.to_path_buf())
+            );
+        }
+
+        let mut path_with_ext = PathBuf::from(path);
+        path_with_ext.set_extension("gif");
+
+        let file = File::create(&path_with_ext)?;
         let writer = BufWriter::new(file);
         self.write_to_writer(writer)
     }

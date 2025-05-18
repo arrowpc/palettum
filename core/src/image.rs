@@ -8,9 +8,9 @@ use crate::{
 
 use image::{ImageFormat, RgbaImage};
 
-use std::fs::File;
 use std::io::{BufReader, BufWriter, Cursor};
 use std::path::Path;
+use std::{fs::File, path::PathBuf};
 
 #[derive(Clone, Debug)]
 pub struct Image {
@@ -47,7 +47,19 @@ impl Image {
     }
 
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let file = File::create(path)?;
+        let path = path.as_ref();
+
+        if path.extension().is_some() {
+            log::debug!(
+                "{}",
+                Error::FileExtensionAlreadySupplied(path.to_path_buf())
+            );
+        }
+
+        let mut path_with_ext = PathBuf::from(path);
+        path_with_ext.set_extension("png");
+
+        let file = File::create(&path_with_ext)?;
         let writer = BufWriter::new(file);
         self.write_to_writer(writer, ImageFormat::Png)
     }

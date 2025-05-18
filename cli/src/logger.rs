@@ -13,6 +13,7 @@ pub fn init() -> Result<()> {
 
     builder.format(|buf, record| {
         let level = record.level();
+        let target = record.target();
         let message = record.args();
         let s = style::theme();
 
@@ -26,7 +27,11 @@ pub fn init() -> Result<()> {
 
         let styled_level = style.apply_to(level_text);
 
-        writeln!(buf, "{}{}", styled_level, message)
+        if level == Level::Info {
+            writeln!(buf, "{}{}", styled_level, message)
+        } else {
+            writeln!(buf, "{}[{}] {}", styled_level, target, message)
+        }
     });
 
     if let Ok(rust_log_env_var) = env::var(LOGGER_ENV) {

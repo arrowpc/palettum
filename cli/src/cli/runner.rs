@@ -61,7 +61,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                 for input in &args.input_paths {
                     match determine_path_type(input) {
                         PathType::Image | PathType::Gif => {
-                            let out = determine_output_path_file(
+                            let out = determine_output_path(
                                 args.output_path.as_deref(),
                                 input,
                                 args.mapping,
@@ -72,7 +72,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                             count += 1;
                         }
                         PathType::Directory => {
-                            let out_dir = determine_output_path_dir(
+                            let out_dir = determine_output_path(
                                 args.output_path.as_deref(),
                                 input,
                                 args.mapping,
@@ -90,7 +90,10 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                             for file in files {
                                 let rel = file.strip_prefix(input).unwrap();
                                 let out = out_dir.join(rel);
-                                map.entry(dir_name.clone()).or_default().push((file, out));
+                                let out_final = path_with_stem(&out);
+                                map.entry(dir_name.clone())
+                                    .or_default()
+                                    .push((file, out_final));
                                 count += 1;
                             }
                         }
@@ -352,61 +355,34 @@ fn collect_image_files(dir: &Path) -> Result<Vec<PathBuf>> {
         .collect())
 }
 
-fn determine_output_path_file(
+fn determine_output_path(
     output: Option<&Path>,
     input: &Path,
     mapping: palettum::Mapping,
 ) -> PathBuf {
-    match output {
-        Some(path) => path.to_path_buf(),
-        None => {
-            let stem = input.file_stem().unwrap_or_default();
-            let ext = input.extension().unwrap_or_default();
-            let parent = input.parent().unwrap_or_else(|| Path::new(""));
-
-            let suffix = match mapping {
-                palettum::Mapping::Palettized => "_palettized",
-                palettum::Mapping::Smoothed => "_smoothed",
-                palettum::Mapping::SmoothedPalettized => "_smoothed_palettized",
-            };
-
-            let mut filename = stem.to_os_string();
-            filename.push(suffix);
-            if !ext.is_empty() {
-                filename.push(".");
-                filename.push(ext);
-            }
-
-            parent.join(filename)
-        }
+    if let Some(path) = output {
+        return path.to_path_buf();
     }
-}
 
-fn determine_output_path_dir(
-    output: Option<&Path>,
-    input: &Path,
-    mapping: palettum::Mapping,
-) -> PathBuf {
-    match output {
-        Some(path) => path.to_path_buf(),
-        None => {
-            let dir_name = input
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
+    let suffix = match mapping {
+        palettum::Mapping::Palettized => "_palettized",
+        palettum::Mapping::Smoothed => "_smoothed",
+        palettum::Mapping::SmoothedPalettized => "_smoothed_palettized",
+    };
 
-            let suffix = match mapping {
-                palettum::Mapping::Palettized => "_palettized",
-                palettum::Mapping::Smoothed => "_smoothed",
-                palettum::Mapping::SmoothedPalettized => "_smoothed_palettized",
-            };
+    let parent = input.parent().unwrap_or_else(|| Path::new("."));
 
-            let new_dir_name = format!("{}{}", dir_name, suffix);
-            let parent = input.parent().unwrap_or_else(|| Path::new("."));
-            parent.join(new_dir_name)
-        }
-    }
+    // If input has an extension, treat as file, else as directory
+    let name = if input.extension().is_some() {
+        input.file_stem().unwrap_or_default()
+    } else {
+        input.file_name().unwrap_or_default()
+    };
+
+    let mut new_name = name.to_os_string();
+    new_name.push(suffix);
+
+    parent.join(new_name)
 }
 
 fn copy_non_image_files(src_dir: &Path, dst_dir: &Path, image_exts: &[&str]) -> Result<()> {
@@ -443,4 +419,12 @@ pub fn format_duration(duration: Duration) -> String {
     } else {
         format!("{:.3}s", secs)
     }
+}
+
+fn path_with_stem(original_path: &Path) -> PathBuf {
+    let parent = original_path.parent().unwrap_or_else(|| Path::new(""));
+    let stem = original_path
+        .file_stem()
+        .unwrap_or_else(|| original_path.file_name().unwrap_or_default());
+    parent.join(stem)
 }

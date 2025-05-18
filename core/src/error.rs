@@ -10,6 +10,9 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("File extension already supplied: {0}")]
+    FileExtensionAlreadySupplied(PathBuf),
+
     #[error("Thread pool creation failed: {0}")]
     ThreadPool(#[from] rayon::ThreadPoolBuildError),
 

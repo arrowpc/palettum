@@ -1,25 +1,23 @@
-use std::collections::{BTreeMap, HashMap};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
-
 use super::args::{Cli, Commands};
 use crate::style;
 use anydir::AnyFileEntry;
+use image::ImageFormat;
+use indicatif::{MultiProgress, ProgressBar};
 use log::{error, info};
 use palettum::{
     error::{Error, Result},
     palettify_io, Config, PaletteKind,
 };
 use palettum::{get_all_palettes, palette_from_file_entry, save_custom_palette};
-use tabled::Table;
-
-use indicatif::{MultiProgress, ProgressBar};
-use std::sync::{Arc, Mutex};
-
-use image::ImageFormat;
 use rayon::{prelude::*, ThreadPoolBuilder};
+use std::collections::{BTreeMap, HashMap};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use style::FitToTerminal;
+use tabled::Table;
+use walkdir::WalkDir;
 
 const INDIVIDUAL_FILES_LABEL: &str = "Individual Files";
 const MAIN_BAR_LABEL: &str = "All Files";
@@ -77,11 +75,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                                 input,
                                 args.mapping,
                             );
-                            // Copy non-image files
-                            let image_exts = ["gif", "png", "jpg", "jpeg", "webp"];
-                            copy_non_image_files(input, &out_dir, &image_exts)?;
-
-                            let files = collect_image_files(input)?;
+                            let files = process_files(input, &out_dir)?;
                             let dir_name = input
                                 .file_name()
                                 .unwrap_or_default()
@@ -363,24 +357,6 @@ fn determine_path_type(path: &Path) -> Result<PathType> {
     }
 }
 
-fn collect_image_files(dir: &Path) -> Result<Vec<PathBuf>> {
-    use walkdir::WalkDir;
-    let exts = ["gif", "png", "jpg", "jpeg", "webp"];
-    Ok(WalkDir::new(dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-        .filter(|e| {
-            e.path()
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| exts.contains(&ext))
-                .unwrap_or(false)
-        })
-        .map(|e| e.path().to_path_buf())
-        .collect())
-}
-
 fn determine_output_path(
     output: Option<&Path>,
     input: &Path,
@@ -411,33 +387,6 @@ fn determine_output_path(
     parent.join(new_name)
 }
 
-fn copy_non_image_files(src_dir: &Path, dst_dir: &Path, image_exts: &[&str]) -> Result<()> {
-    fs::create_dir_all(dst_dir)?;
-
-    for entry in fs::read_dir(src_dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let dst_path = dst_dir.join(entry.file_name());
-        if path.is_dir() {
-            fs::create_dir_all(&dst_path)?;
-            copy_non_image_files(&path, &dst_path, image_exts)?;
-        } else {
-            let ext = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(|e| e.to_ascii_lowercase());
-            let is_image = ext
-                .as_deref()
-                .map(|e| image_exts.contains(&e))
-                .unwrap_or(false);
-            if !is_image {
-                fs::copy(&path, &dst_path)?;
-            }
-        }
-    }
-    Ok(())
-}
-
 pub fn format_duration(duration: Duration) -> String {
     let millis = duration.as_millis();
     let secs = duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0);
@@ -455,4 +404,35 @@ fn path_with_stem(original_path: &Path) -> PathBuf {
         .file_stem()
         .unwrap_or_else(|| original_path.file_name().unwrap_or_default());
     parent.join(stem)
+}
+
+fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
+    let exts = ["gif", "png", "jpg", "jpeg", "webp"];
+    let mut image_files = Vec::new();
+
+    fs::create_dir_all(dst_dir)?;
+
+    for entry in WalkDir::new(src_dir).into_iter().filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path.is_file() {
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase());
+            let is_image = ext.as_deref().map(|e| exts.contains(&e)).unwrap_or(false);
+
+            if is_image {
+                image_files.push(path.to_path_buf());
+            }
+
+            if let Ok(rel_path) = path.strip_prefix(src_dir) {
+                let dst_path = dst_dir.join(rel_path);
+                if let Some(parent) = dst_path.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                fs::copy(path, dst_path)?;
+            }
+        }
+    }
+    Ok(image_files)
 }

@@ -59,7 +59,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                 let mut map: BTreeMap<String, Vec<(PathBuf, PathBuf)>> = BTreeMap::new();
                 let mut count = 0;
                 for input in &args.input_paths {
-                    match determine_path_type(input) {
+                    match determine_path_type(input)? {
                         PathType::Image | PathType::Gif => {
                             let out = determine_output_path(
                                 args.output_path.as_deref(),
@@ -96,11 +96,6 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                                     .push((file, out_final));
                                 count += 1;
                             }
-                        }
-                        PathType::Unsupported => {
-                            return Err(Error::ParseError(
-                                "Input not found or corrupted".to_string(),
-                            ));
                         }
                     }
                 }
@@ -336,20 +331,35 @@ enum PathType {
     Image,
     Gif,
     Directory,
-    Unsupported,
 }
 
-fn determine_path_type(path: &Path) -> PathType {
+fn determine_path_type(path: &Path) -> Result<PathType> {
     if path.is_dir() {
-        PathType::Directory
-    } else if let Ok(format) = ImageFormat::from_path(path) {
-        if format == ImageFormat::Gif {
-            PathType::Gif
+        Ok(PathType::Directory)
+    } else if path.is_file() {
+        if let Ok(format) = ImageFormat::from_path(path) {
+            if format == ImageFormat::Gif {
+                Ok(PathType::Gif)
+            } else {
+                Ok(PathType::Image)
+            }
         } else {
-            PathType::Image
+            Err(Error::Io(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!(
+                    "File {} exists but isn't recognised as an image",
+                    path.display()
+                ),
+            )))
         }
     } else {
-        PathType::Unsupported
+        Err(Error::Io(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            format!(
+                "Path {} doesn't exist or isn't a file/directory",
+                path.display()
+            ),
+        )))
     }
 }
 

@@ -34,7 +34,10 @@ pub struct Cli {
     #[arg(short,
         long,
         action = ArgAction::Count,
-        help_heading = Some("FLAGS"))]
+        global = true,
+        help = "Increases the logging verbosity",
+        help_heading = "FLAGS"
+    )]
     pub verbose: u8,
 
     /// The subcommand to run

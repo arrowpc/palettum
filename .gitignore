@@ -163,6 +163,8 @@ compile_commands.json
 *.key
 *.pub
 notes.md
+extras*/
+palette.sh
 
 # Rust target directory
 /target

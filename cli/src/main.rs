@@ -16,9 +16,6 @@ fn main() -> Result<()> {
         unsafe { env::set_var("RUST_LOG", "info") };
     }
     logger::init()?;
-    if let Err(e) = logger::init() {
-        eprintln!("Failed to initialize logger: {}", e);
-    }
 
     let exit_code = match run_cli(args) {
         Ok(()) => 0,

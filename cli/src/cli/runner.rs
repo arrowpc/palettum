@@ -402,6 +402,8 @@ fn determine_output_path(
 }
 
 fn copy_non_image_files(src_dir: &Path, dst_dir: &Path, image_exts: &[&str]) -> Result<()> {
+    fs::create_dir_all(dst_dir)?;
+
     for entry in fs::read_dir(src_dir)? {
         let entry = entry?;
         let path = entry.path();

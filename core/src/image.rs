@@ -103,54 +103,52 @@ impl Image {
         }
 
         if let Some(s) = scale {
-            if s < 0.0 {
+            if s <= 0.0 {
                 return Err(Error::InvalidResizeScale);
             }
         }
-        // Calculate target dimensions based on inputs
-        let (new_width, new_height) = match (target_width, target_height) {
-            (Some(w), Some(h)) if w > 0 && h > 0 => (w, h),
-
-            (Some(w), None) if w > 0 => {
+        // Determine base dimensions before scaling
+        let (base_width, base_height) = match (target_width, target_height) {
+            (Some(w), Some(h)) => (w, h), // Both width and height provided
+            (Some(w), None) => {
+                // Only width provided
                 let aspect_ratio = self.height as f32 / self.width as f32;
                 let h = (w as f32 * aspect_ratio).round() as u32;
-                (w, h)
+                (w, if h == 0 { 1 } else { h }) // Ensure height is at least 1
             }
-
-            (None, Some(h)) if h > 0 => {
+            (None, Some(h)) => {
+                // Only height provided
                 let aspect_ratio = self.width as f32 / self.height as f32;
                 let w = (h as f32 * aspect_ratio).round() as u32;
-                (w, h)
+                (if w == 0 { 1 } else { w }, h) // Ensure width is at least 1
             }
+            (None, None) => {
+                // No target dimensions provided. Base is original dimensions.
+                // Scale will be applied later if present.
+                // If no scale either, we'll skip.
+                (self.width, self.height)
+            }
+        };
 
-            (None, None) => match scale {
-                Some(s) if s > 0.0 => {
-                    let w = ((self.width as f32) * s).round() as u32;
-                    let h = ((self.height as f32) * s).round() as u32;
-                    (w, h)
-                }
-                _ => {
-                    log::debug!("Skipping resize: No valid dimensions or scale provided.");
-                    return Ok(());
-                }
-            },
-
-            _ => {
-                log::debug!("Skipping resize: No valid dimensions or scale provided.");
+        // Now, apply scale to the base dimensions if scale is provided
+        let (final_width, final_height) = if let Some(s) = scale {
+            let w = ((base_width as f32) * s).round() as u32;
+            let h = ((base_height as f32) * s).round() as u32;
+            (if w == 0 { 1 } else { w }, if h == 0 { 1 } else { h }) // Ensure non-zero
+        } else {
+            // No scale provided, use base_width and base_height.
+            // If target_width/height were also None, these are original dimensions.
+            if target_width.is_none() && target_height.is_none() {
+                // No operation specified (no target dimensions, no scale)
+                log::debug!("Skipping resize: No target dimensions or scale provided.");
                 return Ok(());
             }
+            (base_width, base_height)
         };
 
-        // Apply scaling if provided
-        let final_width = match scale {
-            Some(s) if s > 0.0 => ((new_width as f32) * s).round() as u32,
-            _ => new_width,
-        };
-
-        let final_height = match scale {
-            Some(s) if s > 0.0 => ((new_height as f32) * s).round() as u32,
-            _ => new_height,
-        };
+        // Ensure final dimensions are not zero if they were calculated to be zero
+        // (e.g. very small scale on small image)
+        // This is now handled when calculating final_width/final_height and base_width/base_height
 
         // Only resize if dimensions actually change
         if final_width != self.width || final_height != self.height {

@@ -105,14 +105,24 @@ fn generate_id() -> String {
     format!("id{}", since_epoch)
 }
 
-pub fn palettify_io(input: &Path, output: &Path, config: &Config) -> Result<()> {
+pub fn palettify_io(
+    input: &Path,
+    output: &Path,
+    config: &Config,
+    width: Option<u32>,
+    height: Option<u32>,
+    scale: Option<f32>,
+    filter: Filter,
+) -> Result<()> {
     let format = ImageFormat::from_path(input)?;
     if format == ImageFormat::Gif {
         let mut gif = Gif::from_file(input)?;
+        gif.resize(width, height, scale, filter)?;
         gif.palettify(config)?;
         gif.write_to_file(output)?;
     } else {
         let mut img = Image::from_file(input)?;
+        img.resize(width, height, scale, filter)?;
         img.palettify(config)?;
         img.write_to_file(output)?;
     }

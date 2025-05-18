@@ -140,7 +140,15 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                 if let Some(p) = output.parent() {
                     std::fs::create_dir_all(p)?;
                 }
-                palettify_io(&input, &output, &config)?;
+                palettify_io(
+                    &input,
+                    &output,
+                    &config,
+                    args.width,
+                    args.height,
+                    args.scale,
+                    args.filter,
+                )?;
 
                 let dt: Duration = start.elapsed();
                 info!("Done in {}", s.secondary.apply_to(format_duration(dt)));
@@ -230,7 +238,15 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                                 .quant_level(q)
                                 .build(),
                         );
-                        match palettify_io(&input, &output, &cfg) {
+                        match palettify_io(
+                            &input,
+                            &output,
+                            &cfg,
+                            args.width,
+                            args.height,
+                            args.scale,
+                            args.filter,
+                        ) {
                             Ok(_) => {
                                 job_pbs.get(&job_name).unwrap().inc(1);
                                 if let Some(main_pb) = main_pb.as_ref() {

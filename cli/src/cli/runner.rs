@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 use super::args::{Cli, Commands};
 use crate::style;
 use anydir::AnyFileEntry;
-use log::{error, info};
 use palettum::{
     error::{Error, Result},
     palettify_io, Config, PaletteKind,
@@ -21,6 +20,8 @@ use image::ImageFormat;
 use rayon::{prelude::*, ThreadPoolBuilder};
 use style::FitToTerminal;
 
+use tracing::{debug, error, info, span, Level};
+
 const INDIVIDUAL_FILES_LABEL: &str = "Individual Files";
 const MAIN_BAR_LABEL: &str = "All Files";
 const JOB_PREFIX_WIDTH: usize = 15;
@@ -34,78 +35,98 @@ fn format_prefix(name: &str) -> String {
     format!("{:width$}", s, width = JOB_PREFIX_WIDTH)
 }
 
+#[tracing::instrument(level = "info", skip(cli))]
 pub fn run_cli(cli: Cli) -> Result<()> {
+    let span = span!(Level::INFO, "run_cli_command", ?cli.command);
+    let _enter = span.enter();
+
     match cli.command {
         Commands::Palettify(args) => {
-            // --- 1) BUILD JOB LIST & COUNT FILES ---
-            let (jobs, total_files) = if let Some(output_files) = &args.output_files {
-                if output_files.len() != args.input_paths.len() {
-                    return Err(Error::ParseError(format!(
-                        "--output-files expects {} paths, got {}",
-                        args.input_paths.len(),
-                        output_files.len()
-                    )));
-                }
-                let pairs = args
-                    .input_paths
-                    .iter()
-                    .cloned()
-                    .zip(output_files.iter().cloned())
-                    .collect::<Vec<_>>();
-                let mut map = BTreeMap::new();
-                map.insert(INDIVIDUAL_FILES_LABEL.to_string(), pairs);
-                (map, args.input_paths.len())
-            } else {
-                let mut map: BTreeMap<String, Vec<(PathBuf, PathBuf)>> = BTreeMap::new();
-                let mut count = 0;
-                for input in &args.input_paths {
-                    match determine_path_type(input) {
-                        PathType::Image | PathType::Gif => {
-                            let out = determine_output_path(
-                                args.output_path.as_deref(),
-                                input,
-                                args.mapping,
-                            );
-                            map.entry(INDIVIDUAL_FILES_LABEL.to_string())
-                                .or_default()
-                                .push((input.clone(), out));
-                            count += 1;
-                        }
-                        PathType::Directory => {
-                            let out_dir = determine_output_path(
-                                args.output_path.as_deref(),
-                                input,
-                                args.mapping,
-                            );
-                            // Copy non-image files
-                            let image_exts = ["gif", "png", "jpg", "jpeg", "webp"];
-                            copy_non_image_files(input, &out_dir, &image_exts)?;
+            let span = span!(Level::INFO, "palettify_command", input_paths=?args.input_paths, output_path=?args.output_path);
+            let _enter = span.enter();
 
-                            let files = collect_image_files(input)?;
-                            let dir_name = input
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string();
-                            for file in files {
-                                let rel = file.strip_prefix(input).unwrap();
-                                let out = out_dir.join(rel);
-                                let out_final = path_with_stem(&out);
-                                map.entry(dir_name.clone())
+            // --- 1) BUILD JOB LIST & COUNT FILES ---
+            let (jobs, total_files) = {
+                let span = span!(Level::DEBUG, "build_job_list");
+                let _enter = span.enter();
+
+                if let Some(output_files) = &args.output_files {
+                    if output_files.len() != args.input_paths.len() {
+                        error!(
+                            "--output-files expects {} paths, got {}",
+                            args.input_paths.len(),
+                            output_files.len()
+                        );
+                        return Err(Error::ParseError(format!(
+                            "--output-files expects {} paths, got {}",
+                            args.input_paths.len(),
+                            output_files.len()
+                        )));
+                    }
+                    let pairs = args
+                        .input_paths
+                        .iter()
+                        .cloned()
+                        .zip(output_files.iter().cloned())
+                        .collect::<Vec<_>>();
+                    let mut map = BTreeMap::new();
+                    map.insert(INDIVIDUAL_FILES_LABEL.to_string(), pairs);
+                    (map, args.input_paths.len())
+                } else {
+                    let mut map: BTreeMap<String, Vec<(PathBuf, PathBuf)>> = BTreeMap::new();
+                    let mut count = 0;
+                    for input in &args.input_paths {
+                        match determine_path_type(input) {
+                            PathType::Image | PathType::Gif => {
+                                let out = determine_output_path(
+                                    args.output_path.as_deref(),
+                                    input,
+                                    args.mapping,
+                                );
+                                map.entry(INDIVIDUAL_FILES_LABEL.to_string())
                                     .or_default()
-                                    .push((file, out_final));
+                                    .push((input.clone(), out));
                                 count += 1;
                             }
-                        }
-                        PathType::Unsupported => {
-                            return Err(Error::ParseError(
-                                "Input not found or corrupted".to_string(),
-                            ));
+                            PathType::Directory => {
+                                let out_dir = determine_output_path(
+                                    args.output_path.as_deref(),
+                                    input,
+                                    args.mapping,
+                                );
+                                // Copy non-image files
+                                let image_exts = ["gif", "png", "jpg", "jpeg", "webp"];
+                                copy_non_image_files(input, &out_dir, &image_exts)?;
+
+                                let files = collect_image_files(input)?;
+                                let dir_name = input
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .to_string();
+                                for file in files {
+                                    let rel = file.strip_prefix(input).unwrap();
+                                    let out = out_dir.join(rel);
+                                    let out_final = path_with_stem(&out);
+                                    map.entry(dir_name.clone())
+                                        .or_default()
+                                        .push((file, out_final));
+                                    count += 1;
+                                }
+                            }
+                            PathType::Unsupported => {
+                                error!("Input not found or corrupted: {:?}", input);
+                                return Err(Error::ParseError(
+                                    "Input not found or corrupted".to_string(),
+                                ));
+                            }
                         }
                     }
+                    (map, count)
                 }
-                (map, count)
             };
+
+            debug!(total_files, "Job list built");
 
             // --- 2) SINGLE FILE FAST PATH ---
             if total_files == 1 {
@@ -140,6 +161,11 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                 if let Some(p) = output.parent() {
                     std::fs::create_dir_all(p)?;
                 }
+
+                let palettify_span =
+                    span!(Level::INFO, "palettify_io", input=?input, output=?output);
+                let _palettify_enter = palettify_span.enter();
+
                 palettify_io(
                     &input,
                     &output,
@@ -216,6 +242,16 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                     file_jobs.push(move || {
                         let s = style::theme();
                         let fname = input.file_name().unwrap_or_default().to_string_lossy();
+
+                        let file_span = span!(
+                            Level::INFO,
+                            "palettify_file",
+                            job_name = %job_name,
+                            input = %input.display(),
+                            output = %output.display()
+                        );
+                        let _file_enter = file_span.enter();
+
                         job_pbs.get(&job_name).unwrap().set_message(format!(
                             "{} → {}",
                             s.primary.apply_to(&fname),
@@ -238,6 +274,15 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                                 .quant_level(q)
                                 .build(),
                         );
+
+                        let palettify_span = span!(
+                            Level::DEBUG,
+                            "palettify_io",
+                            input = %input.display(),
+                            output = %output.display()
+                        );
+                        let _palettify_enter = palettify_span.enter();
+
                         match palettify_io(
                             &input,
                             &output,
@@ -252,6 +297,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                                 if let Some(main_pb) = main_pb.as_ref() {
                                     main_pb.inc(1);
                                 }
+                                info!("File palettified successfully");
                             }
                             Err(e) => {
                                 job_pbs.get(&job_name).unwrap().inc(1);
@@ -259,6 +305,12 @@ pub fn run_cli(cli: Cli) -> Result<()> {
                                     .get(&job_name)
                                     .unwrap()
                                     .set_message(s.error.apply_to("Error").to_string());
+                                error!(
+                                    "Failed to palettify {} → {}: {}",
+                                    input.display(),
+                                    output.display(),
+                                    e
+                                );
                                 errs.lock().unwrap().push(format!(
                                     "{} → {} ({})",
                                     input.display(),
@@ -273,6 +325,9 @@ pub fn run_cli(cli: Cli) -> Result<()> {
 
             // Run
             let start = Instant::now();
+            let run_span = span!(Level::INFO, "run_file_jobs", total_jobs = file_jobs.len());
+            let _run_enter = run_span.enter();
+
             pool.install(|| {
                 file_jobs.into_par_iter().for_each(|job| job());
             });
@@ -302,6 +357,9 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         }
 
         Commands::List => {
+            let span = span!(Level::INFO, "list_palettes");
+            let _enter = span.enter();
+
             let palettes = get_all_palettes();
             let mut table = Table::new(&palettes);
             table.with(tabled::settings::Style::modern_rounded());
@@ -316,6 +374,9 @@ pub fn run_cli(cli: Cli) -> Result<()> {
         }
 
         Commands::Save(args) => {
+            let span = span!(Level::INFO, "save_palette", path=?args.path, force=args.force);
+            let _enter = span.enter();
+
             let path = AnyFileEntry::from_path(args.path)?;
             let palette = palette_from_file_entry(&path, PaletteKind::Custom)?;
             let saved_path = save_custom_palette(&palette, args.force)?;
@@ -332,27 +393,7 @@ pub fn run_cli(cli: Cli) -> Result<()> {
     }
 }
 
-enum PathType {
-    Image,
-    Gif,
-    Directory,
-    Unsupported,
-}
-
-fn determine_path_type(path: &Path) -> PathType {
-    if path.is_dir() {
-        PathType::Directory
-    } else if let Ok(format) = ImageFormat::from_path(path) {
-        if format == ImageFormat::Gif {
-            PathType::Gif
-        } else {
-            PathType::Image
-        }
-    } else {
-        PathType::Unsupported
-    }
-}
-
+#[tracing::instrument(level = "debug", skip(dir))]
 fn collect_image_files(dir: &Path) -> Result<Vec<PathBuf>> {
     use walkdir::WalkDir;
     let exts = ["gif", "png", "jpg", "jpeg", "webp"];
@@ -371,6 +412,7 @@ fn collect_image_files(dir: &Path) -> Result<Vec<PathBuf>> {
         .collect())
 }
 
+#[tracing::instrument(level = "debug", skip(output, input))]
 fn determine_output_path(
     output: Option<&Path>,
     input: &Path,
@@ -401,6 +443,7 @@ fn determine_output_path(
     parent.join(new_name)
 }
 
+#[tracing::instrument(level = "debug", skip(src_dir, dst_dir, image_exts))]
 fn copy_non_image_files(src_dir: &Path, dst_dir: &Path, image_exts: &[&str]) -> Result<()> {
     fs::create_dir_all(dst_dir)?;
 
@@ -428,6 +471,38 @@ fn copy_non_image_files(src_dir: &Path, dst_dir: &Path, image_exts: &[&str]) -> 
     Ok(())
 }
 
+#[tracing::instrument(level = "debug", skip(original_path))]
+fn path_with_stem(original_path: &Path) -> PathBuf {
+    let parent = original_path.parent().unwrap_or_else(|| Path::new(""));
+    let stem = original_path
+        .file_stem()
+        .unwrap_or_else(|| original_path.file_name().unwrap_or_default());
+    parent.join(stem)
+}
+
+#[derive(Debug)]
+enum PathType {
+    Image,
+    Gif,
+    Directory,
+    Unsupported,
+}
+
+#[tracing::instrument(level = "debug", skip(path))]
+fn determine_path_type(path: &Path) -> PathType {
+    if path.is_dir() {
+        PathType::Directory
+    } else if let Ok(format) = ImageFormat::from_path(path) {
+        if format == ImageFormat::Gif {
+            PathType::Gif
+        } else {
+            PathType::Image
+        }
+    } else {
+        PathType::Unsupported
+    }
+}
+
 pub fn format_duration(duration: Duration) -> String {
     let millis = duration.as_millis();
     let secs = duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0);
@@ -437,12 +512,4 @@ pub fn format_duration(duration: Duration) -> String {
     } else {
         format!("{:.3}s", secs)
     }
-}
-
-fn path_with_stem(original_path: &Path) -> PathBuf {
-    let parent = original_path.parent().unwrap_or_else(|| Path::new(""));
-    let stem = original_path
-        .file_stem()
-        .unwrap_or_else(|| original_path.file_name().unwrap_or_default());
-    parent.join(stem)
 }

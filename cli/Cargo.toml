@@ -35,6 +35,11 @@ tabled = "0.19.0"
 walkdir = "2.5.0"
 indicatif-log-bridge = "0.2.3"
 once_cell = "1.21.3"
+tracing = {version = "0.1.41", features = ["log", "log-always"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "chrono", "fmt", "registry"] }
+tracing-log =  "0.2.0"
+tracing-chrome = "0.7.2"
+tracing-flame = "0.2.0"
 
 # TUI-related dependencies
 # ratatui = { version = "0.29.0", features = ["unstable-widget-ref"], optional = true }

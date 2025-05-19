@@ -38,3 +38,6 @@ opt-level = 3
 lto = false
 strip = "none"
 debug = true
+
+[patch.crates-io]
+indicatif = { git = "https://github.com/arrowpc/indicatif.git", branch = "main" }

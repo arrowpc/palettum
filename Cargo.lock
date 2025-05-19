@@ -276,7 +276,7 @@ dependencies = [
  "anydir",
  "anyhow",
  "clap",
- "console",
+ "console 0.15.11 (registry+https://github.com/rust-lang/crates.io-index)",
  "directories",
  "env_logger",
  "humansize",
@@ -318,6 +318,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "054ccb5b10f9f2cbf51eb355ca1d05c2d279ce1804688d0db74b4733a5aeafd8"
 dependencies = [
  "encode_unicode",
+ "libc",
+ "once_cell",
+ "unicode-width",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "console"
+version = "0.15.11"
+source = "git+https://github.com/arrowpc/console.git?branch=main#a581704db152442d791a89da10af22358b12c060"
+dependencies = [
+ "encode_unicode",
+ "lazy_static",
  "libc",
  "once_cell",
  "unicode-width",
@@ -689,13 +702,11 @@ dependencies = [
 [[package]]
 name = "indicatif"
 version = "0.17.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "183b3088984b400f4cfac3620d5e076c84da5364016b4f49473de574b2586235"
+source = "git+https://github.com/arrowpc/indicatif.git?branch=main#d731b7342247ced8042267b7873215645b9f6f4d"
 dependencies = [
- "console",
+ "console 0.15.11 (git+https://github.com/arrowpc/console.git?branch=main)",
  "number_prefix",
  "portable-atomic",
- "rayon",
  "unicode-width",
  "web-time",
 ]
@@ -777,6 +788,12 @@ dependencies = [
  "once_cell",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "lazy_static"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "libc"

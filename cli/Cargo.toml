@@ -26,14 +26,14 @@ directories = "5.0"
 terminal_size = "0.3.0"
 humantime = "2.1"
 humansize = "2.1"
-indicatif = { version = "0.17", features = ["rayon"] }
+indicatif = "0.17.11"
+indicatif-log-bridge = "0.2.3"
 console = "0.15"
 tempfile = "3.10.1"
 anstyle = "1.0"
 include_dir = "0.7"
 tabled = "0.19.0"
 walkdir = "2.5.0"
-indicatif-log-bridge = "0.2.3"
 once_cell = "1.21.3"
 
 # TUI-related dependencies
@@ -46,3 +46,4 @@ once_cell = "1.21.3"
 [features]
 default = []
 # tui = ["dep:ratatui", "dep:ratatui-image", "dep:ratatui-explorer", "dep:crossterm", "dep:viuer"]
+

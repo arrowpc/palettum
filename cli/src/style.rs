@@ -258,23 +258,21 @@ impl FitToTerminal for Table {
 }
 
 // ===== PROGRESS BAR STYLES =====
-pub fn create_main_progress_style(bar_width: usize) -> indicatif::ProgressStyle {
+
+pub fn create_main_progress_style() -> indicatif::ProgressStyle {
     indicatif::ProgressStyle::with_template(&format!(
-        "{{prefix:.bold}} {{elapsed_precise}} \
-         {{bar:{bar_width}.green/yellow}} {{pos}}/{{len}} \
-         files | {{percent}}% | {{per_sec}} files/s | ETA: {{eta}}",
-        bar_width = bar_width
+        "{{prefix:.bold}}▕{{bar:.{}}}▏{{pos}}/{{len}} {{elapsed}}",
+        "magenta"
     ))
     .unwrap()
-    .progress_chars("█▓▒░")
+    .progress_chars("█▇▆▅▄▃▂▁  ")
 }
 
-pub fn create_job_progress_style(bar_width: usize) -> indicatif::ProgressStyle {
+pub fn create_job_progress_style() -> indicatif::ProgressStyle {
     indicatif::ProgressStyle::with_template(&format!(
-        "{{prefix:.bold}} {{bar:{bar_width}.cyan/blue}} \
-         {{pos}}/{{len}} | {{percent}}% | {{msg}}",
-        bar_width = bar_width
+        "{{prefix}}▕{{bar:.{}}}▏{{pos}}/{{len}} {{msg}}",
+        "blue"
     ))
     .unwrap()
-    .progress_chars("█▓▒░")
+    .progress_chars("█▇▆▅▄▃▂▁  ")
 }

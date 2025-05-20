@@ -19,22 +19,10 @@ use style::FitToTerminal;
 use tabled::Table;
 use walkdir::WalkDir;
 
-const INDIVIDUAL_FILES_LABEL: &str = "Individual";
-const MAIN_BAR_LABEL: &str = "Total";
-const JOB_PREFIX_WIDTH: usize = 15;
-
-fn format_prefix(name: &str) -> String {
-    let mut s = name.to_string();
-    if s.len() > JOB_PREFIX_WIDTH {
-        s.truncate(JOB_PREFIX_WIDTH - 1);
-        s.push('…');
-    }
-    format!("{:width$}", s, width = JOB_PREFIX_WIDTH)
-}
-
 pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
     match cli.command {
         Commands::Palettify(args) => {
+            const INDIVIDUAL_FILES_LABEL: &str = "Individual";
             // --- 1) BUILD JOB LIST & COUNT FILES ---
             let (jobs, total_files) = if let Some(output_files) = &args.output_files {
                 if output_files.len() != args.input_paths.len() {
@@ -146,31 +134,31 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             }
 
             // --- 3) MULTI-FILE WITH PROGRESS BARS ---
-            let bar_width = 40;
             let m = multi.clone();
 
             let mut job_pbs = HashMap::new();
             let mut job_names: Vec<_> = jobs.keys().cloned().collect();
             job_names.sort();
-
-            let main_pb = if job_names.len() > 1 {
-                // Main bar for multiple jobs
-                let pb = m.add(ProgressBar::new(total_files as u64));
-                pb.set_style(style::create_main_progress_style(bar_width));
-                pb.set_prefix(format_prefix(MAIN_BAR_LABEL));
-                Some(Arc::new(pb))
-            } else {
-                None
-            };
+            let max_name_len = job_names.iter().map(|n| n.len()).max().unwrap_or(0);
 
             for name in &job_names {
                 let len = jobs.get(name).unwrap().len() as u64;
                 let pb = m.add(ProgressBar::new(len));
-                pb.set_style(style::create_job_progress_style(bar_width));
-                pb.set_prefix(format_prefix(name));
+                pb.set_style(style::create_job_progress_style());
+                pb.set_prefix(format!("{:width$}", name.to_string(), width = max_name_len));
                 job_pbs.insert(name.clone(), pb);
             }
             let job_pbs = Arc::new(job_pbs);
+
+            let main_pb = if job_names.len() > 1 {
+                // Main bar for multiple jobs
+                let pb = m.add(ProgressBar::new(total_files as u64));
+                pb.set_style(style::create_main_progress_style());
+                pb.set_prefix(format!("{:width$}", "Total", width = max_name_len));
+                Some(Arc::new(pb))
+            } else {
+                None
+            };
 
             // Thread allocation
             let total_threads = if args.threads > 0 {
@@ -184,7 +172,8 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             let main_pb = Arc::new(main_pb);
             let job_pbs = Arc::new(job_pbs);
             let pool = ThreadPoolBuilder::new().num_threads(file_threads).build()?;
-            let errors = Arc::new(Mutex::new(Vec::new()));
+            // let mut error_count: usize = 0;
+            let error_count = Arc::new(Mutex::new(0usize));
 
             // Schedule jobs
             let mut file_jobs = Vec::new();
@@ -201,17 +190,11 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     let smooth = args.smoothing_strength;
                     let labs = args.lab_scales;
                     let q = args.quantization;
-                    let errs = Arc::clone(&errors);
+                    let error_count = Arc::clone(&error_count);
 
                     file_jobs.push(move || {
                         let s = style::theme();
-                        let fname = input.file_name().unwrap_or_default().to_string_lossy();
-                        job_pbs.get(&job_name).unwrap().set_message(format!(
-                            "{} → {}",
-                            s.primary.apply_to(&fname),
-                            s.secondary
-                                .apply_to(output_with_final_ext(&input, &output).display())
-                        ));
+                        job_pbs.get(&job_name).unwrap();
 
                         if let Some(p) = output.parent() {
                             std::fs::create_dir_all(p).unwrap();
@@ -249,15 +232,12 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                                 }
                             }
                             Err(e) => {
+                                let mut ec = error_count.lock().unwrap();
+                                *ec += 1;
                                 let pb = job_pbs.get(&job_name).unwrap();
                                 pb.inc(1);
                                 pb.set_message(s.error.apply_to("Error").to_string());
-                                errs.lock().unwrap().push(format!(
-                                    "{} → {} ({})",
-                                    input.display(),
-                                    output.display(),
-                                    e
-                                ));
+                                error!("{} ({})", input.display(), e);
                             }
                         }
                     });
@@ -272,7 +252,7 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             m.clear().unwrap();
 
             let duration = start.elapsed();
-            let suc = total_files - errors.lock().unwrap().len();
+            let suc = total_files - *error_count.lock().unwrap();
             let s = style::theme();
 
             let avg_duration = if suc > 0 {
@@ -288,9 +268,7 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 format_duration(avg_duration),
                 s.highlight.apply_to(args.palette.id.clone())
             );
-            for e in errors.lock().unwrap().iter() {
-                error!("{}", e);
-            }
+
             Ok(())
         }
 

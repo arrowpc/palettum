@@ -140,7 +140,7 @@ static DEFAULT_PALETTES_DIR: AnyDir = anydir!(ct, "$CARGO_MANIFEST_DIR/../palett
 static DEFAULT_PALETTES_CACHE: OnceLock<Vec<Palette>> = OnceLock::new();
 
 static CUSTOM_PALETTES_DIR: OnceLock<AnyDir> = OnceLock::new();
-fn custom_palettes_dir() -> &'static AnyDir {
+pub fn custom_palettes_dir() -> &'static AnyDir {
     CUSTOM_PALETTES_DIR.get_or_init(|| {
         let default_path = home_dir().unwrap().join(".palettum/palettes");
         // Ensure the directory exists for the runtime case.
@@ -350,6 +350,24 @@ pub fn save_custom_palette(palette: &Palette, force: bool) -> Result<PathBuf> {
     fs::write(&path, json_string)?;
 
     Ok(path)
+}
+
+pub fn delete_custom_palette(palette: &Palette) -> Result<()> {
+    match palette.kind {
+        PaletteKind::Default => Err(Error::ParseError(
+            "Cannot delete a default palette".to_string(),
+        )),
+        PaletteKind::Custom => {
+            let custom_dir = custom_palettes_dir()
+                .as_rt()
+                .ok_or(Error::CannotDetermineCustomDir)?;
+            let path = custom_dir.path().join(format!("{}.json", palette.id));
+            Ok(fs::remove_file(path)?)
+        }
+        PaletteKind::Unset => {
+            unreachable!()
+        }
+    }
 }
 
 #[test]

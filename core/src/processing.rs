@@ -178,9 +178,6 @@ pub(crate) fn process_pixels(
     lab_colors: &[Lab],
     lookup: Option<&[Rgb<u8>]>,
 ) -> Result<()> {
-    let width = image.width();
-    let height = image.height();
-
     let raw_data = image.as_mut();
     let bytes_per_pixel = 4;
 

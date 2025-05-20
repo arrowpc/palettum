@@ -19,7 +19,7 @@ const EPSILON: f32 = 0.008856;
 const KAPPA: f32 = 903.3;
 
 impl Lab {
-    pub fn to_rgb(&self) -> Rgb<u8> {
+    pub fn to_rgb(self) -> Rgb<u8> {
         let y = (self.l + 16.0) / 116.0;
         let x = self.a / 500.0 + y;
         let z = y - self.b / 200.0;
@@ -51,7 +51,7 @@ impl Lab {
         xyz_z /= 100.0;
 
         let mut r = xyz_x * 3.2404542 - xyz_y * 1.5371385 - xyz_z * 0.4985314;
-        let mut g = xyz_x * -0.9692660 + xyz_y * 1.8760108 + xyz_z * 0.0415560;
+        let mut g = xyz_x * -0.969266 + xyz_y * 1.8760108 + xyz_z * 0.0415560;
         let mut b = xyz_x * 0.0556434 - xyz_y * 0.2040259 + xyz_z * 1.0572252;
 
         r = if r > 0.0031308 {

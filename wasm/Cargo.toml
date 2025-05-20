@@ -20,4 +20,9 @@ wasm-logger = "0.2"
 web-time = "1.1.0"
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ['--enable-simd']
+wasm-opt = [
+  "-O4",
+  "--enable-bulk-memory",
+  "--enable-nontrapping-float-to-int",
+  "--enable-simd",
+]

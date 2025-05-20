@@ -11,6 +11,7 @@ use crate::{
     palettized, smoothed, Mapping, Palette,
 };
 
+// TODO: Remove WASM hacks
 #[derive(Debug, Clone, Builder)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
@@ -45,6 +46,15 @@ pub struct Config {
 
     #[builder(default = [1.0, 1.0, 1.0])]
     pub lab_scales: [f32; 3],
+
+    #[cfg_attr(not(feature = "wasm"), serde(skip))]
+    pub resize_width: Option<u32>,
+
+    #[cfg_attr(not(feature = "wasm"), serde(skip))]
+    pub resize_height: Option<u32>,
+
+    #[cfg_attr(not(feature = "wasm"), serde(skip))]
+    pub resize_scale: Option<f32>,
 }
 
 impl fmt::Display for Config {

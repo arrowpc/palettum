@@ -32,8 +32,10 @@ use tsify::Tsify;
 #[cfg(feature = "cli")]
 use clap::ValueEnum;
 
-use strum_macros::Display;
+#[cfg(feature = "cli")]
 use tabled::Tabled;
+
+use strum_macros::Display;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
@@ -78,9 +80,10 @@ pub enum PaletteKind {
     Unset,
 }
 
-#[derive(Debug, Clone, Builder, Tabled)]
+#[derive(Debug, Clone, Builder)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
 #[cfg_attr(feature = "wasm", serde(default))]
+#[cfg_attr(feature = "cli", derive(Tabled))]
 pub struct Palette {
     #[builder(default = generate_id())]
     pub id: String,
@@ -91,7 +94,7 @@ pub struct Palette {
     #[builder(default)]
     pub kind: PaletteKind,
 
-    #[tabled(skip)]
+    #[cfg_attr(feature = "cli", tabled(skip))]
     #[cfg_attr(feature = "wasm", serde(with = "rgb_vec_serde"))]
     pub colors: Vec<Rgb<u8>>,
 }

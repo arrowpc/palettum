@@ -388,11 +388,17 @@ function PalettifyImage({
       const imageBytes = new Uint8Array(arrayBuffer);
 
       const configJs: Config = {
-        palette: palette.colors.map((color) => ({
-          r: color.r,
-          g: color.g,
-          b: color.b,
-        })),
+        palette: {
+          id: "placeholder",
+          source: "placeholder",
+          colors: palette.colors.map((color) => ({
+            r: color.r,
+            g: color.g,
+            b: color.b,
+          })),
+          kind: "Unset",
+
+        },
         mapping: mapping as Mapping,
         palettizedFormula: formula as PalettizedFormula,
         quantLevel,

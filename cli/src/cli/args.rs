@@ -95,7 +95,10 @@ pub enum Commands {
 "
     )]
     Save(SaveArgs),
-    // TODO: Delete,
+
+    /// Delete a custom palette
+    #[command(override_usage = "palettum delete \x1b[3m\x1b[38;5;65m<PALETTE>\x1b")]
+    Delete(DeleteArgs),
 }
 
 #[derive(Args, Debug)]
@@ -240,6 +243,7 @@ pub struct PalettifyArgs {
     )]
     pub quantization: u8,
 }
+
 #[derive(Args, Debug)]
 pub struct SaveArgs {
     /// Path to a JSON file containing at least a "colors" array with RGB values
@@ -253,6 +257,17 @@ pub struct SaveArgs {
     /// Allows you to overwrite existing custom palettes
     #[arg(short, long, default_value_t = false, help_heading = "FLAGS")]
     pub force: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct DeleteArgs {
+    #[arg(
+        value_parser = parse_palette,
+        value_name = "PALETTE",
+        required = true,
+        help = "Use the \x1b[38;5;130mlist\x1b[0m command to see all available palettes",
+    )]
+    pub palette: Palette,
 }
 
 // Parsers

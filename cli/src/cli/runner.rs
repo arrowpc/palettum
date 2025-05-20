@@ -5,6 +5,7 @@ use image::ImageFormat;
 use indicatif::{MultiProgress, ProgressBar};
 use log::{error, info};
 use palettum::{
+    custom_palettes_dir, delete_custom_palette,
     error::{Error, Result},
     palettify_io, Config, PaletteKind,
 };
@@ -20,6 +21,7 @@ use tabled::Table;
 use walkdir::WalkDir;
 
 pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
+    let s = style::theme();
     match cli.command {
         Commands::Palettify(args) => {
             const INDIVIDUAL_FILES_LABEL: &str = "Individual";
@@ -91,7 +93,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 let input = input.clone();
                 let output = output.clone();
                 let start = Instant::now();
-                let s = style::theme();
 
                 info!(
                     "Palettifying:\n {} → {}\n Palette: {}",
@@ -193,7 +194,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     let error_count = Arc::clone(&error_count);
 
                     file_jobs.push(move || {
-                        let s = style::theme();
                         job_pbs.get(&job_name).unwrap();
 
                         if let Some(p) = output.parent() {
@@ -253,7 +253,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
 
             let duration = start.elapsed();
             let suc = total_files - *error_count.lock().unwrap();
-            let s = style::theme();
 
             let avg_duration = if suc > 0 {
                 duration / suc as u32
@@ -277,7 +276,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             let mut table = Table::new(&palettes);
             table.with(tabled::settings::Style::modern_rounded());
             table = table.fit_to_terminal(None, true);
-            let s = style::theme();
             info!(
                 "Available Palettes ({})\n{}",
                 s.highlight.apply_to(palettes.len()),
@@ -290,12 +288,23 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             let path = AnyFileEntry::from_path(args.path)?;
             let palette = palette_from_file_entry(&path, PaletteKind::Custom)?;
             let saved_path = save_custom_palette(&palette, args.force)?;
-            let s = style::theme();
 
             info!(
                 "{} saved to: {}",
                 s.highlight.apply_to(palette.id),
                 s.secondary.apply_to(saved_path.display())
+            );
+
+            Ok(())
+        }
+
+        Commands::Delete(args) => {
+            delete_custom_palette(&args.palette)?;
+
+            info!(
+                "Deleted {} from {}",
+                s.highlight.apply_to(args.palette.id),
+                custom_palettes_dir().as_rt().unwrap().path.display()
             );
 
             Ok(())

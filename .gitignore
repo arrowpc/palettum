@@ -163,12 +163,11 @@ compile_commands.json
 *.key
 *.pub
 notes.md
+extras*/
+palette.sh
 
 # Rust target directory
 /target
-
-# Cargo lock file
-Cargo.lock
 
 # Test output
 test_output.*

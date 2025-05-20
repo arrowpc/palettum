@@ -1,27 +1,44 @@
 [workspace]
 members = [
-    "packages/core",
-    "packages/wasm",
-    "packages/cli",
+    "core",
+    "wasm",
+    "cli",
 ]
 resolver = "2"
 
 [workspace.dependencies]
-image = { version = "0.25.6", default-features = false }
+image = { version = "0.25.6", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
 log = "0.4"
 rayon = "1.10.0"
 thiserror = "1.0"
 clap = { version = "4.5", features = ["derive", "env"] }
 num_cpus = "1.16"
 serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
+tsify = "0.5.5"
+wasm-bindgen = "0.2.100"
+serde_json = { version = "1.0", features = ["preserve_order"] }
 env_logger = "0.11"
-# pprof = { version = "0.14", features = ["flamegraph", "protobuf-codec"] }
-prost = "0.13.5"
 anyhow = "1.0"
+anydir = "0.1.2"
+tabled = "0.19.0"
 
 [workspace.package]
 edition = "2021"
 license = "AGPL-3.0"
 version = "0.5.0"
 description = "Tool for recoloring images and GIFs with any palette of your choice"
+
+[profile.release]
+lto = "fat"
+strip = "symbols"
+
+
+[profile.int]
+inherits = "dev"
+opt-level = 3
+lto = false
+strip = "none"
+debug = true
+
+[patch.crates-io]
+indicatif = { git = "https://github.com/arrowpc/indicatif.git", branch = "main" }

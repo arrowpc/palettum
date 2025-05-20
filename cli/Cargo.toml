@@ -13,20 +13,21 @@ path = "src/main.rs"
 palettum = { path = "../core", features = ["cli"] }
 clap.workspace = true
 image.workspace = true
-log.workspace = true
-env_logger.workspace = true
 rayon.workspace = true
 num_cpus.workspace = true
 anydir.workspace = true
 tabled.workspace = true
 terminal_size = "0.3.0"
 indicatif = "0.17.11"
-indicatif-log-bridge = "0.2.3"
 console = "0.15"
 anstyle = "1.0"
 include_dir = "0.7"
 walkdir = "2.5.0"
 once_cell = "1.21.3"
+
+tracing = {version = "0.1.41", features = ["log", "log-always"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "chrono", "fmt", "registry"] }
+tracing-indicatif = "0.3.9"
 
 # TUI-related dependencies
 # ratatui = { version = "0.29.0", features = ["unstable-widget-ref"], optional = true }

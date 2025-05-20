@@ -20,7 +20,7 @@ use style::FitToTerminal;
 use tabled::Table;
 use walkdir::WalkDir;
 
-pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
+pub fn run_cli(cli: Cli) -> Result<()> {
     let s = style::theme();
     match cli.command {
         Commands::Palettify(args) => {
@@ -135,7 +135,7 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             }
 
             // --- 3) MULTI-FILE WITH PROGRESS BARS ---
-            let m = multi.clone();
+            let m = Arc::new(MultiProgress::new());
 
             let mut job_pbs = HashMap::new();
             let mut job_names: Vec<_> = jobs.keys().cloned().collect();

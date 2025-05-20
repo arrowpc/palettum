@@ -2,7 +2,6 @@ use clap::Parser;
 use cli::cli::args::Cli;
 
 use cli::{cli::runner::run_cli, logger};
-use indicatif::MultiProgress;
 use palettum::error::Result;
 use std::{env, process};
 
@@ -17,11 +16,9 @@ fn main() -> Result<()> {
         unsafe { env::set_var("RUST_LOG", "info") };
     }
 
-    let multi = MultiProgress::new();
-    let level = logger::init(multi.clone())?;
-    log::set_max_level(level);
+    logger::init()?;
 
-    let exit_code = match run_cli(args, multi) {
+    let exit_code = match run_cli(args) {
         Ok(()) => 0,
         Err(e) => {
             log::error!("{}", e);

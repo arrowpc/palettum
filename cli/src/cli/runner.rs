@@ -320,22 +320,16 @@ fn determine_path_type(path: &Path) -> Result<PathType> {
                 Ok(PathType::Image)
             }
         } else {
-            Err(Error::Io(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                format!(
-                    "File {} exists but isn't recognised as an image",
-                    path.display()
-                ),
-            )))
+            Err(Error::Io(std::io::Error::other(format!(
+                "File {} exists but isn't recognised as an image",
+                path.display()
+            ))))
         }
     } else {
-        Err(Error::Io(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            format!(
-                "Path {} doesn't exist or isn't a file/directory",
-                path.display()
-            ),
-        )))
+        Err(Error::Io(std::io::Error::other(format!(
+            "Path {} doesn't exist or isn't a file/directory",
+            path.display()
+        ))))
     }
 }
 

@@ -15,7 +15,6 @@ rayon.workspace = true
 thiserror.workspace = true
 num_cpus.workspace = true
 bon = "3.6.3"
-strum = "0.27"
 strum_macros = "0.27"
 anydir = "0.1.2"
 
@@ -25,11 +24,8 @@ tsify = { workspace = true, optional = true }
 
 tabled = {workspace = true, optional = true }
 clap = { workspace = true, optional = true }
-anyhow.workspace = true
 serde_json.workspace = true
 include_dir = "0.7"
-humantime = "2.1"
-humansize = "2.1"
 env_home = "0.1.0"
 
 

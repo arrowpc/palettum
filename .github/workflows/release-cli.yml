@@ -55,7 +55,7 @@ jobs:
         with:
           command: build
           target: ${{ matrix.platform.target }}
-          args: "--release -p palettum-cli"
+          args: "--release -p cli"
           strip: true
 
       - name: Publish artifact

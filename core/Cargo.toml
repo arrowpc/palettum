@@ -30,5 +30,6 @@ env_home = "0.1.0"
 
 
 [features]
-wasm = ["dep:wasm-bindgen", "dep:serde", "dep:tsify", "image/serde"]
+serde = ["dep:serde"]
+wasm = ["serde", "dep:wasm-bindgen", "dep:tsify", "image/serde"]
 cli = ["dep:clap", "dep:tabled"]

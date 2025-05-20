@@ -47,13 +47,13 @@ pub struct Config {
     #[builder(default = [1.0, 1.0, 1.0])]
     pub lab_scales: [f32; 3],
 
-    #[cfg_attr(not(feature = "wasm"), serde(skip))]
+    #[cfg_attr(all(feature = "serde", not(feature = "wasm")), serde(skip))]
     pub resize_width: Option<u32>,
 
-    #[cfg_attr(not(feature = "wasm"), serde(skip))]
+    #[cfg_attr(all(feature = "serde", not(feature = "wasm")), serde(skip))]
     pub resize_height: Option<u32>,
 
-    #[cfg_attr(not(feature = "wasm"), serde(skip))]
+    #[cfg_attr(all(feature = "serde", not(feature = "wasm")), serde(skip))]
     pub resize_scale: Option<f32>,
 }
 

@@ -13,6 +13,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "palettum": [
+        "./src/wasm/pkg/wasm"
       ]
     }
   }

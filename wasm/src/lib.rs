@@ -1,7 +1,9 @@
 use image::ImageFormat;
-use palettum::{error::Result, Config, Gif, Image};
+use palettum::{error::Result, Config, Filter, Gif, Image, Mapping};
+use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
+
 // TODO:
 // pub use wasm_bindgen_rayon::init_thread_pool;
 
@@ -11,8 +13,9 @@ pub fn wasm_init() {
     wasm_logger::init(wasm_logger::Config::default());
     log::info!("palettum WASM module initialized");
 }
+
 #[wasm_bindgen]
-pub fn palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>, JsValue> {
+pub fn palettify(image_bytes: Vec<u8>, config: Config) -> StdResult<Vec<u8>, JsValue> {
     _palettify(image_bytes, config).map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
@@ -20,20 +23,38 @@ fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
     let start_time = Instant::now();
     log::info!("Received image bytes for processing in WASM...");
 
+    let filter = match config.mapping {
+        Mapping::Smoothed => Filter::Lanczos3,
+        _ => Filter::Nearest,
+    };
+
     let bytes = image_bytes.to_vec();
     let format = image::guess_format(&bytes)?;
     log::info!("Using config: {}", config);
+    log::info!("Resize filter: {:?} ", filter);
 
     let output_bytes = match format {
         ImageFormat::Gif => {
             log::info!("Detected GIF format, processing animation...");
             let mut gif = Gif::from_memory(&bytes)?;
+            gif.resize(
+                config.resize_width,
+                config.resize_height,
+                config.resize_scale,
+                filter,
+            )?;
             gif.palettify(&config)?;
             gif.write_to_memory()?
         }
         _ => {
             log::info!("Detected static image format ({:?}), processing...", format);
             let mut img = Image::from_memory(&bytes)?;
+            img.resize(
+                config.resize_width,
+                config.resize_height,
+                config.resize_scale,
+                filter,
+            )?;
             img.palettify(&config)?;
             img.write_to_memory()?
         }

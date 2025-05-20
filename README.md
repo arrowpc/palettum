@@ -60,7 +60,7 @@ If you want to build the project from source, follow these steps:
 To build the command-line interface (CLI) tool, run the following Cargo command from the project root:
 
 ```bash
-cargo build -p palettum-cli
+cargo build -p cli
 ```
 
 The executable will be located in the `target/debug/` directory (or `target/release/` if you add the `--release` flag).

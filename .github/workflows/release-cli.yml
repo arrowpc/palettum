@@ -3,9 +3,11 @@ name: Build and Release CLI
 on:
   push:
     paths:
-      - "rs/**"
+      - "cli/**"
+      - "core/**"
+      - "wasm/**"
       - "Cargo.toml"
-      - ".github/workflows/release.yml"
+      - ".github/workflows/code-quality.yml"
     tags:
       - "v*"
 

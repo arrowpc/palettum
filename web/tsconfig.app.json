@@ -40,6 +40,9 @@
       ],
       "@/config/*": [
         "./src/config/*"
+      ],
+      "palettum": [
+        "./src/wasm/pkg/wasm"
       ]
     }
   },

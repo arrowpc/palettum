@@ -216,7 +216,7 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "cli"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anstyle",
  "anydir",
@@ -693,7 +693,7 @@ checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
 name = "palettum"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "anydir",
  "bon",
@@ -1110,7 +1110,7 @@ dependencies = [
 
 [[package]]
 name = "wasm"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "console_error_panic_hook",
  "image",

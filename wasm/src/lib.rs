@@ -1,5 +1,5 @@
 use image::ImageFormat;
-use palettum::{error::Result, Config, Filter, Gif, Image, Mapping};
+use palettum::{error::Result, Config, Filter, Gif, Ico, Image, Mapping};
 use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
@@ -45,6 +45,18 @@ fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
             )?;
             gif.palettify(&config)?;
             gif.write_to_memory()?
+        }
+        ImageFormat::Ico => {
+            log::info!("Detected Ico format, processing icons...");
+            let mut ico = Ico::from_memory(&bytes)?;
+            ico.resize(
+                config.resize_width,
+                config.resize_height,
+                config.resize_scale,
+                filter,
+            )?;
+            ico.palettify(&config)?;
+            ico.write_to_memory()?
         }
         _ => {
             log::info!("Detected static image format ({:?}), processing...", format);

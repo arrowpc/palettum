@@ -21,7 +21,7 @@ use bon::Builder;
 pub use config::Config;
 use error::{Error, Result};
 pub use gif::Gif;
-use ico::Ico;
+pub use ico::Ico;
 pub use image::Image;
 
 #[cfg(feature = "wasm")]

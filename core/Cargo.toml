@@ -27,6 +27,7 @@ clap = { workspace = true, optional = true }
 serde_json.workspace = true
 include_dir = "0.7"
 env_home = "0.1.0"
+ico = "0.4.0"
 
 
 [features]

@@ -1,6 +1,7 @@
 mod color;
 mod config;
 mod gif;
+mod ico;
 mod image;
 mod math;
 mod processing;
@@ -20,6 +21,7 @@ use bon::Builder;
 pub use config::Config;
 use error::{Error, Result};
 pub use gif::Gif;
+use ico::Ico;
 pub use image::Image;
 
 #[cfg(feature = "wasm")]
@@ -118,11 +120,17 @@ pub fn palettify_io(
     filter: Filter,
 ) -> Result<()> {
     let format = ImageFormat::from_path(input)?;
+    log::debug!("format: {:?}", format);
     if format == ImageFormat::Gif {
         let mut gif = Gif::from_file(input)?;
         gif.resize(width, height, scale, filter)?;
         gif.palettify(config)?;
         gif.write_to_file(output)?;
+    } else if format == ImageFormat::Ico {
+        let mut ico = Ico::from_file(input)?;
+        ico.resize(width, height, scale, filter)?;
+        ico.palettify(config)?;
+        ico.write_to_file(output)?;
     } else {
         let mut img = Image::from_file(input)?;
         img.resize(width, height, scale, filter)?;

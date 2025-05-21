@@ -409,9 +409,7 @@ fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
 
             if is_image {
                 image_files.push(path.to_path_buf());
-            }
-
-            if let Ok(rel_path) = path.strip_prefix(src_dir) {
+            } else if let Ok(rel_path) = path.strip_prefix(src_dir) {
                 let dst_path = dst_dir.join(rel_path);
                 if let Some(parent) = dst_path.parent() {
                     fs::create_dir_all(parent)?;

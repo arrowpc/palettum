@@ -7,6 +7,9 @@ pub enum Error {
     #[error("Failed to load image: {0}")]
     ImageLoad(#[from] image::ImageError),
 
+    #[error("Failed to write image")]
+    ImageWritingError,
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -18,6 +21,8 @@ pub enum Error {
 
     #[error("LUT index {index} out of bounds (size {size})")]
     LutIndexOutOfBounds { index: usize, size: usize },
+
+
 
     #[error("Not a valid GIF file")]
     InvalidGifFile,

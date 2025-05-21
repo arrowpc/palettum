@@ -10,6 +10,9 @@ pub enum Error {
     #[error("Failed to write image")]
     ImageWritingError,
 
+    #[error("Media format not supported")]
+    UnsupportedFormat,
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 

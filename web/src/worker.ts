@@ -1,3 +1,4 @@
+/// <reference lib="webworker" />
 import { palettify } from "palettum";
 import type { Config } from "palettum";
 
@@ -19,7 +20,7 @@ interface WorkerErrorResponse {
   error: string;
 }
 
-self.onmessage = function (e: MessageEvent<WorkerRequest>) {
+self.onmessage = function(e: MessageEvent<WorkerRequest>) {
   try {
     const { imageBytes, config, id } = e.data;
 

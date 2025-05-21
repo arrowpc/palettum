@@ -720,6 +720,7 @@ dependencies = [
  "include_dir",
  "log",
  "num_cpus",
+ "png",
  "rayon",
  "serde",
  "serde_json",

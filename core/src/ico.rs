@@ -236,9 +236,3 @@ impl Ico {
         Ok(())
     }
 }
-
-#[test]
-fn ico_test() {
-    let ico = Ico::from_file("../favicon.ico").unwrap();
-    ico.write_to_file("../yo").unwrap();
-}

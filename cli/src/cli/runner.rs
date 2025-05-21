@@ -48,7 +48,7 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 let mut count = 0;
                 for input in &args.input_paths {
                     match determine_path_type(input)? {
-                        PathType::Image | PathType::Gif => {
+                        PathType::Image | PathType::Gif | PathType::Ico => {
                             let out = determine_output_path(
                                 args.output_path.as_deref(),
                                 input,
@@ -315,6 +315,7 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
 enum PathType {
     Image,
     Gif,
+    Ico,
     Directory,
 }
 
@@ -325,6 +326,8 @@ fn determine_path_type(path: &Path) -> Result<PathType> {
         if let Ok(format) = ImageFormat::from_path(path) {
             if format == ImageFormat::Gif {
                 Ok(PathType::Gif)
+            } else if format == ImageFormat::Ico {
+                Ok(PathType::Ico)
             } else {
                 Ok(PathType::Image)
             }
@@ -428,7 +431,9 @@ fn output_with_final_ext(input: &Path, output: &Path) -> PathBuf {
     let ext = match determine_path_type(input) {
         Ok(PathType::Gif) => "gif",
         Ok(PathType::Image) => "png",
-        _ => return out,
+        Ok(PathType::Ico) => "ico",
+        Ok(PathType::Directory) => return out,
+        Err(_) => todo!(),
     };
     out.set_extension(ext);
     out

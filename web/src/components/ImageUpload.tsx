@@ -17,7 +17,14 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const [isActive, setIsActive] = useState(false);
   const uploadAreaRef = useRef<HTMLDivElement>(null);
 
-  const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+  const validTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+    "image/x-icon",
+  ];
+
   const validTypesString = validTypes
     .map((type) => type.split("/")[1].toUpperCase())
     .join(", ");

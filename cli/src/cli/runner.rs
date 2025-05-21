@@ -347,7 +347,7 @@ pub fn format_duration(duration: Duration) -> String {
 
 // TODO: Check if directory already exists & implement --force flag for palettify command
 fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
-    let exts = ["gif", "png", "jpg", "jpeg", "webp"];
+    let exts = ["gif", "png", "jpg", "jpeg", "webp", "ico"];
     let mut image_files = Vec::new();
 
     fs::create_dir_all(dst_dir)?;

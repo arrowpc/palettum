@@ -10,11 +10,8 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 palettum = { path = "../core", features = ["wasm"] }
-image.workspace = true
 log.workspace = true
-serde.workspace = true
 wasm-bindgen.workspace = true
-tsify.workspace = true
 console_error_panic_hook = "0.1.7"
 wasm-logger = "0.2"
 web-time = "1.1.0"

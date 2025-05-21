@@ -28,8 +28,10 @@ pub enum Error {
     #[error("Not a valid GIF file")]
     InvalidGifFile,
 
-    #[error("Empty palette: at least one color is required")]
-    EmptyPalette,
+    #[error(
+        "Invalid palette size: must have at least one color and at most {max} colors, got {size}"
+    )]
+    InvalidPaletteSize { size: usize, max: usize },
 
     #[error("Invalid quant_level: must be between 0 (to disable) and {max}, got {value}")]
     InvalidQuantLevel { value: u8, max: u8 },

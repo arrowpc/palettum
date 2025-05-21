@@ -76,10 +76,14 @@ impl fmt::Display for Config {
 
 impl Config {
     const MAX_QUANT_LEVEL: u8 = 5;
+    const MAX_PALETTE_SIZE: usize = 255; // Actual max is 256, but 1 is reserved for transparency
 
     pub fn validate(&self) -> Result<()> {
-        if self.palette.colors.is_empty() {
-            return Err(Error::EmptyPalette);
+        if self.palette.colors.is_empty() || self.palette.colors.len() > 256 {
+            return Err(Error::InvalidPaletteSize {
+                size: self.palette.colors.len(),
+                max: Self::MAX_PALETTE_SIZE,
+            });
         }
 
         if self.quant_level > Self::MAX_QUANT_LEVEL {

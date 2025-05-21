@@ -1,22 +1,27 @@
 use crate::{
-    color::ConvertToLab,
-    color::Lab,
+    color::{ConvertToLab, Lab},
     config::Config,
     error::{Error, Result},
-    processing, Filter,
+    processing, Filter, Mapping,
 };
 
-use image::{ImageFormat, RgbaImage};
+use image::{ImageFormat, Rgb, RgbaImage};
 
-use std::io::{BufReader, BufWriter, Cursor};
 use std::path::Path;
+use std::{
+    collections::HashMap,
+    io::{BufReader, BufWriter, Cursor},
+};
 use std::{fs::File, path::PathBuf};
+
+use png::{BitDepth, ColorType, Encoder};
 
 #[derive(Clone, Debug)]
 pub struct Image {
     pub buffer: RgbaImage,
     pub width: u32,
     pub height: u32,
+    pub palette: Option<Vec<Rgb<u8>>>,
 }
 
 impl Image {
@@ -29,6 +34,7 @@ impl Image {
             buffer,
             width,
             height,
+            palette: None,
         })
     }
 
@@ -43,6 +49,7 @@ impl Image {
             buffer,
             width,
             height,
+            palette: None,
         })
     }
 
@@ -61,25 +68,92 @@ impl Image {
 
         let file = File::create(&path_with_ext)?;
         let writer = BufWriter::new(file);
-        self.write_to_writer(writer, ImageFormat::Png)
+        self.write_to_writer(writer)
     }
 
     pub fn write_to_memory(&self) -> Result<Vec<u8>> {
         let mut buffer = Vec::new();
         {
             let writer = Cursor::new(&mut buffer);
-            self.write_to_writer(writer, ImageFormat::Png)?;
+            self.write_to_writer(writer)?;
         }
         Ok(buffer)
     }
 
-    // TODO: encode with https://docs.rs/mtpng/latest/mtpng/ as it supports indexed PNGs
-    fn write_to_writer<W: std::io::Write + std::io::Seek>(
-        &self,
-        mut writer: W,
-        format: ImageFormat,
-    ) -> Result<()> {
-        self.buffer.write_to(&mut writer, format)?;
+    fn write_to_writer<W: std::io::Write + std::io::Seek>(&self, mut writer: W) -> Result<()> {
+        if let Some(palette) = &self.palette {
+            log::debug!(
+                "Attempting to write indexed PNG with {} palette colors.",
+                palette.len()
+            );
+
+            let mut encoder = Encoder::new(&mut writer, self.width, self.height);
+            encoder.set_color(ColorType::Indexed);
+            encoder.set_depth(BitDepth::Eight);
+            encoder.set_compression(png::Compression::Fast);
+
+            let mut plte_palette: Vec<u8> = Vec::with_capacity(palette.len() * 3);
+            let mut trns_alphas: Vec<u8> = Vec::with_capacity(palette.len());
+
+            for color in palette.iter().take(palette.len() - 1) {
+                plte_palette.push(color.0[0]); // R
+                plte_palette.push(color.0[1]); // G
+                plte_palette.push(color.0[2]); // B
+                trns_alphas.push(255u8); // A (Opaque)
+            }
+
+            let transparent_index = (palette.len() - 1) as u8;
+            let transparent_color = &palette[palette.len() - 1];
+            plte_palette.push(transparent_color.0[0]);
+            plte_palette.push(transparent_color.0[1]);
+            plte_palette.push(transparent_color.0[2]);
+            trns_alphas.push(0u8); // Transparent
+
+            encoder.set_palette(plte_palette);
+            encoder.set_trns(trns_alphas);
+
+            let mut writer = encoder.write_header().unwrap();
+
+            let color_to_index: HashMap<Rgb<u8>, u8> = palette
+                .iter()
+                .enumerate()
+                .map(|(i, color)| (*color, i as u8))
+                .collect();
+
+            let width = self.width as usize;
+            let height = self.height as usize;
+            let mut indices = Vec::with_capacity(width * height);
+
+            for y in 0..self.height {
+                for x in 0..self.width {
+                    let pixel_rgba = self.buffer.get_pixel(x, y);
+                    let r = pixel_rgba[0];
+                    let g = pixel_rgba[1];
+                    let b = pixel_rgba[2];
+                    let a = pixel_rgba[3];
+
+                    if a == 0 {
+                        indices.push(transparent_index);
+                    } else {
+                        let current_color = Rgb([r, g, b]);
+                        match color_to_index.get(&current_color) {
+                            Some(&idx) => indices.push(idx),
+                            None => {
+                                log::error!(
+                                "Pixel color ({},{},{}) not found in palette! Defaulting to index 0.",
+                                r, g, b
+                            );
+                                indices.push(0);
+                            }
+                        }
+                    }
+                }
+            }
+
+            writer.write_image_data(&indices).unwrap();
+        } else {
+            self.buffer.write_to(&mut writer, ImageFormat::Png)?
+        }
         Ok(())
     }
 
@@ -201,6 +275,12 @@ impl Image {
             },
         )?;
         log::debug!("Pixel processing complete.");
+
+        if config.mapping != Mapping::Smoothed {
+            self.palette = Some(config.palette.colors.clone());
+            self.palette.as_mut().unwrap().push(Rgb([0, 0, 0]));
+            log::debug!("Set image palette: {:?}", self.palette);
+        }
 
         Ok(())
     }

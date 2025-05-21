@@ -1,7 +1,7 @@
 mod gif;
 mod ico;
 mod image;
-use ::image::ImageFormat;
+use ::image::{guess_format, ImageFormat};
 pub use gif::Gif;
 pub use ico::Ico;
 pub use image::Image;
@@ -28,7 +28,19 @@ impl Media {
             ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP => {
                 Ok(Media::Image(Image::from_file(path)?))
             }
-            _ => Err(Error::UnsupportedFormat(path.to_path_buf())),
+            _ => Err(Error::UnsupportedFormat),
+        }
+    }
+
+    pub fn from_memory(bytes: &[u8]) -> Result<Self> {
+        let format = guess_format(bytes)?;
+        match format {
+            ImageFormat::Gif => Ok(Media::Gif(Gif::from_memory(bytes)?)),
+            ImageFormat::Ico => Ok(Media::Ico(Ico::from_memory(bytes)?)),
+            ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP => {
+                Ok(Media::Image(Image::from_memory(bytes)?))
+            }
+            _ => Err(Error::UnsupportedFormat),
         }
     }
 
@@ -87,6 +99,18 @@ pub fn load_media_from_path(path: &Path) -> Result<Media> {
         ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP => {
             Ok(Media::Image(Image::from_file(path)?))
         }
-        _ => Err(Error::UnsupportedFormat(path.to_path_buf())),
+        _ => Err(Error::UnsupportedFormat),
+    }
+}
+
+pub fn load_media_from_memory(bytes: &[u8]) -> Result<Media> {
+    let format = guess_format(bytes)?;
+    match format {
+        ImageFormat::Gif => Ok(Media::Gif(Gif::from_memory(bytes)?)),
+        ImageFormat::Ico => Ok(Media::Ico(Ico::from_memory(bytes)?)),
+        ImageFormat::Png | ImageFormat::Jpeg | ImageFormat::WebP => {
+            Ok(Media::Image(Image::from_memory(bytes)?))
+        }
+        _ => Err(Error::UnsupportedFormat),
     }
 }

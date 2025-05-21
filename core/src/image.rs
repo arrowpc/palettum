@@ -12,6 +12,8 @@ use std::io::{BufReader, BufWriter, Cursor};
 use std::path::Path;
 use std::{fs::File, path::PathBuf};
 
+use tracing::{debug, info, instrument};
+
 #[derive(Clone, Debug)]
 pub struct Image {
     pub buffer: RgbaImage,
@@ -20,11 +22,14 @@ pub struct Image {
 }
 
 impl Image {
+    #[instrument(skip(image_bytes))]
     pub fn from_memory(image_bytes: &[u8]) -> Result<Self> {
+        info!("Loading image from memory");
         let dynamic_image = image::load_from_memory(image_bytes)?;
         let buffer = dynamic_image.into_rgba8();
         let width = buffer.width();
         let height = buffer.height();
+        debug!("Loaded image dimensions: {}x{}", width, height);
         Ok(Self {
             buffer,
             width,
@@ -32,13 +37,17 @@ impl Image {
         })
     }
 
+    #[instrument(skip(path))]
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+        info!("Loading image from file: {}", path.as_ref().display());
         let file = File::open(&path)?;
         let format = ImageFormat::from_path(&path)?;
+        debug!("Detected image format: {:?}", format);
         let dynamic_image = image::load(BufReader::new(file), format)?;
         let buffer = dynamic_image.into_rgba8();
         let width = buffer.width();
         let height = buffer.height();
+        debug!("Loaded image dimensions: {}x{}", width, height);
         Ok(Self {
             buffer,
             width,
@@ -46,11 +55,11 @@ impl Image {
         })
     }
 
+    #[instrument(skip(self, path))]
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
-
         if path.extension().is_some() {
-            log::debug!(
+            debug!(
                 "{}",
                 Error::FileExtensionAlreadySupplied(path.to_path_buf())
             );
@@ -59,30 +68,44 @@ impl Image {
         let mut path_with_ext = PathBuf::from(path);
         path_with_ext.set_extension("png");
 
+        info!("Saving as PNG to: {}", path_with_ext.display());
+
         let file = File::create(&path_with_ext)?;
         let writer = BufWriter::new(file);
-        self.write_to_writer(writer, ImageFormat::Png)
+        self.write_to_writer(writer, ImageFormat::Png)?;
+        info!("Image successfully written to file");
+        Ok(())
     }
 
+    #[instrument(skip(self))]
     pub fn write_to_memory(&self) -> Result<Vec<u8>> {
+        info!("Writing image to memory buffer");
         let mut buffer = Vec::new();
         {
             let writer = Cursor::new(&mut buffer);
             self.write_to_writer(writer, ImageFormat::Png)?;
         }
+        debug!(
+            "Image successfully written to memory buffer (size: {} bytes)",
+            buffer.len()
+        );
         Ok(buffer)
     }
 
     // TODO: encode with https://docs.rs/mtpng/latest/mtpng/ as it supports indexed PNGs
+    #[instrument(skip(self, writer))]
     fn write_to_writer<W: std::io::Write + std::io::Seek>(
         &self,
         mut writer: W,
         format: ImageFormat,
     ) -> Result<()> {
+        debug!("Encoding image with format: {:?}", format);
         self.buffer.write_to(&mut writer, format)?;
+        debug!("Encoding complete");
         Ok(())
     }
 
+    #[instrument(skip(self, target_width, target_height, scale, filter))]
     pub fn resize(
         &mut self,
         target_width: Option<u32>,
@@ -90,6 +113,10 @@ impl Image {
         scale: Option<f32>,
         filter: Filter,
     ) -> Result<()> {
+        info!(
+            "Attempting to resize image (target_width: {:?}, target_height: {:?}, scale: {:?}, filter: {:?})",
+            target_width, target_height, scale, filter
+        );
         if let Some(width) = target_width {
             if width == 0 {
                 return Err(Error::InvalidResizeDimensions);
@@ -109,23 +136,38 @@ impl Image {
         }
         // Determine base dimensions before scaling
         let (base_width, base_height) = match (target_width, target_height) {
-            (Some(w), Some(h)) => (w, h), // Both width and height provided
+            (Some(w), Some(h)) => {
+                debug!("Using target width and height as base: {}x{}", w, h);
+                (w, h)
+            } // Both width and height provided
             (Some(w), None) => {
                 // Only width provided
                 let aspect_ratio = self.height as f32 / self.width as f32;
                 let h = (w as f32 * aspect_ratio).round() as u32;
+                debug!(
+                    "Using target width ({}) and calculated height ({}) as base",
+                    w, h
+                );
                 (w, if h == 0 { 1 } else { h }) // Ensure height is at least 1
             }
             (None, Some(h)) => {
                 // Only height provided
                 let aspect_ratio = self.width as f32 / self.height as f32;
                 let w = (h as f32 * aspect_ratio).round() as u32;
+                debug!(
+                    "Using target height ({}) and calculated width ({}) as base",
+                    h, w
+                );
                 (if w == 0 { 1 } else { w }, h) // Ensure width is at least 1
             }
             (None, None) => {
                 // No target dimensions provided. Base is original dimensions.
                 // Scale will be applied later if present.
                 // If no scale either, we'll skip.
+                debug!(
+                    "No target dimensions provided, using original: {}x{}",
+                    self.width, self.height
+                );
                 (self.width, self.height)
             }
         };
@@ -140,9 +182,13 @@ impl Image {
             // If target_width/height were also None, these are original dimensions.
             if target_width.is_none() && target_height.is_none() {
                 // No operation specified (no target dimensions, no scale)
-                log::debug!("Skipping resize: No target dimensions or scale provided.");
+                debug!("Skipping resize: No target dimensions or scale provided.");
                 return Ok(());
             }
+            debug!(
+                "No scale provided, final dimensions are base dimensions: {}x{}",
+                base_width, base_height
+            );
             (base_width, base_height)
         };
 
@@ -152,27 +198,26 @@ impl Image {
 
         // Only resize if dimensions actually change
         if final_width != self.width || final_height != self.height {
-            log::debug!(
+            info!(
                 "Resizing from {}x{} to {}x{} using filter {:?}",
-                self.width,
-                self.height,
-                final_width,
-                final_height,
-                filter
+                self.width, self.height, final_width, final_height, filter
             );
 
             self.buffer =
                 image::imageops::resize(&self.buffer, final_width, final_height, filter.into());
             self.width = final_width;
             self.height = final_height;
+            info!("Resize complete.");
         } else {
-            log::debug!("Skipping resize: Target dimensions match original.");
+            debug!("Skipping resize: Target dimensions match original.");
         }
 
         Ok(())
     }
 
+    #[instrument(skip(self, config))]
     pub fn palettify(&mut self, config: &Config) -> Result<()> {
+        info!("Starting image palettification");
         config.validate()?;
 
         let lab_colors = config
@@ -181,15 +226,17 @@ impl Image {
             .iter()
             .map(|rgb| rgb.to_lab())
             .collect::<Vec<Lab>>();
+        debug!("Converted palette colors to LAB");
 
         let lookup = if config.quant_level > 0 {
             let img_size = self.width as usize * self.height as usize;
             processing::generate_lookup_table(config, &lab_colors, Some(img_size))
         } else {
+            info!("Quantization level is 0, skipping LUT generation");
             Vec::new()
         };
 
-        log::debug!("Processing image pixels ({}x{})", self.width, self.height);
+        debug!("Processing image pixels ({}x{})", self.width, self.height);
         processing::process_pixels(
             &mut self.buffer,
             config,
@@ -200,7 +247,7 @@ impl Image {
                 Some(&lookup)
             },
         )?;
-        log::debug!("Pixel processing complete.");
+        debug!("Pixel processing complete.");
 
         Ok(())
     }

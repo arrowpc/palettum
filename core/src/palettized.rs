@@ -1,5 +1,6 @@
 use crate::{color::Lab, config::Config, math::FastMath};
 use image::Rgb;
+use tracing::{debug, instrument, trace};
 
 #[cfg(feature = "wasm")]
 use serde::{Deserialize, Serialize};
@@ -31,18 +32,25 @@ pub(crate) fn closest_rgb(reference: &Lab, colors: &[Lab], config: &Config) -> R
     config.palette.colors[index]
 }
 
-fn calculate_delta_e(method: Formula, color1: &Lab, color2: &Lab) -> f32 {
-    match method {
+#[instrument]
+fn calculate_delta_e(formula: Formula, color1: &Lab, color2: &Lab) -> f32 {
+    match formula {
         Formula::CIEDE2000 => calculate_ciede2000(color1, color2),
         Formula::CIE94 => calculate_cie94(color1, color2),
         Formula::CIE76 => calculate_cie76(color1, color2),
     }
 }
 
-pub(crate) fn delta_e_batch(method: Formula, reference: &Lab, colors: &[Lab]) -> Vec<f32> {
+#[instrument(skip(colors))]
+pub(crate) fn delta_e_batch(formula: Formula, reference: &Lab, colors: &[Lab]) -> Vec<f32> {
+    debug!(
+        "Calculating batch Delta E for {} colors using formula: {:?}",
+        colors.len(),
+        formula
+    );
     colors
         .iter()
-        .map(|palette_color| calculate_delta_e(method, reference, palette_color))
+        .map(|palette_color| calculate_delta_e(formula, reference, palette_color))
         .collect()
 }
 

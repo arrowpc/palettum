@@ -10,7 +10,6 @@ crate-type = ["rlib"]
 
 [dependencies]
 image.workspace = true
-log.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
 num_cpus.workspace = true
@@ -27,6 +26,7 @@ clap = { workspace = true, optional = true }
 serde_json.workspace = true
 include_dir = "0.7"
 env_home = "0.1.0"
+tracing = "0.1.41"
 
 
 [features]

@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "wasm")]
 use tsify::Tsify;
 
+use tracing::{debug, instrument, trace};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(
     feature = "wasm",

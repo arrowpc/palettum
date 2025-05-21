@@ -11,6 +11,8 @@ use rayon::{prelude::*, ThreadPoolBuilder};
 
 use std::collections::HashMap;
 
+use tracing::{debug, error, info, instrument};
+
 #[derive(Debug)]
 pub struct ThreadLocalCache {
     cache: HashMap<Rgba<u8>, Rgba<u8>>,
@@ -18,6 +20,7 @@ pub struct ThreadLocalCache {
 
 impl ThreadLocalCache {
     pub(crate) fn new() -> Self {
+        debug!("Creating new ThreadLocalCache");
         ThreadLocalCache {
             cache: HashMap::with_capacity(4096),
         }
@@ -34,6 +37,7 @@ impl ThreadLocalCache {
     }
 }
 
+#[instrument(skip(config, lab_colors, image_size))]
 pub fn generate_lookup_table(
     config: &Config,
     lab_colors: &[Lab],
@@ -47,21 +51,17 @@ pub fn generate_lookup_table(
     if let Some(size) = image_size {
         const LUT_SIZE_HEURISTIC_DIVISOR: usize = 4;
         if size > 0 && table_size > size / LUT_SIZE_HEURISTIC_DIVISOR {
-            log::debug!(
+            debug!(
                 "Skipping LUT generation: LUT size ({}) > image size ({}) / {}",
-                table_size,
-                size,
-                LUT_SIZE_HEURISTIC_DIVISOR
+                table_size, size, LUT_SIZE_HEURISTIC_DIVISOR
             );
             return Vec::new();
         }
     }
 
-    log::debug!(
+    info!(
         "Generating lookup table (quant={}, bins={}, size={})...",
-        q,
-        bins_per_channel,
-        table_size
+        q, bins_per_channel, table_size
     );
 
     let mut lookup = vec![Rgb([0, 0, 0]); table_size];
@@ -98,7 +98,7 @@ pub fn generate_lookup_table(
         }
     }
 
-    log::debug!("Lookup table generation complete.");
+    debug!("Lookup table generation complete.");
     lookup
 }
 
@@ -172,16 +172,19 @@ fn get_mapped_color_for_pixel(
     Ok(result_rgba)
 }
 
+#[instrument(skip(image, config, lab_colors, lookup))]
 pub(crate) fn process_pixels(
     image: &mut RgbaImage,
     config: &Config,
     lab_colors: &[Lab],
     lookup: Option<&[Rgb<u8>]>,
 ) -> Result<()> {
+    info!("Starting pixel processing");
     let raw_data = image.as_mut();
     let bytes_per_pixel = 4;
 
     let num_threads = config.num_threads.max(1);
+    debug!("Using {} threads for pixel processing", num_threads);
 
     if num_threads == 1 {
         let mut cache = ThreadLocalCache::new();
@@ -230,7 +233,7 @@ pub(crate) fn process_pixels(
                                 pixel_chunk[3] = mapped_pixel.0[3];
                             }
                             Err(e) => {
-                                log::error!("Error processing pixel: {:?}", e);
+                                error!("Error processing pixel: {:?}", e);
                             }
                         }
                     }

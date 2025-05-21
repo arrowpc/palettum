@@ -1,4 +1,5 @@
 use crate::style;
+use indicatif::ProgressDrawTarget;
 use palettum::error::{Error, Result};
 use tracing::{field::Field, Event};
 use tracing::{Level, Subscriber};
@@ -48,7 +49,7 @@ where
         let (level_text, style_ref) = match level {
             Level::ERROR => ("ERROR ", &s.error),
             Level::WARN => ("WARN  ", &s.warning),
-            Level::INFO => ("", &s.info),
+            Level::INFO => ("INFO ", &s.info),
             Level::DEBUG => ("DEBUG ", &s.highlight),
             Level::TRACE => ("TRACE ", &s.info),
         };
@@ -60,9 +61,9 @@ where
 
         let target = visitor.log_target.as_deref().unwrap_or(metadata.target());
 
-        if level != Level::INFO {
-            write!(writer, "[{}] ", target)?;
-        }
+        // if level != Level::INFO {
+        write!(writer, "[{}] ", target)?;
+        // }
 
         ctx.format_fields(writer.by_ref(), event)?;
         writeln!(writer)
@@ -74,18 +75,19 @@ pub fn init() -> Result<()> {
 
     let indicatif_layer = IndicatifLayer::new();
 
-    let fmt_subscriber = FmtSubscriber::builder()
-        .with_span_events(tracing_subscriber::fmt::format::FmtSpan::FULL)
-        .with_env_filter(env_filter)
-        .event_format(PalettumFormatter)
-        .fmt_fields(fmt::format::PrettyFields::new())
-        .finish();
-
-    let subscriber = fmt_subscriber.with(indicatif_layer);
-
-    subscriber.try_init().map_err(|e| {
-        Error::LoggerError(format!("Failed to initialize tracing subscriber: {}", e))
-    })?;
+    tracing_subscriber::registry()
+        .with(env_filter)
+        .with(
+            fmt::layer()
+                .event_format(PalettumFormatter)
+                .fmt_fields(fmt::format::PrettyFields::new())
+                .with_writer(indicatif_layer.get_stderr_writer()),
+        )
+        .with(indicatif_layer)
+        .try_init()
+        .map_err(|e| {
+            Error::LoggerError(format!("Failed to initialize tracing subscriber: {}", e))
+        })?;
 
     Ok(())
 }

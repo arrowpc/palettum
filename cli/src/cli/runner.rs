@@ -3,7 +3,6 @@ use crate::style;
 use anydir::AnyFileEntry;
 use image::ImageFormat;
 use indicatif::{MultiProgress, ProgressBar};
-use log::{error, info};
 use palettum::{
     custom_palettes_dir, delete_custom_palette,
     error::{Error, Result},
@@ -18,6 +17,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use style::FitToTerminal;
 use tabled::Table;
+use tracing::{error, info};
 use walkdir::WalkDir;
 
 pub fn run_cli(cli: Cli) -> Result<()> {

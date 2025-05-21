@@ -1,13 +1,13 @@
 use super::args::{Cli, Commands};
 use crate::style;
 use anydir::AnyFileEntry;
-use image::ImageFormat;
 use indicatif::{MultiProgress, ProgressBar};
 use log::{error, info};
 use palettum::{
     custom_palettes_dir, delete_custom_palette,
     error::{Error, Result},
-    palettify_io, Config, PaletteKind,
+    media::load_media_from_path,
+    Config, PaletteKind,
 };
 use palettum::{get_all_palettes, palette_from_file_entry, save_custom_palette};
 use rayon::{prelude::*, ThreadPoolBuilder};
@@ -47,40 +47,34 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 let mut map: BTreeMap<String, Vec<(PathBuf, PathBuf)>> = BTreeMap::new();
                 let mut count = 0;
                 for input in &args.input_paths {
-                    match determine_path_type(input)? {
-                        PathType::Image | PathType::Gif | PathType::Ico => {
-                            let out = determine_output_path(
-                                args.output_path.as_deref(),
-                                input,
-                                args.mapping,
-                            );
-                            map.entry(INDIVIDUAL_FILES_LABEL.to_string())
+                    if input.is_dir() {
+                        // Directory
+                        let out_dir =
+                            determine_output_path(args.output_path.as_deref(), input, args.mapping);
+                        let files = process_files(input, &out_dir)?;
+                        let dir_name = input
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string();
+                        for file in files {
+                            let rel = file.strip_prefix(input).unwrap();
+                            let out = out_dir.join(rel);
+                            // let out_final = path_with_stem(&out);
+                            let out_final = out.with_extension(""); // New line
+                            map.entry(dir_name.clone())
                                 .or_default()
-                                .push((input.clone(), out));
+                                .push((file, out_final));
                             count += 1;
                         }
-                        PathType::Directory => {
-                            let out_dir = determine_output_path(
-                                args.output_path.as_deref(),
-                                input,
-                                args.mapping,
-                            );
-                            let files = process_files(input, &out_dir)?;
-                            let dir_name = input
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .to_string();
-                            for file in files {
-                                let rel = file.strip_prefix(input).unwrap();
-                                let out = out_dir.join(rel);
-                                let out_final = path_with_stem(&out);
-                                map.entry(dir_name.clone())
-                                    .or_default()
-                                    .push((file, out_final));
-                                count += 1;
-                            }
-                        }
+                    } else {
+                        // File
+                        let out =
+                            determine_output_path(args.output_path.as_deref(), input, args.mapping);
+                        map.entry(INDIVIDUAL_FILES_LABEL.to_string())
+                            .or_default()
+                            .push((input.clone(), out));
+                        count += 1;
                     }
                 }
                 (map, count)
@@ -93,14 +87,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 let input = input.clone();
                 let output = output.clone();
                 let start = Instant::now();
-
-                info!(
-                    "Palettifying:\n {} → {}\n Palette: {}",
-                    s.primary.apply_to(input.display()),
-                    s.secondary
-                        .apply_to(output_with_final_ext(&input, &output).display()),
-                    s.highlight.apply_to(args.palette.id.clone()),
-                );
 
                 let config = Arc::new(
                     Config::builder()
@@ -119,15 +105,21 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 if let Some(p) = output.parent() {
                     std::fs::create_dir_all(p)?;
                 }
-                palettify_io(
-                    &input,
-                    &output,
-                    &config,
-                    args.width,
-                    args.height,
-                    args.scale,
-                    args.filter,
-                )?;
+
+                let mut media = load_media_from_path(&input)?;
+                info!(
+                    "Palettifying:\n {} → {}\n Palette: {}",
+                    s.primary.apply_to(input.display()),
+                    s.secondary.apply_to(format!(
+                        "{}.{}",
+                        output.display(),
+                        media.default_extension()
+                    )),
+                    s.highlight.apply_to(args.palette.id.clone()),
+                );
+                media.resize(args.width, args.height, args.scale, args.filter)?;
+                media.palettify(&config)?;
+                media.write_to_file(&output)?;
 
                 let dt: Duration = start.elapsed();
                 info!("Done in {}", s.secondary.apply_to(format_duration(dt)));
@@ -212,15 +204,15 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                                 .quant_level(q)
                                 .build(),
                         );
-                        match palettify_io(
-                            &input,
-                            &output,
-                            &cfg,
-                            args.width,
-                            args.height,
-                            args.scale,
-                            args.filter,
-                        ) {
+
+                        let result: Result<()> = (|| {
+                            let mut media = load_media_from_path(&input)?;
+                            media.resize(args.width, args.height, args.scale, args.filter)?;
+                            media.palettify(&cfg)?;
+                            media.write_to_file(&output)?;
+                            Ok(())
+                        })();
+                        match result {
                             Ok(_) => {
                                 let pb = job_pbs.get(&job_name).unwrap();
                                 pb.inc(1);
@@ -312,39 +304,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
     }
 }
 
-enum PathType {
-    Image,
-    Gif,
-    Ico,
-    Directory,
-}
-
-fn determine_path_type(path: &Path) -> Result<PathType> {
-    if path.is_dir() {
-        Ok(PathType::Directory)
-    } else if path.is_file() {
-        if let Ok(format) = ImageFormat::from_path(path) {
-            if format == ImageFormat::Gif {
-                Ok(PathType::Gif)
-            } else if format == ImageFormat::Ico {
-                Ok(PathType::Ico)
-            } else {
-                Ok(PathType::Image)
-            }
-        } else {
-            Err(Error::Io(std::io::Error::other(format!(
-                "File {} exists but isn't recognised as an image",
-                path.display()
-            ))))
-        }
-    } else {
-        Err(Error::Io(std::io::Error::other(format!(
-            "Path {} doesn't exist or isn't a file/directory",
-            path.display()
-        ))))
-    }
-}
-
 fn determine_output_path(
     output: Option<&Path>,
     input: &Path,
@@ -386,14 +345,6 @@ pub fn format_duration(duration: Duration) -> String {
     }
 }
 
-fn path_with_stem(original_path: &Path) -> PathBuf {
-    let parent = original_path.parent().unwrap_or_else(|| Path::new(""));
-    let stem = original_path
-        .file_stem()
-        .unwrap_or_else(|| original_path.file_name().unwrap_or_default());
-    parent.join(stem)
-}
-
 // TODO: Check if directory already exists & implement --force flag for palettify command
 fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
     let exts = ["gif", "png", "jpg", "jpeg", "webp"];
@@ -424,17 +375,4 @@ fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
         }
     }
     Ok(image_files)
-}
-
-fn output_with_final_ext(input: &Path, output: &Path) -> PathBuf {
-    let mut out = output.to_path_buf();
-    let ext = match determine_path_type(input) {
-        Ok(PathType::Gif) => "gif",
-        Ok(PathType::Image) => "png",
-        Ok(PathType::Ico) => "ico",
-        Ok(PathType::Directory) => return out,
-        Err(_) => todo!(),
-    };
-    out.set_extension(ext);
-    out
 }

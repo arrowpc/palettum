@@ -1,12 +1,14 @@
 mod color;
 mod config;
 mod math;
-mod media;
 mod processing;
 
 pub mod error;
 pub mod palettized;
 pub mod smoothed;
+
+pub mod media;
+pub use media::{Gif, Ico, Image, Media};
 
 use std::{
     fs,
@@ -18,8 +20,6 @@ use ::image::{imageops::FilterType, Rgb};
 use bon::Builder;
 pub use config::Config;
 use error::{Error, Result};
-
-pub use media::{Gif, Ico, Image};
 
 #[cfg(feature = "wasm")]
 use crate::color::rgb_vec_serde;

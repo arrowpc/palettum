@@ -2,8 +2,7 @@ use crate::{
     color::ConvertToLab,
     config::Config,
     error::{Error, Result},
-    image::Image,
-    processing, Filter,
+    processing, Filter, Image,
 };
 
 use image::{

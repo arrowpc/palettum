@@ -145,6 +145,7 @@ impl Gif {
                 buffer: frame.buffer().clone(),
                 width: frame.buffer().width(),
                 height: frame.buffer().height(),
+                palette: None,
             };
             image.resize(target_width, target_height, scale, filter)?;
             *frame = Frame::from_parts(image.buffer, frame.left(), frame.top(), frame.delay());

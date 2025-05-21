@@ -11,13 +11,13 @@ image = { version = "0.25.6", default-features = false, features = ["png", "jpeg
 log = "0.4"
 rayon = "1.10.0"
 thiserror = "1.0"
-clap = { version = "4.5", features = ["derive", "env"] }
+clap = { version = "4.5", features = ["derive"] }
 num_cpus = "1.16"
 serde = { version = "1.0", features = ["derive"] }
 tsify = "0.5.5"
 wasm-bindgen = "0.2.100"
 serde_json = { version = "1.0", features = ["preserve_order"] }
-env_logger = "0.11"
+env_logger = { version = "0.11", default-features = false }
 anydir = "0.1.2"
 tabled = "0.19.0"
 
@@ -30,6 +30,8 @@ description = "Tool for recoloring images and GIFs with any palette of your choi
 [profile.release]
 lto = "fat"
 strip = "symbols"
+panic = "abort"
+codegen-units = 1
 
 
 [profile.int]
@@ -41,3 +43,4 @@ debug = true
 
 [patch.crates-io]
 indicatif = { git = "https://github.com/arrowpc/indicatif.git", branch = "main" }
+console   = { git = "https://github.com/arrowpc/console.git", branch = "main" }

@@ -12,7 +12,6 @@ path = "src/main.rs"
 [dependencies]
 palettum = { path = "../core", features = ["cli"] }
 clap.workspace = true
-image.workspace = true
 log.workspace = true
 env_logger.workspace = true
 rayon.workspace = true

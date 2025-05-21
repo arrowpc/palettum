@@ -22,8 +22,6 @@ pub enum Error {
     #[error("LUT index {index} out of bounds (size {size})")]
     LutIndexOutOfBounds { index: usize, size: usize },
 
-
-
     #[error("Not a valid GIF file")]
     InvalidGifFile,
 

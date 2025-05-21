@@ -484,7 +484,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
                           {
                             index: 2,
                             gradient:
-                              "linear-gradient(to top, #facc15 0%, #60a5fa 100%)",
+                              "linear-gradient(to top, #60a5fa  0%, #facc15 100%)",
                           },
                         ].map(({ index, gradient }) => (
                           <div

@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PaletteEditor from "@/components/PaletteEditor";
-import { type Color, type Palette, rgbToHex, LIMITS } from "@/lib/palettes";
+import { rgbToHex, LIMITS } from "@/lib/palettes";
+import { type Palette, type Rgb } from "palettum";
 import {
   Tooltip,
   TooltipContent,
@@ -22,24 +23,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-interface PaletteJsonData {
-  name: string;
-  colors: Color[];
-  source?: string;
-}
-
-const paletteModules = import.meta.glob<{ default: PaletteJsonData }>(
+const paletteModules = import.meta.glob<{ default: Palette }>(
   "palettes/*.json",
   { eager: true },
 );
-
-const createKebabId = (name: string) => {
-  return name
-    .toLowerCase()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_-]+/g, "-")
-    .trim();
-};
 
 const generateUniqueId = (baseId: string, existingIds: Set<string>): string => {
   let id = baseId;
@@ -71,24 +58,14 @@ export const loadDefaultPalettes = (): Palette[] => {
       continue;
     }
 
-    if (
-      typeof paletteData.name !== "string" ||
-      !Array.isArray(paletteData.colors)
-    ) {
-      console.warn(`Invalid palette structure in: ${path}`, paletteData);
-      continue;
-    }
-
-    const baseId = createKebabId(filename);
-    const id = generateUniqueId(baseId, existingIds);
+    const id = generateUniqueId(filename, existingIds);
     existingIds.add(id);
 
     const palette: Palette = {
       id,
-      name: paletteData.name,
       colors: paletteData.colors,
       source: paletteData.source,
-      isDefault: true,
+      kind: "Default",
     };
 
     loadedPalettes.push(palette);
@@ -97,8 +74,6 @@ export const loadDefaultPalettes = (): Palette[] => {
   return loadedPalettes;
 };
 
-const LOCAL_STORAGE_KEY = "userPalettes";
-const SELECTED_PALETTE_KEY = "selectedPaletteId";
 const PREVIEW_CYCLE_INTERVAL = 500; // ms
 const HOVER_CYCLE_INTERVAL = 300; // ms
 const MOBILE_MENU_TRANSITION_DURATION = 200; // ms
@@ -107,53 +82,61 @@ interface PaletteManagerProps {
   onPaletteSelect: (palette: Palette) => void;
 }
 
+const LOCAL_STORAGE_KEY = "userPalettes";
+const SELECTED_PALETTE_KEY = "selectedPaletteId";
+
+function savePalettes(palettes: Palette[]) {
+  const paletteMap: Record<string, Omit<Palette, "id" | "kind">> = {};
+  palettes.forEach(({ id, ...rest }) => {
+    paletteMap[id] = rest;
+  });
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(paletteMap));
+}
+
 function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   const initialPalettes = loadDefaultPalettes();
 
-  const loadSavedPalettes = (): Palette[] => {
+  function loadSavedPalettes(): Palette[] {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-      const savedPalettes: PaletteJsonData[] = saved ? JSON.parse(saved) : [];
-      const existingIds = new Set(initialPalettes.map((p) => p.id));
-      return savedPalettes.map((data) => {
-        const baseId = createKebabId(data.name);
-        const id = generateUniqueId(baseId, existingIds);
-        existingIds.add(id);
-        return {
-          id,
-          name: data.name,
-          colors: data.colors,
-          source: data.source,
-          isDefault: false,
-        };
-      });
+      if (!saved) return [];
+      const paletteMap: Record<
+        string,
+        Omit<Palette, "id" | "kind">
+      > = JSON.parse(saved);
+      return Object.entries(paletteMap).map(([id, data]) => ({
+        id,
+        kind: "Custom",
+        ...data,
+      }));
     } catch (error) {
       console.error("Failed to load palettes:", error);
       return [];
     }
-  };
+  }
 
-  const loadSelectedPalette = () => {
-    try {
-      const savedId = localStorage.getItem(SELECTED_PALETTE_KEY);
-      const allPalettes = [...initialPalettes, ...loadSavedPalettes()];
-      const savedPalette = savedId
-        ? allPalettes.find((p) => p.id === savedId)
-        : allPalettes[0];
-      return savedPalette || allPalettes[0];
-    } catch (error) {
-      console.error("Failed to load selected palette:", error);
-      return initialPalettes[0];
-    }
-  };
+  function saveSelectedPaletteId(id: string) {
+    localStorage.setItem(SELECTED_PALETTE_KEY, id);
+  }
+
+  function loadSelectedPaletteId(): string | null {
+    return localStorage.getItem(SELECTED_PALETTE_KEY);
+  }
 
   const [palettes, setPalettes] = useState<Palette[]>(() => [
     ...initialPalettes,
     ...loadSavedPalettes(),
   ]);
-  const [selectedPalette, setSelectedPalette] = useState<Palette>(
-    loadSelectedPalette(),
-  );
+
+  const [selectedPalette, setSelectedPalette] = useState<Palette>(() => {
+    const savedId = loadSelectedPaletteId();
+    const allPalettes = [...initialPalettes, ...loadSavedPalettes()];
+    const found = savedId
+      ? allPalettes.find((p) => p.id === savedId)
+      : allPalettes[0];
+    return found || allPalettes[0];
+  });
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
@@ -187,23 +170,13 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   }, [showMobileMenu]);
 
   useEffect(() => {
-    const userPalettes = palettes
-      .filter((p) => !p.isDefault)
-      .map(({ id, ...rest }) => rest); // Exclude id from saved JSON
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(userPalettes));
-    } catch (error) {
-      console.error("Failed to save palettes:", error);
-    }
+    const userPalettes = palettes.filter((p) => p.kind === "Custom");
+    savePalettes(userPalettes);
   }, [palettes]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(SELECTED_PALETTE_KEY, selectedPalette.id);
-      onPaletteSelect(selectedPalette);
-    } catch (error) {
-      console.error("Failed to save selected palette:", error);
-    }
+    saveSelectedPaletteId(selectedPalette.id);
+    onPaletteSelect(selectedPalette);
   }, [selectedPalette, onPaletteSelect]);
 
   useEffect(() => {
@@ -300,15 +273,13 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   };
 
   const handleCreatePalette = () => {
-    const newName = "New Palette";
-    const baseId = createKebabId(newName);
+    const baseId = "New Palette";
     const existingIds = new Set(palettes.map((p) => p.id));
     const id = generateUniqueId(baseId, existingIds);
     const newPalette: Palette = {
       id,
-      name: newName,
       colors: [],
-      isDefault: false,
+      kind: "Custom",
     };
     setEditingPalette(newPalette);
     setIsEditModalOpen(true);
@@ -327,54 +298,48 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   };
 
   const handleEditPalette = (palette: Palette) => {
-    if (palette.isDefault) return;
+    if (palette.kind == "Default") return;
     setEditingPalette({ ...palette });
     setIsEditModalOpen(true);
   };
 
   const handleCopyPalette = (palette: Palette) => {
-    const baseName = palette.name.replace(/\s*\(copy(-\d+)?\)$/, "");
-    const truncatedBaseName = baseName.slice(0, LIMITS.MAX_NAME_LENGTH - 12);
+    const baseId = palette.id.replace(/\s*\(copy(-\d+)?\)$/, "");
+    const truncatedBaseId = baseId.slice(0, LIMITS.MAX_NAME_LENGTH - 12);
     const copyPattern = new RegExp(
-      `^${truncatedBaseName}\\s*\\(copy(?:-(\\d+))?\\)$`,
+      `^${truncatedBaseId}\\s*\\(copy(?:-(\\d+))?\\)$`,
     );
     const copies = palettes
-      .filter((p) => copyPattern.test(p.name))
+      .filter((p) => copyPattern.test(p.id))
       .map((p) => {
-        const match = p.name.match(copyPattern);
+        const match = p.id.match(copyPattern);
         return match && match[1] ? parseInt(match[1], 10) : 1;
       })
       .filter(Boolean) as number[];
     const copyNumber = copies.length ? Math.max(...copies) + 1 : 0;
-    const newName =
+    const newId =
       copyNumber === 0
-        ? `${truncatedBaseName} (copy)`
-        : `${truncatedBaseName} (copy-${copyNumber})`;
-
-    const baseId = createKebabId(newName);
-    const existingIds = new Set(palettes.map((p) => p.id));
-    const id = generateUniqueId(baseId, existingIds);
+        ? `${truncatedBaseId} (copy)`
+        : `${truncatedBaseId} (copy-${copyNumber})`;
 
     const newPalette: Palette = {
-      id,
-      name: newName.slice(0, LIMITS.MAX_NAME_LENGTH),
+      id: newId.slice(0, LIMITS.MAX_NAME_LENGTH),
       colors: [...palette.colors],
-      isDefault: false,
+      kind: "Custom",
     };
     setPalettes((current) => [...current, newPalette]);
     setSelectedPalette(newPalette);
   };
 
   const handleExportPalette = (palette: Palette) => {
-    // Exclude id from exported JSON
-    const { id, isDefault, ...exportData } = palette;
+    // Exclude id & kind from exported JSON
+    const { id, kind, ...exportData } = palette;
     const json = JSON.stringify(exportData, null, 2);
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    // Use kebab case for filename
-    const filename = createKebabId(palette.name);
+    const filename = palette.id;
     a.download = `${filename}.json`;
     a.click();
     URL.revokeObjectURL(url);
@@ -391,33 +356,20 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
 
           const imported = JSON.parse(json);
 
-          if (!imported.name || !Array.isArray(imported.colors)) {
+          if (!Array.isArray(imported.colors)) {
             throw new Error("Invalid palette format");
           }
 
-          let name = imported.name;
-          const existingNames = palettes.map((p) => p.name);
-          if (existingNames.includes(name)) {
-            let counter = 1;
-            let newName = `${name} (${counter})`;
-            while (existingNames.includes(newName)) {
-              counter++;
-              newName = `${name} (${counter})`;
-            }
-            name = newName;
-          }
-
           const filename = file.name.replace(/\.json$/, "");
-          const baseId = createKebabId(filename);
+          const baseId = filename;
           const existingIds = new Set(palettes.map((p) => p.id));
           const id = generateUniqueId(baseId, existingIds);
 
           const importedPalette: Palette = {
             id,
-            name,
             colors: imported.colors,
             source: imported.source,
-            isDefault: false,
+            kind: "Custom",
           };
 
           setPalettes((current) => [...current, importedPalette]);
@@ -459,7 +411,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
   };
 
   const filteredPalettes = palettes.filter((p) =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()),
+    p.id.toLowerCase().includes(searchTerm.toLowerCase()),
   );
 
   const closeMobileMenu = () => {
@@ -478,7 +430,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
           className="w-full flex items-center p-3 bg-background border border-border rounded-md shadow-sm hover:bg-secondary transition-colors"
         >
           <span className="text-sm truncate mr-2 text-foreground">
-            {selectedPalette.name}
+            {selectedPalette.id}
           </span>
           <div className="flex items-center justify-end gap-2 flex-1">
             <div
@@ -490,7 +442,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                   selectedPalette,
                   maxVisibleColors,
                   previewColorIndex,
-                ).map((color: Color, i: number) => (
+                ).map((color: Rgb, i: number) => (
                   <div
                     key={i}
                     className="w-color-square h-color-square rounded-sm ring-1 ring-border bg-background transition-all duration-300 ease-in-out"
@@ -550,9 +502,9 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                     <div className="flex items-center min-w-0">
                       <div className="flex flex-col">
                         <span className="truncate text-sm text-foreground max-w-[150px] sm:max-w-[180px]">
-                          {palette.name}
+                          {palette.id}
                         </span>
-                        {palette.isDefault && (
+                        {palette.kind == "Default" && (
                           <span className="text-tiny font-normal text-foreground-muted">
                             (default)
                           </span>
@@ -582,7 +534,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                     <div className="flex justify-center items-center w-[80px]">
                       <div className="flex -space-x-1">
                         {getDisplayedColors(palette, 3, startIndex).map(
-                          (color: Color, i: number) => (
+                          (color: Rgb, i: number) => (
                             <div
                               key={i}
                               className="w-color-square h-color-square rounded-sm ring-1 ring-border bg-background transition-all duration-300 ease-in-out"
@@ -633,16 +585,16 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!palette.isDefault)
+                              if (palette.kind == "Custom")
                                 handleEditPalette(palette);
                             }}
                             className={cn(
                               "p-1.5",
-                              palette.isDefault
+                              palette.kind == "Default"
                                 ? "text-icon-disabled opacity-50 cursor-not-allowed"
                                 : "text-icon-inactive hover:text-icon-active",
                             )}
-                            disabled={palette.isDefault}
+                            disabled={palette.kind == "Default"}
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
@@ -657,16 +609,16 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (!palette.isDefault)
+                              if (palette.kind == "Custom")
                                 handleDeletePalette(palette.id);
                             }}
                             className={cn(
                               "p-1.5",
-                              palette.isDefault
+                              palette.kind == "Default"
                                 ? "text-icon-disabled opacity-50 cursor-not-allowed"
                                 : "text-icon-inactive hover:text-destructive",
                             )}
-                            disabled={palette.isDefault}
+                            disabled={palette.kind == "Default"}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -741,10 +693,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                 <>
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium truncate">
-                      {
-                        palettes.find((p) => p.id === mobileActionPaletteId)
-                          ?.name
-                      }
+                      {palettes.find((p) => p.id === mobileActionPaletteId)?.id}
                     </span>
                     <button
                       onClick={closeMobileMenu}
@@ -785,7 +734,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                       className={cn(
                         "flex items-center gap-2 px-3 py-2 rounded",
                         palettes.find((p) => p.id === mobileActionPaletteId)
-                          ?.isDefault
+                          ?.kind == "Default"
                           ? "text-icon-disabled opacity-50 cursor-not-allowed"
                           : "hover:bg-secondary",
                       )}
@@ -793,13 +742,13 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                         const palette = palettes.find(
                           (p) => p.id === mobileActionPaletteId,
                         );
-                        if (palette && !palette.isDefault)
+                        if (palette && palette.kind == "Custom")
                           handleEditPalette(palette);
                         closeMobileMenu();
                       }}
                       disabled={
                         palettes.find((p) => p.id === mobileActionPaletteId)
-                          ?.isDefault
+                          ?.kind == "Default"
                       }
                     >
                       <Edit2 className="w-4 h-4" />
@@ -809,7 +758,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                       className={cn(
                         "flex items-center gap-2 px-3 py-2 rounded",
                         palettes.find((p) => p.id === mobileActionPaletteId)
-                          ?.isDefault
+                          ?.kind == "Default"
                           ? "text-icon-disabled opacity-50 cursor-not-allowed"
                           : "hover:bg-secondary text-destructive",
                       )}
@@ -817,13 +766,13 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
                         const palette = palettes.find(
                           (p) => p.id === mobileActionPaletteId,
                         );
-                        if (palette && !palette.isDefault)
+                        if (palette && palette.kind == "Custom")
                           handleDeletePalette(palette.id);
                         closeMobileMenu();
                       }}
                       disabled={
                         palettes.find((p) => p.id === mobileActionPaletteId)
-                          ?.isDefault
+                          ?.kind == "Default"
                       }
                     >
                       <Trash2 className="w-4 h-4" />

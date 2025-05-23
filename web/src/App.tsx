@@ -5,7 +5,7 @@ import PaletteManager from "@/components/PaletteManager";
 import PalettifyImage from "@/components/PalettifyImage";
 import DarkModeToggle from "@/components/DarkModeToggle";
 import GitHubButton from "@/components/GitHubButton";
-import type { Palette } from "@/lib/palettes/types";
+import type { Palette } from "palettum";
 import Footer from "@/components/Footer";
 import AdjustmentsAccordion, {
   type MappingKey,
@@ -39,7 +39,7 @@ const DEFAULT_SMOOTHING_STYLE: SmoothingStyleKey = SMOOTHING_STYLE_IDW;
 const DEFAULT_TRANSPARENCY_THRESHOLD = 0;
 const DEFAULT_LAB_SCALES: [number, number, number] = [1.0, 1.0, 1.0];
 const DEFAULT_SMOOTHING_STRENGTH = 0.5;
-const HARDCODED_QUANT_LEVEL = 2;
+const HARDCODED_QUANT_LEVEL = 0;
 
 const MAPPING_OPTIONS: MappingKey[] = [
   MAPPING_PALETTIZED,

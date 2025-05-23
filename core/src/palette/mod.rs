@@ -30,16 +30,17 @@ pub enum PaletteKind {
 
 #[derive(Debug, Clone, Builder)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
-#[cfg_attr(feature = "wasm", serde(default))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 #[cfg_attr(feature = "cli", derive(Tabled))]
 pub struct Palette {
     #[builder(default = generate_id())]
     pub id: String,
 
+    #[cfg_attr(feature = "wasm", serde(default))]
     #[builder(default = "n/a".to_string())]
     pub source: String,
 
+    #[cfg_attr(feature = "wasm", serde(default))]
     #[builder(default)]
     pub kind: PaletteKind,
 
@@ -49,12 +50,7 @@ pub struct Palette {
 }
 
 pub fn generate_id() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let since_epoch = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-    format!("id{}", since_epoch)
+    format!("id{}", "test")
 }
 
 fn palette_from_value_inner(

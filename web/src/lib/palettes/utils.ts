@@ -1,7 +1,8 @@
-import type { Color, Palette } from "./types";
 import { LIMITS } from "./constants";
+import { type Palette, type Rgb } from "palettum";
 
-export function rgbToHex({ r, g, b }: Color): string {
+// Use Rgb instead of Color
+export function rgbToHex({ r, g, b }: Rgb): string {
   return (
     "#" +
     [r, g, b]
@@ -14,7 +15,7 @@ export function rgbToHex({ r, g, b }: Color): string {
   );
 }
 
-export function hexToRgb(hex: string): Color | null {
+export function hexToRgb(hex: string): Rgb | null {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   if (!result) return null;
 
@@ -25,7 +26,7 @@ export function hexToRgb(hex: string): Color | null {
   };
 }
 
-export function normalizeColor(color: Color): Color {
+export function normalizeColor(color: Rgb): Rgb {
   return {
     r: Math.min(255, Math.max(0, Math.round(color.r))),
     g: Math.min(255, Math.max(0, Math.round(color.g))),
@@ -33,24 +34,26 @@ export function normalizeColor(color: Color): Color {
   };
 }
 
-export function isSameColor(a: Color, b: Color): boolean {
+export function isSameColor(a: Rgb, b: Rgb): boolean {
   return a.r === b.r && a.g === b.g && a.b === b.b;
 }
 
 export function validatePalette(palette: Palette): string[] {
   const errors: string[] = [];
 
-  if (!palette.name.trim()) {
-    errors.push("Palette name is required");
+  if (!palette.id || !palette.id.trim()) {
+    errors.push("Palette id is required");
   }
 
-  if (palette.colors.length < LIMITS.MIN_COLORS) {
+  const colorCount = palette.colors?.length ?? 0;
+
+  if (colorCount < LIMITS.MIN_COLORS) {
     errors.push(
       `Palette must have at least ${LIMITS.MIN_COLORS} color${LIMITS.MIN_COLORS > 1 ? "s" : ""}`,
     );
   }
 
-  if (palette.colors.length > LIMITS.MAX_COLORS) {
+  if (colorCount > LIMITS.MAX_COLORS) {
     errors.push(`Palette cannot have more than ${LIMITS.MAX_COLORS} colors`);
   }
 

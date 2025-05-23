@@ -99,6 +99,9 @@ pub enum Commands {
     /// Delete a custom palette
     #[command(override_usage = "palettum delete \x1b[3m\x1b[38;5;65m<PALETTE>\x1b")]
     Delete(DeleteArgs),
+
+    /// Extract palette from media
+    Extract(ExtractArgs),
 }
 
 #[derive(Args, Debug)]
@@ -268,6 +271,21 @@ pub struct DeleteArgs {
         help = "Use the \x1b[38;5;130mlist\x1b[0m command to see all available palettes",
     )]
     pub palette: Palette,
+}
+
+#[derive(Args, Debug)]
+pub struct ExtractArgs {
+    /// Input image file
+    #[arg(value_name = "IMAGE", required = true)]
+    pub input: PathBuf,
+
+    /// Number of colors to extract
+    #[arg(short, long, value_name = "NUM", default_value_t = 8)]
+    pub colors: usize,
+
+    /// Output file for the palette
+    #[arg(short, long, value_name = "FILE")]
+    pub output: Option<PathBuf>,
 }
 
 // Parsers

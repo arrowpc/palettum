@@ -1,4 +1,4 @@
-use palettum::{error::Result, media::load_media_from_memory, Config, Filter, Mapping};
+use palettum::{error::Result, media::load_media_from_memory, Config, Filter, Mapping, Palette};
 use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
@@ -44,4 +44,15 @@ fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
     log::info!("Palettification completed in {:?}", duration);
 
     media.write_to_memory()
+}
+
+#[wasm_bindgen]
+pub fn palette_from_media(media_bytes: Vec<u8>, k_colors: usize) -> StdResult<Palette, JsValue> {
+    _palette_from_media(media_bytes, k_colors).map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+fn _palette_from_media(media_bytes: Vec<u8>, k_colors: usize) -> Result<Palette> {
+    let bytes = media_bytes.to_vec();
+    let media = load_media_from_memory(&bytes)?;
+    Palette::from_media(&media, k_colors)
 }

@@ -88,6 +88,9 @@ pub enum Error {
 
     #[error("{0}")]
     ParseError(String),
+
+    #[error("Invalid input media or color count")]
+    InvalidPaletteFromMedia,
 }
 
 /// Result type of the core library.

@@ -31,6 +31,7 @@ pub enum PaletteKind {
 #[derive(Debug, Clone, Builder)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
 #[cfg_attr(feature = "wasm", serde(default))]
+#[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 #[cfg_attr(feature = "cli", derive(Tabled))]
 pub struct Palette {
     #[builder(default = generate_id())]

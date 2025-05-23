@@ -22,6 +22,7 @@ pub use palette::{
 use clap::ValueEnum;
 #[cfg(feature = "wasm")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "cli")]
 use strum_macros::Display;
 #[cfg(feature = "wasm")]
 use tsify::Tsify;

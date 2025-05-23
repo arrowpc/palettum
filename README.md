@@ -12,15 +12,19 @@
 </p>
 
 ---
+
 ## Examples
- > [!NOTE] 
- > Unfinished
+
+> [!NOTE]
+> Unfinished
+
 #### GIF Pixel Art
 
 > **Settings used:**  
 > `--mapping smoothed-palettized  --smoothing-style idw  --lab-scales 10.0, 10.0, 2.0`
 >
 > **Original artwork by [lgarabato](https://www.artstation.com/lgarabato)**
+
 <table>
   <tr>
     <th><a href="https://www.artstation.com/artwork/Ez2OWv" target="_blank">Original</a></th>
@@ -39,11 +43,14 @@
 </table>
 
 ---
+
 ## Installation
- > [!NOTE] 
- > Unfinished
+
+> [!NOTE]
+> Unfinished
 
 macOS:
+
 ```bash
 brew tap arrowpc/palettum
 brew install palettum
@@ -79,31 +86,33 @@ The web application uses a WebAssembly module compiled from the Rust code.
 2.  **Set up the web frontend:**
     The web frontend is located in the `web/` directory and uses Bun.
 
-    *   Navigate to the web directory:
-        ```bash
-        cd web
-        ```
-    *   Install dependencies:
-        ```bash
-        bun install
-        ```
-    *   Run the development server:
-        ```bash
-        bun run dev
-        ```
+    - Navigate to the web directory:
+      ```bash
+      cd web
+      ```
+    - Install dependencies:
+      ```bash
+      bun install
+      ```
+    - Run the development server:
+      ```bash
+      bun run dev
+      ```
 
 ---
+
 ## References
-* The main color difference formula (CIEDE2000) was implemented through the help of this paper:
-https://hajim.rochester.edu/ece/sites/gsharma/ciede2000/ciede2000noteCRNA.pdf.  The rest were easy to implement through the color difference wiki: https://en.wikipedia.org/wiki/Color_difference.
-* The fast trig approximation functions were inspired/taken from:
-  * atan / atan2: https://mazzo.li/posts/vectorized-atan2.html
-  * sin: Basic taylor series https://en.wikipedia.org/wiki/Taylor_series
-  * cos: https://github.com/milianw/cosine/tree/parabola-approx
-  * exp: https://stackoverflow.com/questions/47025373/fastest-implementation-of-the-natural-exponential-function-using-sse
-* Smoothing was done with basic L* a* b* interpolation using:
-  * IDW: https://en.wikipedia.org/wiki/Inverse_distance_weighting
-  * Gaussian: https://dsp.stackexchange.com/questions/36954/gaussian-weighted-distance-between-pixel-amplitudes-motivations-and-sources
+
+- The main color difference formula (CIEDE2000) was implemented through the help of this paper:
+  https://hajim.rochester.edu/ece/sites/gsharma/ciede2000/ciede2000noteCRNA.pdf. The rest were easy to implement through the color difference wiki: https://en.wikipedia.org/wiki/Color_difference.
+- The fast trig approximation functions were inspired/taken from:
+  - atan / atan2: https://mazzo.li/posts/vectorized-atan2.html
+  - sin: Basic taylor series https://en.wikipedia.org/wiki/Taylor_series
+  - cos: https://github.com/milianw/cosine/tree/parabola-approx
+  - exp: https://stackoverflow.com/questions/47025373/fastest-implementation-of-the-natural-exponential-function-using-sse
+- Smoothing was done with basic L* a* b\* interpolation using:
+  - IDW: https://en.wikipedia.org/wiki/Inverse_distance_weighting
+  - Gaussian: https://dsp.stackexchange.com/questions/36954/gaussian-weighted-distance-between-pixel-amplitudes-motivations-and-sources
+- Palette extraction (adjusted for L* a* b colorspace): https://www.ece.mcmaster.ca/~xwu/cq.c
 
 ---
-

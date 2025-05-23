@@ -7,7 +7,7 @@ use palettum::{
     custom_palettes_dir, delete_custom_palette,
     error::{Error, Result},
     media::load_media_from_path,
-    Config, PaletteKind,
+    palette_to_file, Config, Palette, PaletteKind,
 };
 use palettum::{get_all_palettes, palette_from_file_entry, save_custom_palette};
 use rayon::{prelude::*, ThreadPoolBuilder};
@@ -301,7 +301,34 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
 
             Ok(())
         }
+
+        Commands::Extract(args) => {
+            let media = load_media_from_path(&args.input)?;
+            let palette = Palette::from_media(&media, args.colors)?;
+            let output_path = if let Some(ref out) = args.output {
+                PathBuf::from(out)
+            } else {
+                extracted_output_path(&args.input)
+            };
+            palette_to_file(&palette, &output_path)?;
+
+            let mut json_output_path = output_path.clone();
+            json_output_path.set_extension("json");
+            info!(
+                "Extracted palette saved to: {}",
+                s.secondary.apply_to(json_output_path.display())
+            );
+            Ok(())
+        }
     }
+}
+
+fn extracted_output_path(input: &Path) -> PathBuf {
+    let parent = input.parent().unwrap_or_else(|| Path::new(""));
+    let stem = input.file_stem().unwrap_or_default();
+    let mut new_name = stem.to_os_string();
+    new_name.push("_extracted");
+    parent.join(new_name)
 }
 
 fn determine_output_path(

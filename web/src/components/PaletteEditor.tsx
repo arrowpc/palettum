@@ -330,22 +330,22 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
             type="text"
             value={palette.id}
             onChange={(e) => {
-              const newName = e.target.value;
-              if (newName.length <= LIMITS.MAX_NAME_LENGTH) {
-                setPalette((prev) => ({ ...prev, name: newName }));
+              const newId = e.target.value;
+              if (newId.length <= LIMITS.MAX_ID_LENGTH) {
+                setPalette((prev) => ({ ...prev, id: newId }));
               }
             }}
             className={cn(
               "w-full px-4 py-2 text-sm bg-background border rounded-md",
               "focus:ring-2 focus:ring-ring focus:border-border-active",
-              errors.some((e) => e.includes("name")) && "border-destructive",
+              errors.some((e) => e.includes("id")) && "border-destructive",
             )}
             placeholder="Enter palette id"
-            maxLength={LIMITS.MAX_NAME_LENGTH}
+            maxLength={LIMITS.MAX_ID_LENGTH}
           />
           <div className="flex justify-between mt-1">
             <span className="text-xs text-foreground-muted">
-              {palette.id.length}/{LIMITS.MAX_NAME_LENGTH}
+              {palette.id.length}/{LIMITS.MAX_ID_LENGTH}
             </span>
           </div>
         </div>

@@ -305,7 +305,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
 
   const handleCopyPalette = (palette: Palette) => {
     const baseId = palette.id.replace(/\s*\(copy(-\d+)?\)$/, "");
-    const truncatedBaseId = baseId.slice(0, LIMITS.MAX_NAME_LENGTH - 12);
+    const truncatedBaseId = baseId.slice(0, LIMITS.MAX_ID_LENGTH - 12);
     const copyPattern = new RegExp(
       `^${truncatedBaseId}\\s*\\(copy(?:-(\\d+))?\\)$`,
     );
@@ -323,7 +323,7 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
         : `${truncatedBaseId} (copy-${copyNumber})`;
 
     const newPalette: Palette = {
-      id: newId.slice(0, LIMITS.MAX_NAME_LENGTH),
+      id: newId.slice(0, LIMITS.MAX_ID_LENGTH),
       colors: [...palette.colors],
       kind: "Custom",
     };

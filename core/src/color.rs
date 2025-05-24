@@ -133,24 +133,26 @@ impl ConvertToLab for Rgba<u8> {
 // --- Helper module for Vec<Rgb<u8>> serialization ---
 #[cfg(feature = "wasm")]
 pub mod rgb_vec_serde {
-    use image::Rgb;
+    use image::Rgb as imageRgb;
     use serde::{ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer};
+    use tsify::Tsify;
 
-    // Intermediate struct that can derive Serialize/Deserialize
-    #[derive(Serialize, Deserialize)]
-    struct RgbHelper {
-        r: u8,
-        g: u8,
-        b: u8,
+    #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
+    #[cfg_attr(feature = "wasm", tsify(from_wasm_abi, into_wasm_abi))]
+    #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
+    pub struct Rgb {
+        pub r: u8,
+        pub g: u8,
+        pub b: u8,
     }
 
-    pub fn serialize<S>(vec: &Vec<Rgb<u8>>, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(vec: &Vec<imageRgb<u8>>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let mut seq = serializer.serialize_seq(Some(vec.len()))?;
         for rgb in vec {
-            let helper = RgbHelper {
+            let helper = Rgb {
                 r: rgb.0[0],
                 g: rgb.0[1],
                 b: rgb.0[2],
@@ -160,14 +162,14 @@ pub mod rgb_vec_serde {
         seq.end()
     }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<Rgb<u8>>, D::Error>
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<imageRgb<u8>>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let helpers = Vec::<RgbHelper>::deserialize(deserializer)?;
+        let helpers = Vec::<Rgb>::deserialize(deserializer)?;
         let result = helpers
             .into_iter()
-            .map(|helper| Rgb([helper.r, helper.g, helper.b]))
+            .map(|helper| imageRgb([helper.r, helper.g, helper.b]))
             .collect();
         Ok(result)
     }

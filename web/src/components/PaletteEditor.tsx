@@ -3,8 +3,6 @@ import { Trash2, Pipette, X, Plus } from "lucide-react";
 import { HexColorPicker } from "react-colorful";
 import { cn } from "@/lib/utils";
 import {
-  type Color,
-  type Palette,
   LIMITS,
   DEFAULTS,
   rgbToHex,
@@ -19,6 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { type Palette, type Rgb } from "palettum";
 
 interface PaletteEditorProps {
   palette: Palette;
@@ -27,7 +26,7 @@ interface PaletteEditorProps {
 }
 
 interface ColorTileProps {
-  color: Color;
+  color: Rgb;
   onRemove: () => void;
   isMobile: boolean;
 }
@@ -130,7 +129,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   onSave,
 }) => {
   const [palette, setPalette] = useState<Palette>(initialPalette);
-  const [selectedColor, setSelectedColor] = useState<Color>(DEFAULTS.COLOR);
+  const [selectedColor, setSelectedColor] = useState<Rgb>(DEFAULTS.COLOR);
   const [hexValue, setHexValue] = useState<string>(rgbToHex(DEFAULTS.COLOR));
   const [isEyeDropperSupported, setIsEyeDropperSupported] =
     useState<boolean>(false);
@@ -221,7 +220,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     }
   };
 
-  const handleRGBChange = (component: keyof Color, value: string) => {
+  const handleRGBChange = (component: keyof Rgb, value: string) => {
     const numValue = parseInt(value) || 0;
     const clampedValue = Math.max(0, Math.min(255, numValue));
     setSelectedColor((prev) => ({ ...prev, [component]: clampedValue }));
@@ -325,28 +324,28 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
 
         <div className="mb-6">
           <label className="block text-sm font-medium text-foreground mb-2">
-            Palette Name
+            Palette ID
           </label>
           <input
             type="text"
-            value={palette.name}
+            value={palette.id}
             onChange={(e) => {
-              const newName = e.target.value;
-              if (newName.length <= LIMITS.MAX_NAME_LENGTH) {
-                setPalette((prev) => ({ ...prev, name: newName }));
+              const newId = e.target.value;
+              if (newId.length <= LIMITS.MAX_ID_LENGTH) {
+                setPalette((prev) => ({ ...prev, id: newId }));
               }
             }}
             className={cn(
               "w-full px-4 py-2 text-sm bg-background border rounded-md",
               "focus:ring-2 focus:ring-ring focus:border-border-active",
-              errors.some((e) => e.includes("name")) && "border-destructive",
+              errors.some((e) => e.includes("id")) && "border-destructive",
             )}
-            placeholder="Enter palette name"
-            maxLength={LIMITS.MAX_NAME_LENGTH}
+            placeholder="Enter palette id"
+            maxLength={LIMITS.MAX_ID_LENGTH}
           />
           <div className="flex justify-between mt-1">
             <span className="text-xs text-foreground-muted">
-              {palette.name.length}/{LIMITS.MAX_NAME_LENGTH}
+              {palette.id.length}/{LIMITS.MAX_ID_LENGTH}
             </span>
           </div>
         </div>

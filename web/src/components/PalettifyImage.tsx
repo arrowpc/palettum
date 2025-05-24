@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Download, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { Color, Palette as PaletteType } from "@/lib/palettes";
 import ImageViewer from "@/components/ImageViewer";
 import {
   Tooltip,
@@ -11,6 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
+import {type Palette, type Rgb } from "palettum";
 
 import type {
   Config,
@@ -25,7 +25,7 @@ interface ImageDimensions {
 }
 
 interface PixelBorderProps {
-  colors: Color[];
+  colors: Rgb[];
   side: "top" | "bottom" | "left" | "right";
   dimensions: ImageDimensions;
   pixelCount: number;
@@ -33,7 +33,7 @@ interface PixelBorderProps {
 }
 
 interface PixelBordersProps {
-  colors: Color[];
+  colors: Rgb[];
   dimensions: ImageDimensions | null;
 }
 
@@ -148,7 +148,7 @@ interface PalettifyImageProps {
     width: number | null;
     height: number | null;
   };
-  palette: PaletteType | undefined;
+  palette: Palette | undefined;
   transparentThreshold: number;
   mapping: string;
   quantLevel: number;
@@ -201,7 +201,7 @@ function PalettifyImage({
   const [containerDimensions, setContainerDimensions] =
     useState<ImageDimensions | null>(null);
 
-  const processedPaletteRef = useRef<PaletteType | null>(null);
+  const processedPaletteRef = useRef<Palette | null>(null);
   const imageContainerRef = useRef<HTMLDivElement | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const taskIdCounterRef = useRef(0);
@@ -397,7 +397,6 @@ function PalettifyImage({
             b: color.b,
           })),
           kind: "Unset",
-
         },
         mapping: mapping as Mapping,
         palettizedFormula: formula as PalettizedFormula,
@@ -462,10 +461,10 @@ function PalettifyImage({
       const originalExtension = file.name.split(".").pop()?.toLowerCase() || "";
       const baseFileName = file.name.replace(/\.[^/.]+$/, "");
       const outputExtension = originalExtension === "gif" ? "gif" : "png";
-      const paletteName = palette.name
+      const paletteId = palette.id
         .toLowerCase()
         .replace(/[^a-z0-9_]+/gi, "-");
-      link.download = `${baseFileName}-${paletteName}.${outputExtension}`;
+      link.download = `${baseFileName}-${paletteId}.${outputExtension}`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -477,7 +476,7 @@ function PalettifyImage({
 
   const handleViewFullSize = (): void => setIsPreviewOpen(true);
 
-  const getProcessedColors = (): Color[] =>
+  const getProcessedColors = (): Rgb[] =>
     processedPaletteRef.current?.colors || [];
 
   const canProcess =

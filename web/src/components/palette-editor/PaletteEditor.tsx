@@ -490,7 +490,8 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
       <div
         className={cn(
           "bg-background rounded-lg p-4 sm:p-6 flex flex-col border border-border shadow-xl overflow-hidden",
-          "w-full max-w-[95vw] h-full max-h-[95vh] md:max-w-[55vh] md:max-h-[65vh]",
+          "w-full max-w-[95vw] sm:max-w-[480px] md:max-w-[600px] lg:max-w-[700px]",
+          "max-h-[90vh]",
         )}
       >
         <PaletteHeader

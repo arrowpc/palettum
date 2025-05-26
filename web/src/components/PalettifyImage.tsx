@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Download, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import ImageViewer from "@/components/ImageViewer";
+import SharedImagePreview from "./SharedImagePreview";
 import {
   Tooltip,
   TooltipContent,
@@ -10,8 +10,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
-import {type Palette, type Rgb } from "palettum";
-
+import { type Palette, type Rgb } from "palettum";
 import type {
   Config,
   Mapping,
@@ -194,7 +193,6 @@ function PalettifyImage({
   const [processedImageUrl, setProcessedImageUrl] = useState<string | null>(
     null,
   );
-  const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
   const [currentProcessedFile, setCurrentProcessedFile] = useState<
     string | null
   >(null);
@@ -221,31 +219,45 @@ function PalettifyImage({
     smoothingStrength: null,
   });
 
-  const isSameSettings: boolean =
-    !!processedImageUrl &&
-    file?.name === lastProcessedSettings.current.fileName &&
-    dimensions.width === lastProcessedSettings.current.width &&
-    dimensions.height === lastProcessedSettings.current.height &&
-    palette?.id === lastProcessedSettings.current.paletteId &&
-    transparentThreshold ===
-    lastProcessedSettings.current.transparentThreshold &&
-    mapping === lastProcessedSettings.current.mapping &&
-    quantLevel === lastProcessedSettings.current.quantLevel &&
-    formula === lastProcessedSettings.current.formula &&
-    smoothingStyle === lastProcessedSettings.current.smoothingStyle &&
-    smoothingStrength === lastProcessedSettings.current.smoothingStrength &&
-    labScales.length ===
-    (lastProcessedSettings.current.labScales?.length ?? 0) &&
-    labScales.every(
-      (v, i) => v === lastProcessedSettings.current.labScales?.[i],
-    );
+  const isSameSettings: boolean = useMemo(
+    () =>
+      !!processedImageUrl &&
+      file?.name === lastProcessedSettings.current.fileName &&
+      dimensions.width === lastProcessedSettings.current.width &&
+      dimensions.height === lastProcessedSettings.current.height &&
+      palette?.id === lastProcessedSettings.current.paletteId &&
+      transparentThreshold ===
+      lastProcessedSettings.current.transparentThreshold &&
+      mapping === lastProcessedSettings.current.mapping &&
+      quantLevel === lastProcessedSettings.current.quantLevel &&
+      formula === lastProcessedSettings.current.formula &&
+      smoothingStyle === lastProcessedSettings.current.smoothingStyle &&
+      smoothingStrength === lastProcessedSettings.current.smoothingStrength &&
+      labScales.length ===
+      (lastProcessedSettings.current.labScales?.length ?? 0) &&
+      labScales.every(
+        (v, i) => v === lastProcessedSettings.current.labScales?.[i],
+      ),
+    [
+      processedImageUrl,
+      file,
+      dimensions,
+      palette,
+      transparentThreshold,
+      mapping,
+      quantLevel,
+      formula,
+      smoothingStyle,
+      labScales,
+      smoothingStrength,
+    ],
+  );
 
   useEffect(() => {
     if (!workerRef.current) {
       workerRef.current = new Worker(new URL("../worker.js", import.meta.url), {
         type: "module",
       });
-
       workerRef.current.onmessage = (e) => {
         const { id, status, result, error: workerError } = e.data;
         const pendingTask = pendingTasksRef.current.get(id);
@@ -258,7 +270,6 @@ function PalettifyImage({
           pendingTasksRef.current.delete(id);
         }
       };
-
       workerRef.current.onerror = (error) => {
         console.error("Worker error:", error);
         pendingTasksRef.current.forEach((task) => {
@@ -267,7 +278,6 @@ function PalettifyImage({
         pendingTasksRef.current.clear();
       };
     }
-
     return () => {
       if (workerRef.current) {
         workerRef.current.terminate();
@@ -284,18 +294,8 @@ function PalettifyImage({
       setCurrentProcessedFile(null);
       setError(null);
       lastProcessedSettings.current = {
-        fileName: null,
-        width: null,
-        height: null,
-        paletteId: null,
-        transparentThreshold: null,
-        mapping: null,
-        quantLevel: null,
-        formula: null,
-        smoothingStyle: null,
-        labScales: null,
-        smoothingStrength: null,
-      };
+        /* Reset */
+      } as ProcessedSettings;
     }
   }, [file, currentProcessedFile, processedImageUrl]);
 
@@ -318,8 +318,18 @@ function PalettifyImage({
     };
     if (processedImageUrl) {
       updateDims();
+      const resizeObserver = new ResizeObserver(updateDims);
+      if (imageContainerRef.current) {
+        resizeObserver.observe(imageContainerRef.current);
+      }
       window.addEventListener("resize", updateDims);
-      return () => window.removeEventListener("resize", updateDims);
+      return () => {
+        if (imageContainerRef.current) {
+          resizeObserver.unobserve(imageContainerRef.current);
+        }
+        window.removeEventListener("resize", updateDims);
+        resizeObserver.disconnect();
+      };
     } else {
       setContainerDimensions(null);
     }
@@ -335,9 +345,7 @@ function PalettifyImage({
         reject(new Error("Worker not initialized"));
         return;
       }
-
       const taskId = taskIdCounterRef.current++;
-
       pendingTasksRef.current.set(taskId, {
         resolve: (workerResult: Uint8Array) => {
           try {
@@ -352,19 +360,11 @@ function PalettifyImage({
             );
           }
         },
-        reject: (workerError: any) => {
-          reject(workerError);
-        },
+        reject,
       });
-
       const clonedBytes = new Uint8Array(imageBytes);
-
       workerRef.current.postMessage(
-        {
-          id: taskId,
-          imageBytes: clonedBytes,
-          config: config,
-        },
+        { id: taskId, imageBytes: clonedBytes, config },
         [clonedBytes.buffer],
       );
     });
@@ -379,24 +379,17 @@ function PalettifyImage({
       setError("Please select a valid palette.");
       return;
     }
-
     setError(null);
     setIsProcessing(true);
-
     try {
       const arrayBuffer = await file.arrayBuffer();
       const imageBytes = new Uint8Array(arrayBuffer);
-
       const configJs: Config = {
         palette: {
-          id: "placeholder",
-          source: "placeholder",
-          colors: palette.colors.map((color) => ({
-            r: color.r,
-            g: color.g,
-            b: color.b,
-          })),
-          kind: "Unset",
+          id: palette.id || "custom",
+          source: palette.source || "custom",
+          colors: palette.colors.map((c) => ({ r: c.r, g: c.g, b: c.b })),
+          kind: palette.kind || "Unset",
         },
         mapping: mapping as Mapping,
         palettizedFormula: formula as PalettizedFormula,
@@ -408,22 +401,19 @@ function PalettifyImage({
         resizeWidth: dimensions.width || null,
         resizeHeight: dimensions.height || null,
       };
-
       const isGif =
         file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
       const mimeType = isGif ? "image/gif" : "image/png";
-
       const outputBlob = await palettifyWithWorker(
         imageBytes,
         configJs,
         mimeType,
       );
-
       const url = URL.createObjectURL(outputBlob);
+      if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
       setProcessedImageUrl(url);
       setCurrentProcessedFile(file.name);
       processedPaletteRef.current = { ...palette };
-
       lastProcessedSettings.current = {
         fileName: file.name,
         width: dimensions.width,
@@ -439,7 +429,11 @@ function PalettifyImage({
       };
     } catch (err: any) {
       console.error("Processing error:", err);
-      setError(err.toString());
+      setError(
+        err.message ||
+        err.toString() ||
+        "An unknown error occurred during processing.",
+      );
       if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
       setProcessedImageUrl(null);
       setCurrentProcessedFile(null);
@@ -461,7 +455,7 @@ function PalettifyImage({
       const originalExtension = file.name.split(".").pop()?.toLowerCase() || "";
       const baseFileName = file.name.replace(/\.[^/.]+$/, "");
       const outputExtension = originalExtension === "gif" ? "gif" : "png";
-      const paletteId = palette.id
+      const paletteId = (palette.id || "custom-palette")
         .toLowerCase()
         .replace(/[^a-z0-9_]+/gi, "-");
       link.download = `${baseFileName}-${paletteId}.${outputExtension}`;
@@ -473,8 +467,6 @@ function PalettifyImage({
       setError("Failed to initiate download.");
     }
   };
-
-  const handleViewFullSize = (): void => setIsPreviewOpen(true);
 
   const getProcessedColors = (): Rgb[] =>
     processedPaletteRef.current?.colors || [];
@@ -562,62 +554,42 @@ function PalettifyImage({
             className="rounded-lg overflow-hidden relative border border-border shadow-md bg-muted/30"
             ref={imageContainerRef}
           >
-            <div
-              className="relative group cursor-pointer"
-              onClick={handleViewFullSize}
-            >
-              <img
-                src={processedImageUrl}
-                alt="Palettified Result"
-                className="w-full object-contain max-h-[60vh] block [image-rendering:-webkit-optimize-contrast] [image-rendering:pixelated]"
+            <SharedImagePreview
+              imageUrl={processedImageUrl}
+              altText="Palettified Result"
+              showRemoveButton={false}
+              enableViewFullSize={true}
+              className="w-full max-h-[60vh]"
+              imageClassName="w-full object-contain max-h-[60vh] block [image-rendering:-webkit-optimize-contrast] [image-rendering:pixelated]"
+            />
+            {getProcessedColors().length > 0 && containerDimensions && (
+              <PixelBorders
+                key={processedImageUrl}
+                colors={getProcessedColors()}
+                dimensions={containerDimensions}
               />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300 flex items-center justify-center">
-                <div className="bg-black/50 backdrop-blur-sm px-4 py-2 rounded-md flex items-center gap-2 opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-300">
-                  <svg
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    className="text-white"
-                  >
-                    <path
-                      d="M3 3h5v2H5v3H3V3zm12 0h-5v2h3v3h2V3zM3 17h5v-2H5v-3H3v5zm12 0h-5v-2h3v-3h2v5z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                  <span className="text-sm font-medium text-white drop-shadow">
-                    View Full Size
-                  </span>
-                </div>
-              </div>
-              {getProcessedColors().length > 0 && containerDimensions && (
-                <PixelBorders
-                  key={processedImageUrl}
-                  colors={getProcessedColors()}
-                  dimensions={containerDimensions}
-                />
-              )}
-              <div className="absolute bottom-3 right-3 opacity-60 group-hover:opacity-90 transition-opacity duration-300 p-1">
-                <div className="grid grid-cols-3 gap-0.5 w-8 h-8 transform rotate-45">
-                  {getProcessedColors()
-                    .slice(0, 9)
-                    .map((color, index) => (
-                      <div
-                        key={index}
-                        className="w-2 h-2 transition-transform duration-300 hover:scale-110"
-                        style={{
-                          backgroundColor: `rgb(${color.r}, ${color.g}, ${color.b})`,
-                        }}
-                      />
-                    ))}
-                  {Array.from({
-                    length: Math.max(0, 9 - getProcessedColors().length),
-                  }).map((_, i) => (
+            )}
+            <div className="absolute bottom-3 right-3 opacity-60 group-hover:opacity-90 transition-opacity duration-300 p-1 pointer-events-none">
+              <div className="grid grid-cols-3 gap-0.5 w-8 h-8 transform rotate-45">
+                {getProcessedColors()
+                  .slice(0, 9)
+                  .map((color, index) => (
                     <div
-                      key={`empty-${i}`}
-                      className="w-2 h-2 bg-background/30 dark:bg-background-tertiary/30"
+                      key={index}
+                      className="w-2 h-2 transition-transform duration-300 hover:scale-110"
+                      style={{
+                        backgroundColor: `rgb(${color.r}, ${color.g}, ${color.b})`,
+                      }}
                     />
                   ))}
-                </div>
+                {Array.from({
+                  length: Math.max(0, 9 - getProcessedColors().length),
+                }).map((_, i) => (
+                  <div
+                    key={`empty-${i}`}
+                    className="w-2 h-2 bg-background/30 dark:bg-background-tertiary/30"
+                  />
+                ))}
               </div>
             </div>
           </div>
@@ -634,12 +606,15 @@ function PalettifyImage({
         </div>
       )}
 
+      {/* ImageViewer is now invoked by SharedImagePreview */}
+      {/*
       {processedImageUrl && isPreviewOpen && (
         <ImageViewer
           imageUrl={processedImageUrl}
           onClose={() => setIsPreviewOpen(false)}
         />
       )}
+      */}
 
       <style
         dangerouslySetInnerHTML={{

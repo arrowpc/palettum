@@ -1,6 +1,7 @@
 import React from "react";
-import { Image as ImageIcon, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import SharedImagePreview from "../SharedImagePreview";
+import { ImageIcon } from "lucide-react";
 
 interface ImageColorExtractorProps {
   imagePreviewUrl: string | null;
@@ -33,6 +34,21 @@ export const ImageColorExtractor: React.FC<ImageColorExtractorProps> =
       uploadedImageFile,
       isMobile,
     }) => {
+      const handleUploadPlaceholderClick = () => {
+        if (!isExtractingColors && canExtractMore && fileInputRef.current) {
+          fileInputRef.current.click();
+        }
+      };
+
+      const previewIsInteractive = !isExtractingColors && canExtractMore;
+
+      const previewTitle =
+        !canExtractMore && uploadedImageFile
+          ? "Palette full, cannot change image"
+          : imagePreviewUrl
+            ? "Click to view full size or change image"
+            : "Click to upload image";
+
       return (
         <div className="p-3 border border-border/70 rounded-md bg-secondary/20 space-y-3">
           <div
@@ -41,79 +57,32 @@ export const ImageColorExtractor: React.FC<ImageColorExtractorProps> =
               isMobile ? "items-start" : "flex-col items-center",
             )}
           >
-            <div
+            <SharedImagePreview
+              imageUrl={imagePreviewUrl}
+              altText="Image for color extraction"
+              onRemove={(e) => {
+                if (previewIsInteractive) onRemoveImage(e);
+              }}
+              onUploadPlaceholderClick={handleUploadPlaceholderClick}
+              isLoading={isExtractingColors}
+              isInteractive={previewIsInteractive}
+              showRemoveButton={!!imagePreviewUrl && previewIsInteractive}
+              enableViewFullSize={!!imagePreviewUrl}
+              uploadIcon={
+                <ImageIcon className="mx-auto mb-1 w-5 h-5 sm:w-6 sm:h-6" />
+              }
+              uploadText="Upload"
               className={cn(
-                "relative group rounded border border-dashed border-border hover:border-primary transition-colors",
-                "flex items-center justify-center bg-background/50",
+                "rounded",
                 isMobile ? "w-20 h-20 flex-shrink-0" : "w-full h-24 sm:h-28",
-                (isExtractingColors || !canExtractMore) &&
-                "cursor-default opacity-70",
-                canExtractMore && "cursor-pointer",
               )}
-              onClick={() =>
-                !isExtractingColors &&
-                canExtractMore &&
-                fileInputRef.current?.click()
-              }
-              title={
-                !canExtractMore
-                  ? "Palette full"
-                  : imagePreviewUrl
-                    ? "Click to change image"
-                    : "Click to upload image"
-              }
-            >
-              {!imagePreviewUrl && !isExtractingColors && (
-                <div className="text-center p-1 text-foreground-muted">
-                  <ImageIcon className="mx-auto mb-1 w-6 h-6 sm:w-8 sm:h-8" />
-                  <p className="text-[10px] sm:text-xs leading-tight">
-                    Upload Image
-                  </p>
-                </div>
+              placeholderContainerClassName={cn(
+                previewIsInteractive && "hover:border-primary",
+                !previewIsInteractive && "opacity-70",
               )}
-              {imagePreviewUrl && (
-                <>
-                  <img
-                    src={imagePreviewUrl}
-                    alt="Preview"
-                    className="w-full h-full object-cover rounded"
-                  />
-                  {!isExtractingColors && (
-                    <button
-                      onClick={onRemoveImage}
-                      className="absolute top-0.5 right-0.5 p-0.5 bg-black/60 hover:bg-black/80 rounded-full text-white z-10 opacity-0 group-hover:opacity-100 transition-opacity"
-                      title="Remove image"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  )}
-                </>
-              )}
-              {isExtractingColors && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded">
-                  <svg
-                    className="animate-spin h-6 w-6 text-white"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                </div>
-              )}
-            </div>
+              imageClassName="rounded"
+              title={previewTitle}
+            />
             <input
               type="file"
               ref={fileInputRef}
@@ -199,3 +168,5 @@ export const ImageColorExtractor: React.FC<ImageColorExtractorProps> =
       );
     },
   );
+
+ImageColorExtractor.displayName = "ImageColorExtractor";

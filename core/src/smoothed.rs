@@ -32,8 +32,8 @@ fn compute_weight(distance: f32, config: &Config) -> f32 {
 
     match config.smoothed_formula {
         Formula::Gaussian => {
-            const SIGMA_AT_MIN_STRENGTH: f32 = 5_f32;
-            const SIGMA_AT_MAX_STRENGTH: f32 = 100_f32;
+            const SIGMA_AT_MIN_STRENGTH: f32 = 10_f32;
+            const SIGMA_AT_MAX_STRENGTH: f32 = 50_f32;
 
             let sigma = SIGMA_AT_MIN_STRENGTH.mul_add(
                 1.0_f32 - normalized_strength,
@@ -64,7 +64,7 @@ fn compute_weight(distance: f32, config: &Config) -> f32 {
         Formula::Rq => {
             const ALPHA_RQ: f32 = 1.0_f32;
             const LENGTH_SCALE_AT_MIN_STRENGTH: f32 = 1.0_f32;
-            const LENGTH_SCALE_AT_MAX_STRENGTH: f32 = 50.0_f32;
+            const LENGTH_SCALE_AT_MAX_STRENGTH: f32 = 30.0_f32;
 
             let length_scale = LENGTH_SCALE_AT_MIN_STRENGTH.mul_add(
                 1.0_f32 - normalized_strength,

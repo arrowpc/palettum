@@ -165,6 +165,7 @@ compile_commands.json
 notes.md
 extras*/
 palette.sh
+*.svg
 
 # Rust target directory
 /target

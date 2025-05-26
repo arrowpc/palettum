@@ -6,6 +6,9 @@ use indicatif::MultiProgress;
 use palettum::error::Result;
 use std::{env, process};
 
+#[cfg(feature = "profiler")]
+use cli::profiler;
+
 fn main() -> Result<()> {
     let args = Cli::parse();
 
@@ -21,6 +24,16 @@ fn main() -> Result<()> {
     let level = logger::init(multi.clone())?;
     log::set_max_level(level);
 
+    let mut _profiler_guard = None;
+    #[cfg(feature = "profiler")]
+    {
+        _profiler_guard = profiler::start_profiling();
+    }
+    #[cfg(not(feature = "profiler"))]
+    {
+        _profiler_guard = Some(());
+    }
+
     let exit_code = match run_cli(args, multi) {
         Ok(()) => 0,
         Err(e) => {
@@ -28,6 +41,11 @@ fn main() -> Result<()> {
             1
         }
     };
+
+    #[cfg(feature = "profiler")]
+    {
+        profiler::finish_profiling(_profiler_guard)?;
+    }
 
     process::exit(exit_code);
 }

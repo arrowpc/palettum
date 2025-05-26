@@ -1,5 +1,5 @@
 pub mod cli;
 pub mod logger;
-#[cfg(feature = "profiler")]
+#[cfg(all(feature = "profiler", windows))]
 pub mod profiler;
 pub mod style;

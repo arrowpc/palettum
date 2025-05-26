@@ -290,16 +290,11 @@ pub(crate) fn process_pixels(
             }
         }
         dithered::Algorithm::FloydSteinberg => {
-            if config.mapping == Mapping::Smoothed {
-                log::warn!(
-                    "Dithering is active with 'Smoothed' mapping. Original pixel colors will be dithered to the palette, preserving alpha. The 'Smoothed' aspect of generating non-palette intermediate colors is not used as direct input to the error diffusion for this mapping when dithering."
-                );
-            }
             dithered::floyd_steinberg(image, config, lab_colors)?;
-        } // TODO: Other dithering algorithms:
-          // dithered::Algorithm::SomeOtherAlgorithm => {
-          //     dithered::some_other_algorithm(image, config, lab_colors)?;
-          // }
+        }
+        dithered::Algorithm::BlueNoise => {
+            dithered::blue_noise(image, config, lab_colors)?;
+        }
     }
     Ok(())
 }

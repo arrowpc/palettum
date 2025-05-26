@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 
 use crate::{
+    dithered,
     error::{Error, Result},
     palettized, smoothed, Mapping, Palette,
 };
@@ -47,6 +48,10 @@ pub struct Config {
     #[builder(default = [1.0, 1.0, 1.0])]
     pub lab_scales: [f32; 3],
 
+    #[cfg_attr(feature = "wasm", tsify(type = "DitheredAlgorithm"))]
+    #[builder(default)]
+    pub dithering_algorithm: dithered::Algorithm,
+
     #[cfg_attr(all(feature = "serde", not(feature = "wasm")), serde(skip))]
     pub resize_width: Option<u32>,
 
@@ -61,7 +66,7 @@ impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Config {{ palette: ..., mapping: {:?}, palettized_formula: {:?}, quant_level: {}, transparency_threshold: {}, num_threads: {}, smoothed_formula: {:?}, smoothing_strength: {}, lab_scales: {:?} }}",
+            "Config {{ palette: ..., mapping: {:?}, palettized_formula: {:?}, quant_level: {}, transparency_threshold: {}, num_threads: {}, smoothed_formula: {:?}, smoothing_strength: {}, lab_scales: {:?}, dithering_algorithm: {} }}",
             self.mapping,
             self.palettized_formula,
             self.quant_level,
@@ -70,6 +75,7 @@ impl fmt::Display for Config {
             self.smoothed_formula,
             self.smoothing_strength,
             self.lab_scales,
+            self.dithering_algorithm,
         )
     }
 }

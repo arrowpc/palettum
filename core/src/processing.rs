@@ -1,7 +1,8 @@
 use crate::{
     color::{ConvertToLab, Lab},
     config::Config,
-    error::{Error, Result},
+    dithered,
+    error::Result,
     palettized, smoothed, Mapping,
 };
 
@@ -39,7 +40,17 @@ pub fn generate_lookup_table(
     lab_colors: &[Lab],
     image_size: Option<usize>,
 ) -> Vec<Rgb<u8>> {
+    // Dithering operates pixel by pixel with error diffusion; LUT is not used
+    if config.dithering_algorithm != dithered::Algorithm::None {
+        log::debug!("Skipping LUT generation: Dithering algorithm is active.");
+        return Vec::new();
+    }
+
     let q = config.quant_level;
+    if q == 0 {
+        log::debug!("Skipping LUT generation: Quantization level is 0.");
+        return Vec::new();
+    }
 
     let bins_per_channel = 256usize >> q;
     let table_size = bins_per_channel.pow(3);
@@ -65,7 +76,7 @@ pub fn generate_lookup_table(
     );
 
     let mut lookup = vec![Rgb([0, 0, 0]); table_size];
-    let rounding = if q > 0 { 1u16 << (q - 1) } else { 0 };
+    let rounding = 1u16 << (q - 1); // q > 0 is guaranteed here
 
     let process_index = |index: usize| -> Option<(usize, Rgb<u8>)> {
         let b_bin = index % bins_per_channel;
@@ -78,19 +89,24 @@ pub fn generate_lookup_table(
 
         let target_pixel = Rgba([r_val, g_val, b_val, 255]);
 
+        // For LUT generation, we always use the direct mapping result
         let result_rgb = compute_mapped_color_rgb(target_pixel, config, lab_colors);
         Some((index, result_rgb))
     };
 
-    if config.num_threads > 1 {
+    if config.num_threads > 1 && table_size > 0 {
         let results: Vec<Option<(usize, Rgb<u8>)>> =
             (0..table_size).into_par_iter().map(process_index).collect();
 
         for result in results.into_iter().flatten() {
             let (index, rgb) = result;
-            lookup[index] = rgb;
+            if index < lookup.len() {
+                // Basic bounds check
+                lookup[index] = rgb;
+            }
         }
-    } else {
+    } else if table_size > 0 {
+        // Single-threaded LUT generation
         for (index, item) in lookup.iter_mut().enumerate().take(table_size) {
             if let Some((_, rgb)) = process_index(index) {
                 *item = rgb;
@@ -102,6 +118,8 @@ pub fn generate_lookup_table(
     lookup
 }
 
+/// Computes the mapped RGB color for a single target RGBA pixel based on the configuration's mapping strategy.
+/// This function does NOT consider dithering, LUTs, or caching. It's the core color mapping logic.
 pub(crate) fn compute_mapped_color_rgb(
     target: Rgba<u8>,
     config: &Config,
@@ -120,6 +138,8 @@ pub(crate) fn compute_mapped_color_rgb(
     }
 }
 
+/// Gets the mapped RGBA color for a single pixel, specifically for the non-dithering path.
+/// It utilises LUTs and caching if applicable.
 fn get_mapped_color_for_pixel(
     pixel: Rgba<u8>,
     config: &Config,
@@ -127,14 +147,19 @@ fn get_mapped_color_for_pixel(
     cache: &mut ThreadLocalCache,
     lookup: Option<&[Rgb<u8>]>,
 ) -> Result<Rgba<u8>> {
+    // Transparency check for non-smoothed mappings
     if pixel.0[3] < config.transparency_threshold && config.mapping != Mapping::Smoothed {
         return Ok(Rgba([0, 0, 0, 0]));
     }
 
+    // LUT lookup if available and quant_level > 0
+    // `lookup` itself will be None or empty if dithering is on or quant_level is 0.
     if let Some(lut) = lookup {
-        let q = config.quant_level;
         if !lut.is_empty() {
+            let q = config.quant_level;
             let bins_per_channel = 256usize >> q;
+
+            // This check should be redundant if lut is non-empty, but good for safety.
             if bins_per_channel > 0 {
                 let r_q = (pixel.0[0] >> q) as usize;
                 let g_q = (pixel.0[1] >> q) as usize;
@@ -144,24 +169,39 @@ fn get_mapped_color_for_pixel(
                     r_q * bins_per_channel * bins_per_channel + g_q * bins_per_channel + b_q;
 
                 if let Some(rgb_color) = lut.get(index) {
-                    return Ok(Rgba([rgb_color.0[0], rgb_color.0[1], rgb_color.0[2], 255]));
+                    let alpha = if config.mapping == Mapping::Smoothed {
+                        pixel.0[3]
+                    } else {
+                        255
+                    };
+                    return Ok(Rgba([
+                        rgb_color.0[0],
+                        rgb_color.0[1],
+                        rgb_color.0[2],
+                        alpha,
+                    ]));
                 } else {
-                    return Err(Error::LutIndexOutOfBounds {
+                    log::error!(
+                        "LUT index {} out of bounds (size {}). Pixel: {:?}, Q: {}",
                         index,
-                        size: lut.len(),
-                    });
+                        lut.len(),
+                        pixel,
+                        q
+                    );
                 }
             }
         }
     }
 
+    // Cache lookup
     if let Some(cached_color) = cache.get(&pixel) {
         return Ok(*cached_color);
     }
 
+    // Direct computation if no LUT/cache hit
     let result_rgb = compute_mapped_color_rgb(pixel, config, lab_colors);
     let alpha = if config.mapping == Mapping::Smoothed {
-        pixel[3]
+        pixel.0[3]
     } else {
         255
     };
@@ -172,72 +212,94 @@ fn get_mapped_color_for_pixel(
     Ok(result_rgba)
 }
 
+/// Processes all pixels in the image according to the configuration.
+/// Dispatches to dithering or non-dithering paths.
 pub(crate) fn process_pixels(
     image: &mut RgbaImage,
     config: &Config,
-    lab_colors: &[Lab],
-    lookup: Option<&[Rgb<u8>]>,
+    lab_colors: &[Lab],         // Lab version of config.palette.colors
+    lookup: Option<&[Rgb<u8>]>, // LUT, only used if no dithering and q > 0
 ) -> Result<()> {
-    let raw_data = image.as_mut();
-    let bytes_per_pixel = 4;
+    match config.dithering_algorithm {
+        dithered::Algorithm::None => {
+            let raw_data = image.as_mut();
+            let bytes_per_pixel = 4; // RGBA
+            let num_threads = config.num_threads.max(1);
 
-    let num_threads = config.num_threads.max(1);
+            if num_threads == 1 {
+                let mut cache = ThreadLocalCache::new();
+                for pixel_chunk in raw_data.chunks_mut(bytes_per_pixel) {
+                    let current_pixel = Rgba([
+                        pixel_chunk[0],
+                        pixel_chunk[1],
+                        pixel_chunk[2],
+                        pixel_chunk[3],
+                    ]);
+                    let mapped_pixel = get_mapped_color_for_pixel(
+                        current_pixel,
+                        config,
+                        lab_colors,
+                        &mut cache,
+                        lookup,
+                    )?;
+                    pixel_chunk[0] = mapped_pixel.0[0];
+                    pixel_chunk[1] = mapped_pixel.0[1];
+                    pixel_chunk[2] = mapped_pixel.0[2];
+                    pixel_chunk[3] = mapped_pixel.0[3];
+                }
+            } else {
+                // Multi-threaded
+                let chunk_size = (raw_data.len() / bytes_per_pixel).div_ceil(num_threads);
+                let pixel_chunks: Vec<_> =
+                    raw_data.chunks_mut(chunk_size * bytes_per_pixel).collect();
 
-    if num_threads == 1 {
-        let mut cache = ThreadLocalCache::new();
-        for pixel_chunk in raw_data.chunks_mut(bytes_per_pixel) {
-            let r = pixel_chunk[0];
-            let g = pixel_chunk[1];
-            let b = pixel_chunk[2];
-            let a = pixel_chunk[3];
-            let pixel = Rgba([r, g, b, a]);
+                let pool = ThreadPoolBuilder::new().num_threads(num_threads).build()?;
 
-            let mapped_pixel =
-                get_mapped_color_for_pixel(pixel, config, lab_colors, &mut cache, lookup)?;
-
-            pixel_chunk[0] = mapped_pixel.0[0];
-            pixel_chunk[1] = mapped_pixel.0[1];
-            pixel_chunk[2] = mapped_pixel.0[2];
-            pixel_chunk[3] = mapped_pixel.0[3];
-        }
-    } else {
-        // Multi-threaded processing
-
-        let chunk_size = (raw_data.len() / bytes_per_pixel).div_ceil(num_threads);
-        let pixel_chunks: Vec<_> = raw_data.chunks_mut(chunk_size * bytes_per_pixel).collect();
-
-        let pool = ThreadPoolBuilder::new().num_threads(num_threads).build()?;
-
-        pool.scope(|scope| {
-            for chunk in pixel_chunks {
-                scope.spawn(|_| {
-                    let mut cache = ThreadLocalCache::new();
-
-                    for pixel_chunk in chunk.chunks_mut(bytes_per_pixel) {
-                        let r = pixel_chunk[0];
-                        let g = pixel_chunk[1];
-                        let b = pixel_chunk[2];
-                        let a = pixel_chunk[3];
-                        let pixel = Rgba([r, g, b, a]);
-
-                        match get_mapped_color_for_pixel(
-                            pixel, config, lab_colors, &mut cache, lookup,
-                        ) {
-                            Ok(mapped_pixel) => {
-                                pixel_chunk[0] = mapped_pixel.0[0];
-                                pixel_chunk[1] = mapped_pixel.0[1];
-                                pixel_chunk[2] = mapped_pixel.0[2];
-                                pixel_chunk[3] = mapped_pixel.0[3];
+                pool.scope(|scope| {
+                    for chunk in pixel_chunks {
+                        scope.spawn(|_| {
+                            let mut cache = ThreadLocalCache::new();
+                            for pixel_chunk in chunk.chunks_mut(bytes_per_pixel) {
+                                let current_pixel = Rgba([
+                                    pixel_chunk[0],
+                                    pixel_chunk[1],
+                                    pixel_chunk[2],
+                                    pixel_chunk[3],
+                                ]);
+                                match get_mapped_color_for_pixel(
+                                    current_pixel,
+                                    config,
+                                    lab_colors,
+                                    &mut cache,
+                                    lookup,
+                                ) {
+                                    Ok(mapped_pixel) => {
+                                        pixel_chunk[0] = mapped_pixel.0[0];
+                                        pixel_chunk[1] = mapped_pixel.0[1];
+                                        pixel_chunk[2] = mapped_pixel.0[2];
+                                        pixel_chunk[3] = mapped_pixel.0[3];
+                                    }
+                                    Err(e) => {
+                                        log::error!("Error processing pixel in thread: {:?}", e);
+                                    }
+                                }
                             }
-                            Err(e) => {
-                                log::error!("Error processing pixel: {:?}", e);
-                            }
-                        }
+                        });
                     }
                 });
             }
-        });
+        }
+        dithered::Algorithm::FloydSteinberg => {
+            if config.mapping == Mapping::Smoothed {
+                log::warn!(
+                    "Dithering is active with 'Smoothed' mapping. Original pixel colors will be dithered to the palette, preserving alpha. The 'Smoothed' aspect of generating non-palette intermediate colors is not used as direct input to the error diffusion for this mapping when dithering."
+                );
+            }
+            dithered::floyd_steinberg(image, config, lab_colors)?;
+        } // TODO: Other dithering algorithms:
+          // dithered::Algorithm::SomeOtherAlgorithm => {
+          //     dithered::some_other_algorithm(image, config, lab_colors)?;
+          // }
     }
-
     Ok(())
 }

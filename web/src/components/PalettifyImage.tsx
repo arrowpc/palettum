@@ -13,6 +13,7 @@ import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { type Palette, type Rgb } from "palettum";
 import type {
   Config,
+  DitheringAlgorithm,
   Mapping,
   PalettizedFormula,
   SmoothedFormula,
@@ -153,8 +154,10 @@ interface PalettifyImageProps {
   quantLevel: number;
   formula: string;
   smoothingStyle: string;
+  ditheringStyle: string;
   labScales: [number, number, number];
   smoothingStrength: number;
+  ditheringStrength: number;
 }
 
 interface ProcessedSettings {
@@ -167,8 +170,10 @@ interface ProcessedSettings {
   quantLevel: number | null;
   formula: string | null;
   smoothingStyle: string | null;
+  ditheringStyle: string | null;
   labScales: [number, number, number] | null;
   smoothingStrength: number | null;
+  ditheringStrength: number | null;
 }
 
 type TaskCallbacks = {
@@ -185,8 +190,10 @@ function PalettifyImage({
   quantLevel,
   formula,
   smoothingStyle,
+  ditheringStyle,
   labScales,
   smoothingStrength,
+  ditheringStrength,
 }: PalettifyImageProps): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -215,8 +222,10 @@ function PalettifyImage({
     quantLevel: null,
     formula: null,
     smoothingStyle: null,
+    ditheringStyle: null,
     labScales: null,
     smoothingStrength: null,
+    ditheringStrength: null,
   });
 
   const isSameSettings: boolean = useMemo(
@@ -233,6 +242,8 @@ function PalettifyImage({
       formula === lastProcessedSettings.current.formula &&
       smoothingStyle === lastProcessedSettings.current.smoothingStyle &&
       smoothingStrength === lastProcessedSettings.current.smoothingStrength &&
+      ditheringStyle === lastProcessedSettings.current.ditheringStyle &&
+      ditheringStrength === lastProcessedSettings.current.ditheringStrength &&
       labScales.length ===
       (lastProcessedSettings.current.labScales?.length ?? 0) &&
       labScales.every(
@@ -248,8 +259,10 @@ function PalettifyImage({
       quantLevel,
       formula,
       smoothingStyle,
+      ditheringStyle,
       labScales,
       smoothingStrength,
+      ditheringStrength,
     ],
   );
 
@@ -397,10 +410,13 @@ function PalettifyImage({
         transparencyThreshold: transparentThreshold,
         smoothedFormula: smoothingStyle as SmoothedFormula,
         smoothingStrength,
+        ditheringAlgorithm: ditheringStyle as DitheringAlgorithm,
+        ditheringStrength,
         labScales,
         resizeWidth: dimensions.width || null,
         resizeHeight: dimensions.height || null,
       };
+
       const isGif =
         file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
       const mimeType = isGif ? "image/gif" : "image/png";
@@ -424,8 +440,10 @@ function PalettifyImage({
         quantLevel,
         formula,
         smoothingStyle,
+        ditheringStyle,
         labScales,
         smoothingStrength,
+        ditheringStrength,
       };
     } catch (err: any) {
       console.error("Processing error:", err);
@@ -605,17 +623,6 @@ function PalettifyImage({
           </div>
         </div>
       )}
-
-      {/* ImageViewer is now invoked by SharedImagePreview */}
-      {/*
-      {processedImageUrl && isPreviewOpen && (
-        <ImageViewer
-          imageUrl={processedImageUrl}
-          onClose={() => setIsPreviewOpen(false)}
-        />
-      )}
-      */}
-
       <style
         dangerouslySetInnerHTML={{
           __html: `

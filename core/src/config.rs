@@ -69,7 +69,7 @@ impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Config {{ palette: ..., mapping: {:?}, palettized_formula: {:?}, quant_level: {}, transparency_threshold: {}, num_threads: {}, smoothed_formula: {:?}, smoothing_strength: {}, lab_scales: {:?}, dithering_algorithm: {}, dithering_strength: {} }}",
+            "Config {{ palette: ..., mapping: {:?}, palettized_formula: {:?}, quant_level: {}, transparency_threshold: {}, num_threads: {}, smoothed_formula: {:?}, smoothing_strength: {}, lab_scales: {:?}, dithering_algorithm: {:?}, dithering_strength: {:?} }}",
             self.mapping,
             self.palettized_formula,
             self.quant_level,

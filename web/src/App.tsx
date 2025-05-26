@@ -7,16 +7,20 @@ import DarkModeToggle from "@/components/DarkModeToggle";
 import GitHubButton from "@/components/GitHubButton";
 import type { Palette } from "palettum";
 import Footer from "@/components/Footer";
-import AdjustmentsAccordion, {
+import AdjustmentsAccordion from "@/components/adjustments/AdjustmentsAccordion";
+import {
   type MappingKey,
   type FormulaKey,
   type SmoothingStyleKey,
+  type DitheringKey,
   MAPPING_PALETTIZED,
   MAPPING_SMOOTHED,
   MAPPING_SMOOTHED_PALETTIZED,
   FORMULA_CIEDE2000,
   SMOOTHING_STYLE_IDW,
-} from "@/components/AdjustmentsAccordion";
+  DEFAULT_DITHERING_STYLE,
+  DEFAULT_DITHERING_STRENGTH,
+} from "@/components/adjustments/adjustments.types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -80,6 +84,13 @@ function App() {
     DEFAULT_SMOOTHING_STRENGTH,
   );
 
+  const [ditheringStyle, setDitheringStyle] = useState<DitheringKey>(
+    DEFAULT_DITHERING_STYLE,
+  );
+  const [ditheringStrength, setDitheringStrength] = useState<number>(
+    DEFAULT_DITHERING_STRENGTH,
+  );
+
   const handleFileSelect = useCallback((file: File | null) => {
     setUploadedFile(file);
   }, []);
@@ -123,6 +134,14 @@ function App() {
 
   const handleSmoothingStrengthChange = useCallback((s: number) => {
     setSmoothingStrength(s);
+  }, []);
+
+  const handleDitheringStyleChange = useCallback((newStyle: DitheringKey) => {
+    setDitheringStyle(newStyle);
+  }, []);
+
+  const handleDitheringStrengthChange = useCallback((newStrength: number) => {
+    setDitheringStrength(newStrength);
   }, []);
 
   const renderColorMappingMethod = () => (
@@ -203,12 +222,16 @@ function App() {
             currentThreshold={transparentThreshold}
             currentLabScales={labScales}
             currentSmoothingStrength={smoothingStrength}
+            currentDitheringStyle={ditheringStyle}
+            currentDitheringStrength={ditheringStrength}
             onMappingChange={handleMappingChange}
             onFormulaChange={handleFormulaChange}
             onSmoothingStyleChange={handleSmoothingStyleChange}
             onThresholdChange={handleThresholdChange}
             onLabScalesChange={handleLabScalesChange}
             onSmoothingStrengthChange={handleSmoothingStrengthChange}
+            onDitheringStyleChange={handleDitheringStyleChange}
+            onDitheringStrengthChange={handleDitheringStrengthChange}
           />
 
           <PalettifyImage
@@ -222,6 +245,8 @@ function App() {
             smoothingStyle={smoothingStyle}
             labScales={labScales}
             smoothingStrength={smoothingStrength}
+            ditheringStyle={ditheringStyle}
+            ditheringStrength={ditheringStrength}
           />
         </div>
 

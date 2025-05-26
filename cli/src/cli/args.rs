@@ -1,4 +1,4 @@
-use palettum::{find_palette, palettized, smoothed, Filter, Mapping, Palette};
+use palettum::{dithered, find_palette, palettized, smoothed, Filter, Mapping, Palette};
 use std::path::PathBuf;
 
 use clap::{ArgAction, Args, Parser, Subcommand};
@@ -155,6 +155,17 @@ pub struct PalettifyArgs {
         help_heading = "PALETTIZED OPTIONS"
     )]
     pub palettized_formula: palettized::Formula,
+
+    /// Dithering algorithm to apply (useful with limited palettes)
+    #[arg(
+        short,
+        long,
+        value_enum,
+        value_name = "ALGORITHM",
+        default_value = "none",
+        help_heading = "PALETTIZED OPTIONS"
+    )]
+    pub dithering_algorithm: dithered::Algorithm,
 
     /// Alpha threshold (0-255, 0 disables transparency)
     #[arg(

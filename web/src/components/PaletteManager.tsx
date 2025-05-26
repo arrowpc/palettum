@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import PaletteEditor from "@/components/PaletteEditor";
+import PaletteEditor from "@/components/palette-editor/PaletteEditor";
 import { rgbToHex, LIMITS } from "@/lib/palettes";
 import { type Palette, type Rgb } from "palettum";
 import {

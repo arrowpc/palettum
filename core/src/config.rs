@@ -52,6 +52,9 @@ pub struct Config {
     #[builder(default)]
     pub dithering_algorithm: dithered::Algorithm,
 
+    #[builder(default = 0.5)]
+    pub dithering_strength: f32,
+
     #[cfg_attr(all(feature = "serde", not(feature = "wasm")), serde(skip))]
     pub resize_width: Option<u32>,
 
@@ -66,7 +69,7 @@ impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Config {{ palette: ..., mapping: {:?}, palettized_formula: {:?}, quant_level: {}, transparency_threshold: {}, num_threads: {}, smoothed_formula: {:?}, smoothing_strength: {}, lab_scales: {:?}, dithering_algorithm: {} }}",
+            "Config {{ palette: ..., mapping: {:?}, palettized_formula: {:?}, quant_level: {}, transparency_threshold: {}, num_threads: {}, smoothed_formula: {:?}, smoothing_strength: {}, lab_scales: {:?}, dithering_algorithm: {}, dithering_strength: {} }}",
             self.mapping,
             self.palettized_formula,
             self.quant_level,
@@ -76,6 +79,7 @@ impl fmt::Display for Config {
             self.smoothing_strength,
             self.lab_scales,
             self.dithering_algorithm,
+            self.dithering_strength,
         )
     }
 }
@@ -101,6 +105,10 @@ impl Config {
 
         if self.smoothing_strength < 0.0 || self.smoothing_strength > 1.0 {
             return Err(Error::InvalidsmoothingStrength(self.smoothing_strength));
+        }
+
+        if self.dithering_strength < 0.0 || self.dithering_strength > 1.0 {
+            return Err(Error::InvalidDitheringStrength(self.dithering_strength));
         }
 
         if self.lab_scales.iter().any(|&scale| scale <= 0.0) {

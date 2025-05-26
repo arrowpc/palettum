@@ -171,9 +171,6 @@ function App() {
         <div className="flex-1 space-y-8">
           <Card>
             <CardContent className="p-6 space-y-4">
-              <h2 className="text-xl font-semibold tracking-tight">
-                Upload Image
-              </h2>
               <ImageUpload onFileSelect={handleFileSelect} />
               {uploadedFile && (
                 <>

@@ -26,6 +26,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
 
 if (import.meta.env.MODE === "development") {
   import("react-scan").then(({ scan }) => {
@@ -154,80 +155,83 @@ function App() {
   );
 
   return (
-    <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-8 min-h-screen flex flex-col">
-      <header className="text-center">
-        <h1 className="text-3xl font-bold tracking-tight">Palettum</h1>
-      </header>
-      <div className="flex items-center justify-between gap-4 text-sm">
-        <GitHubButton />
-        <p className="text-l text-center text-secondary-foreground">
-          Map images & GIFs to a custom palette
-        </p>
-        <DarkModeToggle />
+    <>
+      <div className="max-w-2xl mx-auto p-4 sm:p-6 space-y-8 min-h-screen flex flex-col">
+        <header className="text-center">
+          <h1 className="text-3xl font-bold tracking-tight">Palettum</h1>
+        </header>
+        <div className="flex items-center justify-between gap-4 text-sm">
+          <GitHubButton />
+          <p className="text-l text-center text-secondary-foreground">
+            Map images & GIFs to a custom palette
+          </p>
+          <DarkModeToggle />
+        </div>
+
+        <div className="flex-1 space-y-8">
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <h2 className="text-xl font-semibold tracking-tight">
+                Upload Image
+              </h2>
+              <ImageUpload onFileSelect={handleFileSelect} />
+              {uploadedFile && (
+                <>
+                  <div className="pt-4">
+                    <ImageDimensions
+                      file={uploadedFile}
+                      onChange={handleDimensionsChange}
+                    />
+                  </div>
+                  <div className="pt-6">{renderColorMappingMethod()}</div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <h2 className="text-xl font-semibold tracking-tight">
+                Choose Palette
+              </h2>
+              <PaletteManager onPaletteSelect={handlePaletteSelect} />
+            </CardContent>
+          </Card>
+
+          <AdjustmentsAccordion
+            file={uploadedFile}
+            currentMapping={mapping}
+            currentFormula={formula}
+            currentSmoothingStyle={smoothingStyle}
+            currentThreshold={transparentThreshold}
+            currentLabScales={labScales}
+            currentSmoothingStrength={smoothingStrength}
+            onMappingChange={handleMappingChange}
+            onFormulaChange={handleFormulaChange}
+            onSmoothingStyleChange={handleSmoothingStyleChange}
+            onThresholdChange={handleThresholdChange}
+            onLabScalesChange={handleLabScalesChange}
+            onSmoothingStrengthChange={handleSmoothingStrengthChange}
+          />
+
+          <PalettifyImage
+            file={uploadedFile}
+            dimensions={dimensions}
+            palette={selectedPalette}
+            transparentThreshold={transparentThreshold}
+            mapping={mapping}
+            quantLevel={HARDCODED_QUANT_LEVEL}
+            formula={formula}
+            smoothingStyle={smoothingStyle}
+            labScales={labScales}
+            smoothingStrength={smoothingStrength}
+          />
+        </div>
+
+        <Footer />
       </div>
-
-      <div className="flex-1 space-y-8">
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <h2 className="text-xl font-semibold tracking-tight">
-              Upload Image
-            </h2>
-            <ImageUpload onFileSelect={handleFileSelect} />
-            {uploadedFile && (
-              <>
-                <div className="pt-4">
-                  <ImageDimensions
-                    file={uploadedFile}
-                    onChange={handleDimensionsChange}
-                  />
-                </div>
-                <div className="pt-6">{renderColorMappingMethod()}</div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-6 space-y-4">
-            <h2 className="text-xl font-semibold tracking-tight">
-              Choose Palette
-            </h2>
-            <PaletteManager onPaletteSelect={handlePaletteSelect} />
-          </CardContent>
-        </Card>
-
-        <AdjustmentsAccordion
-          file={uploadedFile}
-          currentMapping={mapping}
-          currentFormula={formula}
-          currentSmoothingStyle={smoothingStyle}
-          currentThreshold={transparentThreshold}
-          currentLabScales={labScales}
-          currentSmoothingStrength={smoothingStrength}
-          onMappingChange={handleMappingChange}
-          onFormulaChange={handleFormulaChange}
-          onSmoothingStyleChange={handleSmoothingStyleChange}
-          onThresholdChange={handleThresholdChange}
-          onLabScalesChange={handleLabScalesChange}
-          onSmoothingStrengthChange={handleSmoothingStrengthChange}
-        />
-
-        <PalettifyImage
-          file={uploadedFile}
-          dimensions={dimensions}
-          palette={selectedPalette}
-          transparentThreshold={transparentThreshold}
-          mapping={mapping}
-          quantLevel={HARDCODED_QUANT_LEVEL}
-          formula={formula}
-          smoothingStyle={smoothingStyle}
-          labScales={labScales}
-          smoothingStrength={smoothingStrength}
-        />
-      </div>
-
-      <Footer />
-    </div>
+      <Toaster richColors position="bottom-center" />
+    </>
   );
 }
 

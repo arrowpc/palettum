@@ -217,9 +217,78 @@ fn get_mapped_color_for_pixel(
 pub(crate) fn process_pixels(
     image: &mut RgbaImage,
     config: &Config,
-    lab_colors: &[Lab],         // Lab version of config.palette.colors
-    lookup: Option<&[Rgb<u8>]>, // LUT, only used if no dithering and q > 0
+    lab_colors: &[Lab],
+    lookup: Option<&[Rgb<u8>]>,
 ) -> Result<()> {
+    if config.mapping == Mapping::Smoothed {
+        let raw_data = image.as_mut();
+        let bytes_per_pixel = 4; // RGBA
+        let num_threads = config.num_threads.max(1);
+
+        if num_threads == 1 {
+            let mut cache = ThreadLocalCache::new();
+            for pixel_chunk in raw_data.chunks_mut(bytes_per_pixel) {
+                let current_pixel = Rgba([
+                    pixel_chunk[0],
+                    pixel_chunk[1],
+                    pixel_chunk[2],
+                    pixel_chunk[3],
+                ]);
+                let mapped_pixel = get_mapped_color_for_pixel(
+                    current_pixel,
+                    config,
+                    lab_colors,
+                    &mut cache,
+                    lookup,
+                )?;
+                pixel_chunk[0] = mapped_pixel.0[0];
+                pixel_chunk[1] = mapped_pixel.0[1];
+                pixel_chunk[2] = mapped_pixel.0[2];
+                pixel_chunk[3] = mapped_pixel.0[3];
+            }
+        } else {
+            // Multi-threaded
+            let chunk_size = (raw_data.len() / bytes_per_pixel).div_ceil(num_threads);
+            let pixel_chunks: Vec<_> = raw_data.chunks_mut(chunk_size * bytes_per_pixel).collect();
+
+            let pool = ThreadPoolBuilder::new().num_threads(num_threads).build()?;
+
+            pool.scope(|scope| {
+                for chunk in pixel_chunks {
+                    scope.spawn(|_| {
+                        let mut cache = ThreadLocalCache::new();
+                        for pixel_chunk in chunk.chunks_mut(bytes_per_pixel) {
+                            let current_pixel = Rgba([
+                                pixel_chunk[0],
+                                pixel_chunk[1],
+                                pixel_chunk[2],
+                                pixel_chunk[3],
+                            ]);
+                            match get_mapped_color_for_pixel(
+                                current_pixel,
+                                config,
+                                lab_colors,
+                                &mut cache,
+                                lookup,
+                            ) {
+                                Ok(mapped_pixel) => {
+                                    pixel_chunk[0] = mapped_pixel.0[0];
+                                    pixel_chunk[1] = mapped_pixel.0[1];
+                                    pixel_chunk[2] = mapped_pixel.0[2];
+                                    pixel_chunk[3] = mapped_pixel.0[3];
+                                }
+                                Err(e) => {
+                                    log::error!("Error processing pixel in thread: {:?}", e);
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        }
+        return Ok(());
+    }
+
     match config.dithering_algorithm {
         dithered::Algorithm::None => {
             let raw_data = image.as_mut();

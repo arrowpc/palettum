@@ -1,5 +1,6 @@
 mod color;
 mod config;
+pub mod dithered;
 mod math;
 mod palette;
 pub mod palettized;

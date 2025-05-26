@@ -27,21 +27,29 @@ export const FORMULA_TOOLTIPS: Record<FormulaKey, string> = {
 
 export const SMOOTHING_STYLE_GAUSSIAN = "Gaussian";
 export const SMOOTHING_STYLE_IDW = "Idw";
+export const SMOOTHING_STYLE_RQ = "Rq";
+
 export type SmoothingStyleKey =
   | typeof SMOOTHING_STYLE_GAUSSIAN
-  | typeof SMOOTHING_STYLE_IDW;
+  | typeof SMOOTHING_STYLE_IDW
+  | typeof SMOOTHING_STYLE_RQ;
 
 export const SMOOTHING_STYLE_OPTIONS: SmoothingStyleKey[] = [
   SMOOTHING_STYLE_IDW,
   SMOOTHING_STYLE_GAUSSIAN,
+  SMOOTHING_STYLE_RQ,
 ];
+
 export const SMOOTHING_STYLE_NAMES: Record<SmoothingStyleKey, string> = {
   [SMOOTHING_STYLE_GAUSSIAN]: "Gaussian",
   [SMOOTHING_STYLE_IDW]: "Inverse Distance",
+  [SMOOTHING_STYLE_RQ]: "Rational Quadratic",
 };
+
 export const SMOOTHING_STYLE_TOOLTIPS: Record<SmoothingStyleKey, string> = {
   [SMOOTHING_STYLE_GAUSSIAN]: "Smooth falloff with bell curve distribution",
   [SMOOTHING_STYLE_IDW]: "Sharper falloff with more defined color transitions",
+  [SMOOTHING_STYLE_RQ]: "Flexible falloff with rational quadratic kernel",
 };
 
 export const DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED = 128;

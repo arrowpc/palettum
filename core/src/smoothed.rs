@@ -17,24 +17,72 @@ use tsify::Tsify;
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum, strum_macros::Display))]
 pub enum Formula {
     #[default]
+    /// Inverse distance weighting
     Idw,
     Gaussian,
+    /// Rational quadratic
+    Rq,
 }
 
 fn compute_weight(distance: f32, config: &Config) -> f32 {
     const ANISOTROPIC_DIST_EPSILON: f32 = 1e-9;
-    let strength = &config.smoothing_strength;
+    const NORMALIZED_STRENGTH_FACTOR: f32 = 1.0_f32 / 0.9_f32;
+
+    let normalized_strength = (config.smoothing_strength - 0.1_f32) * NORMALIZED_STRENGTH_FACTOR;
 
     match config.smoothed_formula {
         Formula::Gaussian => {
-            let shape = (0.18 * strength + 0.01).max(ANISOTROPIC_DIST_EPSILON);
+            const SIGMA_AT_MIN_STRENGTH: f32 = 10_f32;
+            const SIGMA_AT_MAX_STRENGTH: f32 = 50_f32;
 
-            let exponent = -(shape * distance).powi(2);
-            exponent.max(-700.0).exp()
+            let sigma = SIGMA_AT_MIN_STRENGTH.mul_add(
+                1.0_f32 - normalized_strength,
+                SIGMA_AT_MAX_STRENGTH * normalized_strength,
+            );
+
+            if sigma < ANISOTROPIC_DIST_EPSILON {
+                return if distance < ANISOTROPIC_DIST_EPSILON {
+                    1.0_f32
+                } else {
+                    0.0_f32
+                };
+            }
+            let sigma_sq_inv = 1.0_f32 / (2.0_f32 * sigma * sigma);
+            let exponent = -distance * distance * sigma_sq_inv;
+            exponent.max(-700.0_f32).exp()
         }
         Formula::Idw => {
-            let power = 6.0 * strength + 1.0;
-            1.0 / (distance.powf(power) + ANISOTROPIC_DIST_EPSILON)
+            const POWER_AT_MIN_STRENGTH: f32 = 5_f32;
+            const POWER_AT_MAX_STRENGTH: f32 = 1_f32;
+
+            let power = POWER_AT_MIN_STRENGTH.mul_add(
+                1.0_f32 - normalized_strength,
+                POWER_AT_MAX_STRENGTH * normalized_strength,
+            );
+            1.0_f32 / (distance.powf(power) + ANISOTROPIC_DIST_EPSILON)
+        }
+        Formula::Rq => {
+            const ALPHA_RQ: f32 = 1.0_f32;
+            const LENGTH_SCALE_AT_MIN_STRENGTH: f32 = 1.0_f32;
+            const LENGTH_SCALE_AT_MAX_STRENGTH: f32 = 30.0_f32;
+
+            let length_scale = LENGTH_SCALE_AT_MIN_STRENGTH.mul_add(
+                1.0_f32 - normalized_strength,
+                LENGTH_SCALE_AT_MAX_STRENGTH * normalized_strength,
+            );
+
+            if length_scale <= ANISOTROPIC_DIST_EPSILON {
+                return if distance < ANISOTROPIC_DIST_EPSILON {
+                    1.0_f32
+                } else {
+                    0.0_f32
+                };
+            }
+
+            let denominator_val_inv = 1.0_f32
+                / (2.0_f32 * ALPHA_RQ * length_scale * length_scale + ANISOTROPIC_DIST_EPSILON);
+            let term = distance * distance * denominator_val_inv;
+            (1.0_f32 + term).powf(-ALPHA_RQ)
         }
     }
 }
@@ -47,23 +95,19 @@ pub(crate) fn closest_rgb(reference: &Lab, colors: &[Lab], config: &Config) -> R
     let mut sum_b: f32 = 0.0;
     let [scale_l, scale_a, scale_b] = config.lab_scales;
 
-    for (i, palette_lab_color) in colors.iter().enumerate() {
+    for palette_lab_color in colors {
         let dl = reference.l - palette_lab_color.l;
         let da = reference.a - palette_lab_color.a;
         let db = reference.b - palette_lab_color.b;
-        let anisotropic_dist_sq = (scale_l * dl * dl).max(0.0)
-            + (scale_a * da * da).max(0.0)
-            + (scale_b * db * db).max(0.0);
+        let anisotropic_dist_sq = (scale_l * dl * dl) + (scale_a * da * da) + (scale_b * db * db);
         let anisotropic_dist = anisotropic_dist_sq.sqrt();
         let weight = compute_weight(anisotropic_dist, config);
 
         if weight > WEIGHT_THRESHOLD {
             total_weight += weight;
-            if let Some(p_lab) = colors.get(i) {
-                sum_l += weight * p_lab.l;
-                sum_a += weight * p_lab.a;
-                sum_b += weight * p_lab.b;
-            }
+            sum_l += weight * palette_lab_color.l;
+            sum_a += weight * palette_lab_color.a;
+            sum_b += weight * palette_lab_color.b;
         }
     }
 

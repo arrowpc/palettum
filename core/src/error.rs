@@ -39,6 +39,9 @@ pub enum Error {
     #[error("Invalid smoothing_strength: must be between 0.0 and 1.0, got {0}")]
     InvalidsmoothingStrength(f32),
 
+    #[error("Invalid dithering_strength: must be between 0.0 and 1.0, got {0}")]
+    InvalidDitheringStrength(f32),
+
     #[error("Invalid lab_scales: scale values must be positive")]
     InvalidLabScales,
 

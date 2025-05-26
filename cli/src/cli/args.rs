@@ -167,6 +167,15 @@ pub struct PalettifyArgs {
     )]
     pub dithering_algorithm: dithered::Algorithm,
 
+    /// Dithering strength (0.1-1.0)
+    #[arg(
+        long,
+        value_name = "STRENGTH",
+        default_value_t = 0.5,
+        help_heading = "PALETTIZED OPTIONS"
+    )]
+    pub dithering_strength: f32,
+
     /// Alpha threshold (0-255, 0 disables transparency)
     #[arg(
         short,

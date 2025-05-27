@@ -1,9 +1,9 @@
 use crate::{
     color::{ConvertToLab, Lab},
     config::Config,
-    dithered,
     error::Result,
-    palettized, smoothed, Mapping,
+    palettized::{self, Dithering},
+    smoothed, Mapping,
 };
 
 use image::{Rgb, Rgba, RgbaImage};
@@ -41,7 +41,7 @@ pub fn generate_lookup_table(
     image_size: Option<usize>,
 ) -> Vec<Rgb<u8>> {
     // Dithering operates pixel by pixel with error diffusion; LUT is not used
-    if config.dithering_algorithm != dithered::Algorithm::None {
+    if config.dither_algorithm != Dithering::None {
         log::debug!("Skipping LUT generation: Dithering algorithm is active.");
         return Vec::new();
     }
@@ -130,11 +130,6 @@ pub(crate) fn compute_mapped_color_rgb(
     match config.mapping {
         Mapping::Palettized => palettized::closest_rgb(&reference, lab_colors, config),
         Mapping::Smoothed => smoothed::closest_rgb(&reference, lab_colors, config),
-        Mapping::SmoothedPalettized => {
-            let smoothed_rgb = smoothed::closest_rgb(&reference, lab_colors, config);
-            let smoothed_lab = smoothed_rgb.to_lab();
-            palettized::closest_rgb(&smoothed_lab, lab_colors, config)
-        }
     }
 }
 
@@ -289,8 +284,8 @@ pub(crate) fn process_pixels(
         return Ok(());
     }
 
-    match config.dithering_algorithm {
-        dithered::Algorithm::None => {
+    match config.dither_algorithm {
+        Dithering::None => {
             let raw_data = image.as_mut();
             let bytes_per_pixel = 4; // RGBA
             let num_threads = config.num_threads.max(1);
@@ -358,11 +353,11 @@ pub(crate) fn process_pixels(
                 });
             }
         }
-        dithered::Algorithm::FloydSteinberg => {
-            dithered::floyd_steinberg(image, config, lab_colors)?;
+        Dithering::Fs => {
+            palettized::floyd_steinberg(image, config, lab_colors)?;
         }
-        dithered::Algorithm::BlueNoise => {
-            dithered::blue_noise(image, config, lab_colors)?;
+        Dithering::Bn => {
+            palettized::blue_noise(image, config, lab_colors)?;
         }
     }
     Ok(())

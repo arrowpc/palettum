@@ -1,14 +1,13 @@
 mod color;
+pub mod color_difference;
 mod config;
-pub mod dithered;
+pub mod error;
 mod math;
+pub mod media;
 mod palette;
 pub mod palettized;
 mod processing;
 pub mod smoothed;
-
-pub mod error;
-pub mod media;
 pub use config::Config;
 pub use error::{Error, Result};
 pub use media::{Gif, Ico, Image, Media};
@@ -35,7 +34,6 @@ pub enum Mapping {
     Palettized,
     #[default]
     Smoothed,
-    SmoothedPalettized,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

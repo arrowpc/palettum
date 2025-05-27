@@ -1,4 +1,4 @@
-use palettum::{dithered, find_palette, palettized, smoothed, Filter, Mapping, Palette};
+use palettum::{color_difference, find_palette, palettized, smoothed, Filter, Mapping, Palette};
 use std::path::PathBuf;
 
 use clap::{ArgAction, Args, Parser, Subcommand};
@@ -113,7 +113,7 @@ pub struct PalettifyArgs {
         required = true,
         help_heading = "REQUIRED OPTIONS"
     )]
-    pub input_paths: Vec<PathBuf>,
+    pub input: Vec<PathBuf>,
 
     #[arg(
         short,
@@ -139,23 +139,13 @@ pub struct PalettifyArgs {
 
     /// Output directory or single file
     #[arg(short, long, help_heading = "MISC OPTIONS")]
-    pub output_path: Option<PathBuf>,
+    pub output: Option<PathBuf>,
 
     /// Comma-separated list of output files (must match input count)
     #[arg(long, value_delimiter = ',', help_heading = "MISC OPTIONS")]
     pub output_files: Option<Vec<PathBuf>>,
 
     // PALETTIZED OPTIONS
-    /// Color matching formula
-    #[arg(
-        long,
-        value_enum,
-        value_name = "FORMULA",
-        default_value = "ciede2000",
-        help_heading = "PALETTIZED OPTIONS"
-    )]
-    pub palettized_formula: palettized::Formula,
-
     /// Dithering algorithm to apply (useful with limited palettes)
     #[arg(
         short,
@@ -165,7 +155,7 @@ pub struct PalettifyArgs {
         default_value = "none",
         help_heading = "PALETTIZED OPTIONS"
     )]
-    pub dithering_algorithm: dithered::Algorithm,
+    pub dither_algorithm: palettized::Dithering,
 
     /// Dithering strength (0.1-1.0)
     #[arg(
@@ -174,7 +164,7 @@ pub struct PalettifyArgs {
         default_value_t = 0.5,
         help_heading = "PALETTIZED OPTIONS"
     )]
-    pub dithering_strength: f32,
+    pub dither_strength: f32,
 
     /// Alpha threshold (0-255, 0 disables transparency)
     #[arg(
@@ -184,7 +174,7 @@ pub struct PalettifyArgs {
         default_value_t = 128,
         help_heading = "PALETTIZED OPTIONS"
     )]
-    pub alpha_threshold: u8,
+    pub alpha: u8,
 
     // SMOOTHED OPTIONS
     /// Interpolation formula
@@ -196,7 +186,7 @@ pub struct PalettifyArgs {
         default_value = "idw",
         help_heading = "SMOOTHED OPTIONS"
     )]
-    pub smoothed_formula: smoothed::Formula,
+    pub smooth_formula: smoothed::Formula,
 
     /// Smoothing strength (0.1-1.0)
     #[arg(
@@ -205,18 +195,7 @@ pub struct PalettifyArgs {
         default_value_t = 0.5,
         help_heading = "SMOOTHED OPTIONS"
     )]
-    pub smoothing_strength: f32,
-
-    /// LAB color space scaling factors
-    #[arg(
-        short,
-        long,
-        default_value = "1.0,1.0,1.0",
-        value_name = "L,A,B",
-        value_parser = parse_lab_scales,
-        help_heading = "SMOOTHED OPTIONS",
-    )]
-    pub lab_scales: [f32; 3],
+    pub smooth_strength: f32,
 
     // SIZE OPTIONS
     /// Resize output to this width (preserves aspect ratio with height)
@@ -265,6 +244,16 @@ pub struct PalettifyArgs {
         help_heading = "PERFORMANCE OPTIONS"
     )]
     pub quantization: u8,
+
+    /// Color difference formula
+    #[arg(
+        long,
+        value_enum,
+        value_name = "FORMULA",
+        default_value = "ciede2000",
+        help_heading = "PERFORMANCE OPTIONS"
+    )]
+    pub diff_formula: color_difference::Formula,
 }
 
 #[derive(Args, Debug)]
@@ -316,18 +305,6 @@ fn parse_palette(s: &str) -> Result<Palette, String> {
     } else {
         Err(format!("Unknown palette: {s}"))
     }
-}
-
-fn parse_lab_scales(s: &str) -> Result<[f32; 3], String> {
-    let vals: Vec<_> = s.split(',').map(|v| v.parse::<f32>()).collect();
-    if vals.len() != 3 {
-        return Err("Expected three comma-separated floats".to_string());
-    }
-    let mut arr = [0.0; 3];
-    for (i, v) in vals.into_iter().enumerate() {
-        arr[i] = v.map_err(|_| "Invalid float".to_string())?;
-    }
-    Ok(arr)
 }
 
 fn parse_scale(s: &str) -> Result<f32, String> {

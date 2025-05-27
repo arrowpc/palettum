@@ -26,11 +26,7 @@ pub(crate) fn closest_rgb(reference: &Lab, colors: &[Lab], config: &Config) -> R
 use rayon::prelude::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[cfg_attr(
-    feature = "wasm",
-    derive(Tsify, Serialize, Deserialize),
-    tsify(type_prefix = "Dithering")
-)]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum, strum_macros::Display))]
 pub enum Dithering {
     #[default]

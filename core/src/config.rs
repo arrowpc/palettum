@@ -24,7 +24,7 @@ pub struct Config {
     #[builder(default)]
     pub mapping: Mapping,
 
-    #[cfg_attr(feature = "wasm", tsify(type = "PalettizedFormula"))]
+    #[cfg_attr(feature = "wasm", tsify(type = "DiffFormula"))]
     #[builder(default)]
     pub diff_formula: color_difference::Formula,
 
@@ -38,14 +38,14 @@ pub struct Config {
     #[cfg_attr(feature = "wasm", serde(skip))]
     pub num_threads: usize,
 
-    #[cfg_attr(feature = "wasm", tsify(type = "SmoothedFormula"))]
+    #[cfg_attr(feature = "wasm", tsify(type = "SmoothFormula"))]
     #[builder(default = smoothed::Formula::Idw)]
     pub smooth_formula: smoothed::Formula,
 
     #[builder(default = 0.5)]
     pub smooth_strength: f32,
 
-    #[cfg_attr(feature = "wasm", tsify(type = "DitheredAlgorithm"))]
+    #[cfg_attr(feature = "wasm", tsify(type = "DitherAlgorithm"))]
     #[builder(default)]
     pub dither_algorithm: palettized::Dithering,
 

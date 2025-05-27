@@ -18,7 +18,7 @@ import {
 interface DitheringSelectorProps {
   currentDitheringStyle: DitheringKey;
   onDitheringStyleChange: (style: DitheringKey) => void;
-  isActive: boolean; // True if palettized mode is active
+  isActive: boolean;
   isImageUploaded: boolean;
 }
 

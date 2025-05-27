@@ -18,7 +18,6 @@ interface FormulaSelectorProps {
   onFormulaChange: (formula: FormulaKey) => void;
   isActive: boolean;
   isImageUploaded: boolean;
-  usesPalettized: boolean;
 }
 
 export const FormulaSelector: React.FC<FormulaSelectorProps> = ({
@@ -26,7 +25,6 @@ export const FormulaSelector: React.FC<FormulaSelectorProps> = ({
   onFormulaChange,
   isActive,
   isImageUploaded,
-  usesPalettized,
 }) => {
   return (
     <div
@@ -59,9 +57,7 @@ export const FormulaSelector: React.FC<FormulaSelectorProps> = ({
             >
               {!isImageUploaded
                 ? "Upload an image first"
-                : !usesPalettized
-                  ? "Requires palette mode"
-                  : FORMULA_TOOLTIPS[option]}
+                : FORMULA_TOOLTIPS[option]}
             </TooltipContent>
           </Tooltip>
         ))}

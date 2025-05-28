@@ -4,14 +4,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { SmoothingStyleKey } from "./adjustments.types";
 import { SmoothingStyleSelector } from "./SmoothingStyleSelector";
-import { LabColorWeights } from "./LabColorWeights";
 import { SmoothingStrengthControl } from "./SmoothingStrengthControl";
 
 interface ColorBlendingSettingsProps {
   currentSmoothingStyle: SmoothingStyleKey;
   onSmoothingStyleChange: (style: SmoothingStyleKey) => void;
-  currentLabScales: [number, number, number];
-  onLabScalesChange: (scales: [number, number, number]) => void;
   currentSmoothingStrength: number;
   onSmoothingStrengthSliderChange: (value: number[]) => void;
   isSmoothedActive: boolean;
@@ -22,8 +19,6 @@ interface ColorBlendingSettingsProps {
 export const ColorBlendingSettings: React.FC<ColorBlendingSettingsProps> = ({
   currentSmoothingStyle,
   onSmoothingStyleChange,
-  currentLabScales,
-  onLabScalesChange,
   currentSmoothingStrength,
   onSmoothingStrengthSliderChange,
   isSmoothedActive,
@@ -55,14 +50,7 @@ export const ColorBlendingSettings: React.FC<ColorBlendingSettingsProps> = ({
             usesSmoothed={usesSmoothed}
           />
         </TooltipProvider>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-          <LabColorWeights
-            currentLabScales={currentLabScales}
-            onLabScalesChange={onLabScalesChange}
-            isActive={isSmoothedActive}
-            isImageUploaded={isImageUploaded}
-            usesSmoothed={usesSmoothed}
-          />
+        <div className="grid grid-cols-1 gap-8 items-start">
           <SmoothingStrengthControl
             currentSmoothingStrength={currentSmoothingStrength}
             onSmoothingStrengthChange={onSmoothingStrengthSliderChange}

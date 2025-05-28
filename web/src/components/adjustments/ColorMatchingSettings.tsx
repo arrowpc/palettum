@@ -1,16 +1,12 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { FormulaKey, DitheringKey, DITHERING_NONE } from "./adjustments.types";
-import { FormulaSelector } from "./FormulaSelector";
+import { DitheringKey, DITHERING_NONE } from "./adjustments.types";
 import { TransparencyControl } from "./TransparencyControl";
 import { DitheringSelector } from "./DitheringSelector";
 import { DitheringStrengthControl } from "./DitheringStrengthControl";
 
 interface ColorMatchingSettingsProps {
-  currentFormula: FormulaKey;
-  onFormulaChange: (formula: FormulaKey) => void;
   currentThreshold: number;
   onThresholdSliderChange: (value: number[]) => void;
   transparencyEnabled: boolean;
@@ -26,8 +22,6 @@ interface ColorMatchingSettingsProps {
 }
 
 export const ColorMatchingSettings: React.FC<ColorMatchingSettingsProps> = ({
-  currentFormula,
-  onFormulaChange,
   currentThreshold,
   onThresholdSliderChange,
   transparencyEnabled,
@@ -63,35 +57,19 @@ export const ColorMatchingSettings: React.FC<ColorMatchingSettingsProps> = ({
         </Badge>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-        <div className="space-y-4 p-4 border rounded-lg bg-background">
-          {/* Wrap FormulaSelector with TooltipProvider */}
-          <TooltipProvider delayDuration={200}>
-            <FormulaSelector
-              currentFormula={currentFormula}
-              onFormulaChange={onFormulaChange}
-              isActive={isPalettizedActive}
-              isImageUploaded={isImageUploaded}
-              usesPalettized={usesPalettized}
-            />
-          </TooltipProvider>
-        </div>
-        <div className="space-y-4 p-4 border rounded-lg bg-background">
-          <TransparencyControl
-            currentThreshold={currentThreshold}
-            onThresholdChange={onThresholdSliderChange}
-            transparencyEnabled={transparencyEnabled}
-            onTransparencySwitchChange={onTransparencySwitchChange}
-            isControlDisabled={isTransparencyControlDisabled}
-            imageSupportsTransparency={imageSupportsTransparency}
-            isImageUploaded={isImageUploaded}
-            usesPalettized={usesPalettized}
-          />
-        </div>
+      <div className="space-y-4 p-4 border rounded-lg bg-background">
+        <TransparencyControl
+          currentThreshold={currentThreshold}
+          onThresholdChange={onThresholdSliderChange}
+          transparencyEnabled={transparencyEnabled}
+          onTransparencySwitchChange={onTransparencySwitchChange}
+          isControlDisabled={isTransparencyControlDisabled}
+          imageSupportsTransparency={imageSupportsTransparency}
+          isImageUploaded={isImageUploaded}
+          usesPalettized={usesPalettized}
+        />
       </div>
 
-      {/* Dithering Section - DitheringSelector has its own provider, should be fine */}
-      {/* If DitheringSelector also errors, apply the same pattern */}
       <div className="space-y-6 p-4 border rounded-lg bg-background">
         <DitheringSelector
           currentDitheringStyle={currentDitheringStyle}

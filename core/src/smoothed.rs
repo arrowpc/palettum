@@ -1,6 +1,7 @@
 use image::Rgb;
 
 use crate::color::Lab;
+use crate::color_difference;
 use crate::config::Config;
 
 #[cfg(feature = "wasm")]
@@ -28,9 +29,9 @@ fn compute_weight(distance: f32, config: &Config) -> f32 {
     const ANISOTROPIC_DIST_EPSILON: f32 = 1e-9;
     const NORMALIZED_STRENGTH_FACTOR: f32 = 1.0_f32 / 0.9_f32;
 
-    let normalized_strength = (config.smoothing_strength - 0.1_f32) * NORMALIZED_STRENGTH_FACTOR;
+    let normalized_strength = (config.smooth_strength - 0.1_f32) * NORMALIZED_STRENGTH_FACTOR;
 
-    match config.smoothed_formula {
+    match config.smooth_formula {
         Formula::Gaussian => {
             const SIGMA_AT_MIN_STRENGTH: f32 = 10_f32;
             const SIGMA_AT_MAX_STRENGTH: f32 = 50_f32;
@@ -93,21 +94,16 @@ pub(crate) fn closest_rgb(reference: &Lab, colors: &[Lab], config: &Config) -> R
     let mut sum_l: f32 = 0.0;
     let mut sum_a: f32 = 0.0;
     let mut sum_b: f32 = 0.0;
-    let [scale_l, scale_a, scale_b] = config.lab_scales;
 
-    for palette_lab_color in colors {
-        let dl = reference.l - palette_lab_color.l;
-        let da = reference.a - palette_lab_color.a;
-        let db = reference.b - palette_lab_color.b;
-        let anisotropic_dist_sq = (scale_l * dl * dl) + (scale_a * da * da) + (scale_b * db * db);
-        let anisotropic_dist = anisotropic_dist_sq.sqrt();
-        let weight = compute_weight(anisotropic_dist, config);
+    for color in colors {
+        let distance = color_difference::delta_e(color, reference, config.diff_formula);
+        let weight = compute_weight(distance, config);
 
         if weight > WEIGHT_THRESHOLD {
             total_weight += weight;
-            sum_l += weight * palette_lab_color.l;
-            sum_a += weight * palette_lab_color.a;
-            sum_b += weight * palette_lab_color.b;
+            sum_l += weight * color.l;
+            sum_a += weight * color.a;
+            sum_b += weight * color.b;
         }
     }
 

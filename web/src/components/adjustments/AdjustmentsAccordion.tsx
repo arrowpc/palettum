@@ -12,10 +12,10 @@ import {
   DitheringKey,
   MAPPING_PALETTIZED,
   MAPPING_SMOOTHED,
-  MAPPING_SMOOTHED_PALETTIZED,
   MIN_THRESHOLD,
   DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED,
 } from "./adjustments.types";
+import { GeneralSettings } from "./GeneralSettings";
 import { ColorMatchingSettings } from "./ColorMatchingSettings";
 import { ColorBlendingSettings } from "./ColorBlendingSettings";
 
@@ -25,18 +25,18 @@ interface AdjustmentsAccordionProps {
   currentFormula: FormulaKey;
   currentSmoothingStyle: SmoothingStyleKey;
   currentThreshold: number;
-  currentLabScales: [number, number, number];
   currentSmoothingStrength: number;
   currentDitheringStyle: DitheringKey;
   currentDitheringStrength: number;
+  currentQuantLevel: number;
   onMappingChange: (mapping: MappingKey) => void;
   onFormulaChange: (formula: FormulaKey) => void;
   onSmoothingStyleChange: (style: SmoothingStyleKey) => void;
   onThresholdChange: (threshold: number) => void;
-  onLabScalesChange: (scales: [number, number, number]) => void;
   onSmoothingStrengthChange: (strength: number) => void;
   onDitheringStyleChange: (style: DitheringKey) => void;
   onDitheringStrengthChange: (strength: number) => void;
+  onQuantLevelChange: (level: number) => void;
 }
 
 const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
@@ -45,29 +45,25 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
   currentFormula,
   currentSmoothingStyle,
   currentThreshold,
-  currentLabScales,
   currentSmoothingStrength,
   currentDitheringStyle,
   currentDitheringStrength,
+  currentQuantLevel,
   onFormulaChange,
   onSmoothingStyleChange,
   onThresholdChange,
-  onLabScalesChange,
   onSmoothingStrengthChange,
   onDitheringStyleChange,
   onDitheringStrengthChange,
+  onQuantLevelChange,
 }) => {
   const [imageSupportsTransparency, setImageSupportsTransparency] =
     useState(false);
   const [transparencyEnabled, setTransparencyEnabled] = useState(false);
   const isImageUploaded = !!file;
 
-  const usesPalettized =
-    currentMapping === MAPPING_PALETTIZED ||
-    currentMapping === MAPPING_SMOOTHED_PALETTIZED;
-  const usesSmoothed =
-    currentMapping === MAPPING_SMOOTHED ||
-    currentMapping === MAPPING_SMOOTHED_PALETTIZED;
+  const usesPalettized = currentMapping === MAPPING_PALETTIZED;
+  const usesSmoothed = currentMapping === MAPPING_SMOOTHED;
 
   useEffect(() => {
     let isMounted = true;
@@ -188,6 +184,13 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
     [onDitheringStrengthChange],
   );
 
+  const handleQuantLevelSliderChange = useCallback(
+    (value: number[]) => {
+      onQuantLevelChange(value[0]);
+    },
+    [onQuantLevelChange],
+  );
+
   return (
     <Accordion type="single" collapsible>
       <AccordionItem value="adjustments">
@@ -195,9 +198,14 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
           Advanced Options
         </AccordionTrigger>
         <AccordionContent className="pt-4 space-y-6">
-          <ColorMatchingSettings
+          <GeneralSettings
             currentFormula={currentFormula}
             onFormulaChange={onFormulaChange}
+            currentQuantLevel={currentQuantLevel}
+            onQuantLevelChange={handleQuantLevelSliderChange}
+            isImageUploaded={isImageUploaded}
+          />
+          <ColorMatchingSettings
             currentThreshold={currentThreshold}
             onThresholdSliderChange={handleThresholdSliderChange}
             transparencyEnabled={transparencyEnabled}
@@ -216,8 +224,6 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
           <ColorBlendingSettings
             currentSmoothingStyle={currentSmoothingStyle}
             onSmoothingStyleChange={onSmoothingStyleChange}
-            currentLabScales={currentLabScales}
-            onLabScalesChange={onLabScalesChange}
             currentSmoothingStrength={currentSmoothingStrength}
             onSmoothingStrengthSliderChange={
               handleSmoothingStrengthSliderChange

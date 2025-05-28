@@ -1,4 +1,4 @@
-use palettum::{error::Result, media::load_media_from_memory, Config, Filter, Mapping, Palette};
+use palettum::{error::Result, media::load_media_from_memory, Config, Palette};
 use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
 use web_time::Instant;
@@ -22,13 +22,8 @@ fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
     let start_time = Instant::now();
     log::info!("Received image bytes for processing in WASM...");
 
-    let filter = match config.mapping {
-        Mapping::Smoothed => Filter::Lanczos3,
-        _ => Filter::Nearest,
-    };
-
     log::info!("Using config: {}", config);
-    log::info!("Resize filter: {:?} ", filter);
+    log::info!("Resize filter: {:?} ", config.filter);
 
     let bytes = image_bytes.to_vec();
     let mut media = load_media_from_memory(&bytes)?;
@@ -36,7 +31,7 @@ fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
         config.resize_width,
         config.resize_height,
         config.resize_scale,
-        filter,
+        config.filter,
     )?;
     media.palettify(&config)?;
 

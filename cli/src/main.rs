@@ -1,8 +1,8 @@
+use anyhow::Result;
 use clap::Parser;
 use cli::cli::args::Cli;
 use cli::{cli::runner::run_cli, logger};
 use indicatif::MultiProgress;
-use palettum::error::Result;
 use std::{env, process};
 
 #[cfg(all(feature = "profiler", not(windows)))]
@@ -41,7 +41,7 @@ fn main() -> Result<()> {
     let exit_code = match run_cli(args, multi) {
         Ok(()) => 0,
         Err(e) => {
-            log::error!("{}", e);
+            log::error!("{:?}", e);
             1
         }
     };

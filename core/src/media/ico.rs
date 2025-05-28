@@ -60,10 +60,10 @@ impl Ico {
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
 
-        if path.extension().is_some() {
+        if matches!(path.extension(), Some(ext) if ext != "ico") {
             log::debug!(
-                "{}",
-                Error::FileExtensionAlreadySupplied(path.to_path_buf())
+                "Output path {} has a non-icon extension; replacing with .ico",
+                path.display()
             );
         }
 
@@ -95,7 +95,7 @@ impl Ico {
 
             let icon_image = IconImage::from_rgba_data(width, height, rgba_data_vec);
 
-            let entry = IconDirEntry::encode(&icon_image).unwrap();
+            let entry = IconDirEntry::encode(&icon_image)?;
             icon_dir.add_entry(entry);
         }
 

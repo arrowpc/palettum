@@ -65,10 +65,10 @@ impl Gif {
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
 
-        if path.extension().is_some() {
+        if matches!(path.extension(), Some(ext) if ext != "gif") {
             log::debug!(
-                "{}",
-                Error::FileExtensionAlreadySupplied(path.to_path_buf())
+                "Output path {} has a non-gif extension; replacing with .gif",
+                path.display()
             );
         }
 

@@ -1,3 +1,4 @@
+use anyhow::{bail, Result};
 use palettum::{color_difference, find_palette, palettized, smoothed, Filter, Mapping, Palette};
 use std::path::PathBuf;
 
@@ -225,7 +226,7 @@ pub struct PalettifyArgs {
     pub filter: Filter,
 
     // PERFORMANCE OPTIONS
-    /// Number of processing threads
+    /// Number of processing threads (0/1 to disable multi-threading)
     #[arg(
         short,
         long,
@@ -299,28 +300,31 @@ pub struct ExtractArgs {
 
 // Parsers
 
-fn parse_palette(s: &str) -> Result<Palette, String> {
+fn parse_palette(s: &str) -> Result<Palette> {
+    if s.trim_end().to_ascii_lowercase().ends_with(".json") {
+        bail!("Inputting files is not supported yet");
+    }
+
     if let Some(palette) = find_palette(s) {
         Ok(palette)
     } else {
-        Err(format!("Unknown palette: {s}"))
+        bail!("Unknown palette: {s}");
     }
 }
 
-fn parse_scale(s: &str) -> Result<f32, String> {
+fn parse_scale(s: &str) -> Result<f32> {
+    const FORMAT_MSG: &str = "The correct format is 'nx' (e.g. '0.5x') or 'n%' (e.g. '50%')";
     let trimmed = s.trim();
     if let Some(factor_str) = trimmed.strip_suffix('x') {
         factor_str
             .parse::<f32>()
-            .map_err(|e| format!("Invalid scale factor '{}': {}", factor_str, e))
+            .map_err(|_| anyhow::anyhow!(FORMAT_MSG))
     } else if let Some(percent_str) = trimmed.strip_suffix('%') {
         percent_str
             .parse::<f32>()
             .map(|v| v / 100.0)
-            .map_err(|e| format!("Invalid percent '{}': {}", percent_str, e))
+            .map_err(|_| anyhow::anyhow!(FORMAT_MSG))
     } else {
-        trimmed
-            .parse::<f32>()
-            .map_err(|e| format!("Invalid scale '{}': {}", trimmed, e))
+        bail!(FORMAT_MSG);
     }
 }

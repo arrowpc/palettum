@@ -56,10 +56,10 @@ impl Image {
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let path = path.as_ref();
 
-        if path.extension().is_some() {
+        if matches!(path.extension(), Some(ext) if ext != "png") {
             log::debug!(
-                "{}",
-                Error::FileExtensionAlreadySupplied(path.to_path_buf())
+                "Output path {} has a non-png extension; replacing with .png",
+                path.display()
             );
         }
 
@@ -112,7 +112,7 @@ impl Image {
             encoder.set_palette(plte_palette);
             encoder.set_trns(trns_alphas);
 
-            let mut writer = encoder.write_header().unwrap();
+            let mut writer = encoder.write_header()?;
 
             let color_to_index: HashMap<Rgb<u8>, u8> = palette
                 .iter()
@@ -150,7 +150,7 @@ impl Image {
                 }
             }
 
-            writer.write_image_data(&indices).unwrap();
+            writer.write_image_data(&indices)?;
         } else {
             self.buffer.write_to(&mut writer, ImageFormat::Png)?
         }

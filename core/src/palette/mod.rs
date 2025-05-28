@@ -1,4 +1,4 @@
-use crate::error::Result;
+use crate::error::{Error, Result};
 use bon::Builder;
 use image::Rgb;
 use serde_json::Value;
@@ -67,7 +67,7 @@ fn palette_from_value_inner(
     let arr = v
         .get("colors")
         .and_then(|c| c.as_array())
-        .ok_or(crate::error::Error::MissingField("colors"))?;
+        .ok_or(Error::MissingField("colors"))?;
 
     let colors = arr
         .iter()
@@ -75,15 +75,15 @@ fn palette_from_value_inner(
             let r = entry
                 .get("r")
                 .and_then(|v| v.as_u64())
-                .ok_or(crate::error::Error::MissingField("r"))? as u8;
+                .ok_or(Error::MissingField("r"))? as u8;
             let g = entry
                 .get("g")
                 .and_then(|v| v.as_u64())
-                .ok_or(crate::error::Error::MissingField("g"))? as u8;
+                .ok_or(Error::MissingField("g"))? as u8;
             let b = entry
                 .get("b")
                 .and_then(|v| v.as_u64())
-                .ok_or(crate::error::Error::MissingField("b"))? as u8;
+                .ok_or(Error::MissingField("b"))? as u8;
             Ok(Rgb([r, g, b]))
         })
         .collect::<Result<Vec<_>>>()?;

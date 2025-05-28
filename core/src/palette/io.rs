@@ -30,7 +30,7 @@ pub fn custom_palettes_dir() -> &'static AnyDir {
 }
 
 pub fn create_id(path: &Path) -> Result<String> {
-    let s = path.to_str().ok_or(Error::InvalidPathUtf8)?;
+    let s = path.to_str().unwrap();
     let last = s.rsplit(['/', '\\']).next().unwrap_or(s);
     let base = last.strip_suffix(".json").unwrap_or(last);
     let mut result = String::new();
@@ -104,7 +104,11 @@ pub fn get_all_palettes() -> Vec<Palette> {
 }
 
 pub fn find_palette(id: &str) -> Option<Palette> {
-    get_all_palettes().into_iter().find(|p| p.id == id)
+    let palette = get_all_palettes().into_iter().find(|p| p.id == id);
+    if palette.is_none() {
+        log::debug!("Palette with id '{}' not found.", id);
+    }
+    palette
 }
 
 pub fn save_custom_palette(palette: &Palette, force: bool) -> Result<PathBuf> {
@@ -144,9 +148,7 @@ pub fn save_custom_palette(palette: &Palette, force: bool) -> Result<PathBuf> {
 
 pub fn delete_custom_palette(palette: &Palette) -> Result<()> {
     match palette.kind {
-        PaletteKind::Default => Err(Error::ParseError(
-            "Cannot delete a default palette".to_string(),
-        )),
+        PaletteKind::Default => Err(Error::DefaultPaletteDeletion(palette.id.clone())),
         PaletteKind::Custom => {
             let custom_dir_any = custom_palettes_dir();
             let custom_dir_path = custom_dir_any
@@ -157,18 +159,15 @@ pub fn delete_custom_palette(palette: &Palette) -> Result<()> {
             fs::remove_file(path)?;
             Ok(())
         }
-        PaletteKind::Unset => Err(Error::ParseError(format!(
-            "Cannot delete palette '{}' with Unset kind. It might not be a saved custom palette.",
-            palette.id
-        ))),
+        PaletteKind::Unset => Err(Error::UnsetPaletteDeletion(palette.id.clone())),
     }
 }
 
 pub fn palette_to_file(palette: &Palette, path: &Path) -> Result<()> {
-    if path.extension().is_some() {
+    if matches!(path.extension(), Some(ext) if ext != "json") {
         log::debug!(
-            "{}",
-            Error::FileExtensionAlreadySupplied(path.to_path_buf())
+            "Output path {} has a non-json extension; replacing with .json",
+            path.display()
         );
     }
 

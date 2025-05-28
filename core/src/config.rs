@@ -12,6 +12,9 @@ use crate::{
     palettized, smoothed, Mapping, Palette,
 };
 
+// TODO: Use states to define whether or not a configuration has been validated to avoid redundant
+// validations
+//
 // TODO: Remove WASM hacks
 #[derive(Debug, Clone, Builder)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
@@ -100,7 +103,7 @@ impl Config {
         }
 
         if self.smooth_strength < 0.0 || self.smooth_strength > 1.0 {
-            return Err(Error::InvalidsmoothStrength(self.smooth_strength));
+            return Err(Error::InvalidSmoothStrength(self.smooth_strength));
         }
 
         if self.dither_strength < 0.0 || self.dither_strength > 1.0 {

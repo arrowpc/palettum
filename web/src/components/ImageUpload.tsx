@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LIMITS } from "@/lib/palettes";
 import SharedImagePreview from "./SharedImagePreview";
+import { X } from "lucide-react";
 
 interface ImageUploadProps {
   onFileSelect: (file: File | null) => void;
@@ -250,9 +251,24 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
             imageClassName="object-contain"
           />
           <div className="flex items-center justify-between">
-            <p className="text-sm text-foreground-secondary truncate pr-2">
-              {selectedFile.name}
-            </p>
+            <div className="flex items-center min-w-0">
+              <p className="text-sm text-foreground-secondary truncate">
+                {selectedFile.name}
+              </p>
+              <button
+                type="button"
+                onClick={handleRemoveImage}
+                aria-label="Remove image"
+                className={cn(
+                  "ml-1 rounded-full p-1",
+                  "text-icon-inactive hover:text-icon-active focus:text-icon-active",
+                  "focus:outline-none transition-colors",
+                )}
+                tabIndex={0}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
             <Button onClick={triggerFileInput} variant="outline" size="sm">
               Change
             </Button>

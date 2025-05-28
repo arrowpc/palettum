@@ -49,7 +49,7 @@ export const TransparencyControl: React.FC<TransparencyControlProps> = ({
             isControlDisabled && "opacity-60 cursor-not-allowed",
           )}
         >
-          Enable Transparency
+          Transparency
         </Label>
       </div>
       <div className="space-y-2">
@@ -79,7 +79,7 @@ export const TransparencyControl: React.FC<TransparencyControlProps> = ({
           {!isImageUploaded
             ? "Upload an image first"
             : !usesPalettized
-              ? "Requires palette mode"
+              ? "Requires match style"
               : !imageSupportsTransparency
                 ? "Current image has no transparency"
                 : transparencyEnabled

@@ -63,7 +63,7 @@ export const DitheringSelector: React.FC<DitheringSelectorProps> = ({
                 {!isImageUploaded
                   ? "Upload an image first"
                   : !isActive
-                    ? "Requires palette mode"
+                    ? "Requires match style"
                     : DITHERING_TOOLTIPS[option]}
               </TooltipContent>
             </Tooltip>

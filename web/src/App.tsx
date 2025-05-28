@@ -40,20 +40,20 @@ if (import.meta.env.MODE === "development") {
   });
 }
 
-const DEFAULT_MAPPING: MappingKey = MAPPING_PALETTIZED;
+const DEFAULT_MAPPING: MappingKey = MAPPING_SMOOTHED;
 const DEFAULT_FORMULA: FormulaKey = FORMULA_CIEDE2000;
 const DEFAULT_SMOOTHING_STYLE: SmoothingStyleKey = SMOOTHING_STYLE_IDW;
 const DEFAULT_TRANSPARENCY_THRESHOLD = 128;
 const DEFAULT_SMOOTHING_STRENGTH = 0.5;
 
-const MAPPING_OPTIONS: MappingKey[] = [MAPPING_PALETTIZED, MAPPING_SMOOTHED];
+const MAPPING_OPTIONS: MappingKey[] = [MAPPING_SMOOTHED, MAPPING_PALETTIZED];
 const MAPPING_NAMES: Record<MappingKey, string> = {
-  [MAPPING_PALETTIZED]: "Snap to Palette",
-  [MAPPING_SMOOTHED]: "Color Blend",
+  [MAPPING_SMOOTHED]: "Blend",
+  [MAPPING_PALETTIZED]: "Match",
 };
 const MAPPING_TOOLTIPS: Record<MappingKey, string> = {
-  [MAPPING_PALETTIZED]: "Match each pixel to closest palette color",
   [MAPPING_SMOOTHED]: "Blend colors based on distance weighting",
+  [MAPPING_PALETTIZED]: "Match each pixel to closest palette color",
 };
 
 function App() {
@@ -141,9 +141,7 @@ function App() {
 
   const renderColorMappingMethod = () => (
     <div className="space-y-3">
-      <Label className="text-lg font-medium text-foreground">
-        Color Mapping Method
-      </Label>
+      <Label className="text-lg font-medium text-foreground">Style</Label>
       <TooltipProvider delayDuration={200}>
         <div className="flex flex-wrap gap-2">
           {MAPPING_OPTIONS.map((option) => (
@@ -177,7 +175,7 @@ function App() {
         <div className="flex items-center justify-between gap-4 text-sm">
           <GitHubButton />
           <p className="text-l text-center text-secondary-foreground">
-            Map images & GIFs to a custom palette
+            Style images & GIFs to a custom palette
           </p>
           <DarkModeToggle />
         </div>

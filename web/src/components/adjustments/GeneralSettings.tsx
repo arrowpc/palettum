@@ -4,7 +4,9 @@ import { FilterKey, FormulaKey } from "./adjustments.types";
 import { FormulaSelector } from "./FormulaSelector";
 import { FilterSelector } from "./FilterSelector";
 import { QuantizationLevelControl } from "./QuantizationLevelControl";
+import { DynamicGrid } from "./DynamicGrid";
 import { Filter } from "@/wasm/pkg/wasm";
+import { Badge } from "@/components/ui/badge";
 
 interface GeneralSettingsProps {
   currentFormula: FormulaKey;
@@ -27,23 +29,33 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
 }) => {
   return (
     <div className="space-y-6 p-4 rounded-md border border-primary/30 bg-primary/5 mb-6">
-      <h3 className="text-base font-medium text-center">General Settings</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
+      <div className="flex items-center justify-between">
+        <h3 className="text-base font-medium">General Settings</h3>
+        <Badge variant={isImageUploaded ? "default" : "outline"}>
+          {isImageUploaded ? "Active" : "Inactive"}
+        </Badge>
+      </div>
+
+      <DynamicGrid>
         <div className="space-y-4 p-4 border rounded-lg bg-background">
           <TooltipProvider delayDuration={200}>
             <FormulaSelector
               currentFormula={currentFormula}
               onFormulaChange={onFormulaChange}
-              isActive={isImageUploaded} // Formula selector active if image is uploaded
+              isActive={isImageUploaded}
               isImageUploaded={isImageUploaded}
             />
           </TooltipProvider>
         </div>
-        <QuantizationLevelControl
-          currentQuantLevel={currentQuantLevel}
-          onQuantLevelChange={onQuantLevelChange}
-          isImageUploaded={isImageUploaded}
-        />
+
+        <div className="space-y-4 p-4 border rounded-lg bg-background">
+          <QuantizationLevelControl
+            currentQuantLevel={currentQuantLevel}
+            onQuantLevelChange={onQuantLevelChange}
+            isImageUploaded={isImageUploaded}
+          />
+        </div>
+
         <div className="space-y-4 p-4 border rounded-lg bg-background">
           <TooltipProvider delayDuration={200}>
             <FilterSelector
@@ -54,7 +66,7 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
             />
           </TooltipProvider>
         </div>
-      </div>
+      </DynamicGrid>
     </div>
   );
 };

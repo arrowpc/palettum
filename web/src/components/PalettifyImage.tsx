@@ -17,12 +17,14 @@ import type {
   Mapping,
   PalettizedFormula,
   SmoothedFormula,
+  Filter,
 } from "palettum";
 import {
   DitheringKey,
   DITHERING_NONE,
   DITHERING_FLOYD_STEINBERG,
   DITHERING_BLUE_NOISE,
+  FilterKey,
 } from "@/components/adjustments/adjustments.types";
 
 interface ImageDimensions {
@@ -163,6 +165,7 @@ interface PalettifyImageProps {
   ditheringStyle: DitheringKey;
   smoothingStrength: number;
   ditheringStrength: number;
+  filter: FilterKey;
 }
 
 interface ProcessedSettings {
@@ -178,6 +181,7 @@ interface ProcessedSettings {
   ditheringStyle: DitheringKey | null;
   smoothingStrength: number | null;
   ditheringStrength: number | null;
+  filter: FilterKey | null;
 }
 
 type TaskCallbacks = {
@@ -209,6 +213,7 @@ function PalettifyImage({
   ditheringStyle,
   smoothingStrength,
   ditheringStrength,
+  filter,
 }: PalettifyImageProps): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
@@ -240,6 +245,7 @@ function PalettifyImage({
     ditheringStyle: null,
     smoothingStrength: null,
     ditheringStrength: null,
+    filter: null,
   });
 
   const isSameSettings: boolean = useMemo(
@@ -257,7 +263,8 @@ function PalettifyImage({
       smoothingStyle === lastProcessedSettings.current.smoothingStyle &&
       smoothingStrength === lastProcessedSettings.current.smoothingStrength &&
       ditheringStyle === lastProcessedSettings.current.ditheringStyle &&
-      ditheringStrength === lastProcessedSettings.current.ditheringStrength,
+      ditheringStrength === lastProcessedSettings.current.ditheringStrength &&
+      filter === lastProcessedSettings.current.filter,
     [
       processedImageUrl,
       file,
@@ -271,6 +278,7 @@ function PalettifyImage({
       ditheringStyle,
       smoothingStrength,
       ditheringStrength,
+      filter,
     ],
   );
 
@@ -423,6 +431,7 @@ function PalettifyImage({
         ditherStrength: ditheringStrength,
         resizeWidth: dimensions.width || undefined,
         resizeHeight: dimensions.height || undefined,
+        filter: filter as Filter,
       };
 
       const isGif =
@@ -451,6 +460,7 @@ function PalettifyImage({
         ditheringStyle,
         smoothingStrength,
         ditheringStrength,
+        filter,
       };
     } catch (err: any) {
       console.error("Processing error:", err);

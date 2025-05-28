@@ -1,6 +1,5 @@
 export const MAPPING_PALETTIZED = "Palettized";
 export const MAPPING_SMOOTHED = "Smoothed";
-export const MAPPING_SMOOTHED_PALETTIZED = "SmoothedPalettized";
 export type MappingKey = typeof MAPPING_PALETTIZED | typeof MAPPING_SMOOTHED;
 
 export const FORMULA_CIEDE2000 = "CIEDE2000";
@@ -96,3 +95,26 @@ export const MIN_QUANT_LEVEL = 0;
 export const MAX_QUANT_LEVEL = 5;
 export const QUANT_LEVEL_STEP = 1;
 export const DEFAULT_QUANT_LEVEL = 2;
+
+export const FILTER_NEAREST = "Nearest";
+export const FILTER_TRIANGLE = "Triangle";
+export const FILTER_LANCZOS3 = "Lanczos3";
+
+export type FilterKey =
+  | typeof FILTER_NEAREST
+  | typeof FILTER_TRIANGLE
+  | typeof FILTER_LANCZOS3;
+
+export const FILTER_OPTIONS: FilterKey[] = [
+  FILTER_NEAREST,
+  FILTER_TRIANGLE,
+  FILTER_LANCZOS3,
+];
+
+export const FILTER_TOOLTIPS: Record<FilterKey, string> = {
+  [FILTER_NEAREST]: "Best for resizing pixel-art",
+  [FILTER_TRIANGLE]: "Good for fast, general-purpose resizing",
+  [FILTER_LANCZOS3]: "Best for high-quality photo resizing",
+};
+
+export const DEFAULT_FILTER: FilterKey = FILTER_NEAREST;

@@ -42,8 +42,6 @@ pub enum Mapping {
 pub enum Filter {
     Nearest,
     Triangle,
-    CatmullRom,
-    Gaussian,
     #[default]
     Lanczos3,
 }
@@ -53,8 +51,6 @@ impl From<Filter> for ::image::imageops::FilterType {
         match f {
             Filter::Nearest => ::image::imageops::FilterType::Nearest,
             Filter::Triangle => ::image::imageops::FilterType::Triangle,
-            Filter::CatmullRom => ::image::imageops::FilterType::CatmullRom,
-            Filter::Gaussian => ::image::imageops::FilterType::Gaussian,
             Filter::Lanczos3 => ::image::imageops::FilterType::Lanczos3,
         }
     }

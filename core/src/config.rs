@@ -9,7 +9,7 @@ use tsify::Tsify;
 use crate::{
     color_difference,
     error::{Error, Result},
-    palettized, smoothed, Mapping, Palette,
+    palettized, smoothed, Filter, Mapping, Palette,
 };
 
 // TODO: Remove WASM hacks
@@ -60,6 +60,10 @@ pub struct Config {
 
     #[cfg_attr(all(feature = "serde", not(feature = "wasm")), serde(skip))]
     pub resize_scale: Option<f32>,
+
+    #[cfg_attr(all(feature = "serde", not(feature = "wasm")), serde(skip))]
+    #[builder(default)]
+    pub filter: Filter,
 }
 
 impl fmt::Display for Config {

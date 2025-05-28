@@ -1,5 +1,5 @@
 #![cfg(all(feature = "profiler", not(windows)))]
-use palettum::error::Result;
+use anyhow::Result;
 
 pub fn start_profiling() -> Option<pprof::ProfilerGuard<'static>> {
     match pprof::ProfilerGuardBuilder::default()

@@ -1,10 +1,10 @@
 use crate::style;
+use anyhow::{Context, Result};
 use console::Style;
 use env_logger::Builder;
 use indicatif::MultiProgress;
 use indicatif_log_bridge::LogWrapper;
 use log::{Level, LevelFilter};
-use palettum::error::{Error, Result};
 use std::env;
 use std::io::Write;
 
@@ -48,7 +48,7 @@ pub fn init(multi: MultiProgress) -> Result<LevelFilter> {
 
     LogWrapper::new(multi.clone(), logger)
         .try_init()
-        .map_err(|e| Error::LoggerError(e.to_string()))?;
+        .context("Failed to initialize logger")?;
 
     Ok(level)
 }

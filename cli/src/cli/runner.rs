@@ -4,10 +4,8 @@ use anydir::AnyFileEntry;
 use indicatif::{MultiProgress, ProgressBar};
 use log::{error, info};
 use palettum::{
-    custom_palettes_dir, delete_custom_palette,
-    error::{Error, Result},
-    media::load_media_from_path,
-    palette_to_file, Config, Palette, PaletteKind,
+    custom_palettes_dir, delete_custom_palette, media::load_media_from_path, palette_to_file,
+    Config, Palette, PaletteKind,
 };
 use palettum::{get_all_palettes, palette_from_file_entry, save_custom_palette};
 use rayon::{prelude::*, ThreadPoolBuilder};
@@ -20,6 +18,9 @@ use style::FitToTerminal;
 use tabled::Table;
 use walkdir::WalkDir;
 
+use anyhow::{bail, Context, Result};
+const VALID_EXTS: [&str; 6] = ["gif", "png", "jpg", "jpeg", "webp", "ico"];
+
 pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
     let s = style::theme();
     match cli.command {
@@ -28,11 +29,11 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             // --- 1) BUILD JOB LIST & COUNT FILES ---
             let (jobs, total_files) = if let Some(output_files) = &args.output_files {
                 if output_files.len() != args.input.len() {
-                    return Err(Error::ParseError(format!(
+                    bail!(
                         "--output-files expects {} paths, got {}",
                         args.input.len(),
                         output_files.len()
-                    )));
+                    );
                 }
                 let pairs = args
                     .input
@@ -50,7 +51,8 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     if input.is_dir() {
                         // Directory
                         let out_dir = determine_output(args.output.as_deref(), input, args.mapping);
-                        let files = process_files(input, &out_dir)?;
+                        let files = process_files(input, &out_dir)
+                            .with_context(|| format!("Failed to process files in {:?}", input))?;
                         let dir_name = input
                             .file_name()
                             .unwrap_or_default()
@@ -102,10 +104,30 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 );
 
                 if let Some(p) = output.parent() {
-                    std::fs::create_dir_all(p)?;
+                    std::fs::create_dir_all(p)
+                        .with_context(|| format!("Failed to create output directory {:?}", p))?;
                 }
 
-                let mut media = load_media_from_path(&input)?;
+                if !input.exists() {
+                    // TODO: style
+                    bail!("Could not find {}. Make sure it exists", input.display())
+                }
+
+                if input.is_file()
+                    && !input
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .is_some_and(|ext| VALID_EXTS.contains(&ext))
+                {
+                    bail!(
+                        // TODO: style
+                        "Invalid file extension for {}. Allowed: {}",
+                        input.display(),
+                        VALID_EXTS.join(", ")
+                    );
+                }
+                let mut media = load_media_from_path(&input)
+                    .with_context(|| format!("Failed to load media from {:?}", input))?;
                 info!(
                     "Palettifying:\n {} → {}\n Palette: {}",
                     s.primary.apply_to(input.display()),
@@ -116,9 +138,15 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     )),
                     s.highlight.apply_to(args.palette.id.clone()),
                 );
-                media.resize(args.width, args.height, args.scale, args.filter)?;
-                media.palettify(&config)?;
-                media.write_to_file(&output)?;
+                media
+                    .resize(args.width, args.height, args.scale, args.filter)
+                    .with_context(|| format!("Failed to resize {:?}", input))?;
+                media
+                    .palettify(&config)
+                    .with_context(|| format!("Failed to palettify {:?}", input))?;
+                media
+                    .write_to_file(&output)
+                    .with_context(|| format!("Failed to write output {:?}", output))?;
 
                 let dt: Duration = start.elapsed();
                 info!("Done in {}", s.secondary.apply_to(format_duration(dt)));
@@ -163,8 +191,10 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
 
             let main_pb = Arc::new(main_pb);
             let job_pbs = Arc::new(job_pbs);
-            let pool = ThreadPoolBuilder::new().num_threads(file_threads).build()?;
-            // let mut error_count: usize = 0;
+            let pool = ThreadPoolBuilder::new()
+                .num_threads(file_threads)
+                .build()
+                .context("Failed to build thread pool")?;
             let error_count = Arc::new(Mutex::new(0usize));
 
             // Schedule jobs
@@ -205,12 +235,21 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                         );
 
                         let result: Result<()> = (|| {
-                            let mut media = load_media_from_path(&input)?;
-                            media.resize(args.width, args.height, args.scale, args.filter)?;
-                            media.palettify(&cfg)?;
-                            media.write_to_file(&output)?;
+                            let mut media = load_media_from_path(&input).with_context(|| {
+                                format!("Failed to load media from {:?}", input)
+                            })?;
+                            media
+                                .resize(args.width, args.height, args.scale, args.filter)
+                                .with_context(|| format!("Failed to resize {:?}", input))?;
+                            media
+                                .palettify(&cfg)
+                                .with_context(|| format!("Failed to palettify {:?}", input))?;
+                            media
+                                .write_to_file(&output)
+                                .with_context(|| format!("Failed to write output {:?}", output))?;
                             Ok(())
                         })();
+
                         match result {
                             Ok(_) => {
                                 let pb = job_pbs.get(&job_name).unwrap();
@@ -276,9 +315,12 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
         }
 
         Commands::Save(args) => {
-            let path = AnyFileEntry::from_path(args.path)?;
-            let palette = palette_from_file_entry(&path, PaletteKind::Custom)?;
-            let saved_path = save_custom_palette(&palette, args.force)?;
+            let path = AnyFileEntry::from_path(args.path)
+                .context("Failed to create file entry from path")?;
+            let palette = palette_from_file_entry(&path, PaletteKind::Custom)
+                .context("Failed to create palette from file entry")?;
+            let saved_path = save_custom_palette(&palette, args.force)
+                .context("Failed to save custom palette")?;
 
             info!(
                 "{} saved to: {}",
@@ -290,7 +332,7 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
         }
 
         Commands::Delete(args) => {
-            delete_custom_palette(&args.palette)?;
+            delete_custom_palette(&args.palette).context("Failed to delete custom palette")?;
 
             info!(
                 "Deleted {} from {}",
@@ -302,14 +344,16 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
         }
 
         Commands::Extract(args) => {
-            let media = load_media_from_path(&args.input)?;
+            let media = load_media_from_path(&args.input)
+                .with_context(|| format!("Failed to load media from {:?}", args.input))?;
             let palette = Palette::from_media(&media, args.colors)?;
             let output = if let Some(ref out) = args.output {
                 PathBuf::from(out)
             } else {
                 extracted_output(&args.input)
             };
-            palette_to_file(&palette, &output)?;
+            palette_to_file(&palette, &output)
+                .with_context(|| format!("Failed to write palette to {:?}", output))?;
 
             let mut json_output = output.clone();
             json_output.set_extension("json");
@@ -368,10 +412,10 @@ pub fn format_duration(duration: Duration) -> String {
 
 // TODO: Check if directory already exists & implement --force flag for palettify command
 fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
-    let exts = ["gif", "png", "jpg", "jpeg", "webp", "ico"];
     let mut image_files = Vec::new();
 
-    fs::create_dir_all(dst_dir)?;
+    fs::create_dir_all(dst_dir)
+        .with_context(|| format!("Failed to create directory {:?}", dst_dir))?;
 
     for entry in WalkDir::new(src_dir).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
@@ -380,7 +424,10 @@ fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
                 .extension()
                 .and_then(|e| e.to_str())
                 .map(|e| e.to_ascii_lowercase());
-            let is_image = ext.as_deref().map(|e| exts.contains(&e)).unwrap_or(false);
+            let is_image = ext
+                .as_deref()
+                .map(|e| VALID_EXTS.contains(&e))
+                .unwrap_or(false);
 
             if is_image {
                 image_files.push(path.to_path_buf());
@@ -389,9 +436,11 @@ fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
             if let Ok(rel_path) = path.strip_prefix(src_dir) {
                 let dst_path = dst_dir.join(rel_path);
                 if let Some(parent) = dst_path.parent() {
-                    fs::create_dir_all(parent)?;
+                    fs::create_dir_all(parent)
+                        .with_context(|| format!("Failed to create directory {:?}", parent))?;
                 }
-                fs::copy(path, dst_path)?;
+                fs::copy(path, &dst_path)
+                    .with_context(|| format!("Failed to copy {:?} to {:?}", path, dst_path))?;
             }
         }
     }

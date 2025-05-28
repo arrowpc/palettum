@@ -175,7 +175,7 @@ interface ProcessedSettings {
   fileName: string | null;
   width: number | null;
   height: number | null;
-  paletteId: string | null;
+  paletteColors: Rgb[] | null;
   transparentThreshold: number | null;
   mapping: string | null;
   quantLevel: number | null;
@@ -242,7 +242,7 @@ function PalettifyImage({
     fileName: null,
     width: null,
     height: null,
-    paletteId: null,
+    paletteColors: null,
     transparentThreshold: null,
     mapping: null,
     quantLevel: null,
@@ -260,7 +260,7 @@ function PalettifyImage({
       file?.name === lastProcessedSettings.current.fileName &&
       dimensions.width === lastProcessedSettings.current.width &&
       dimensions.height === lastProcessedSettings.current.height &&
-      palette?.id === lastProcessedSettings.current.paletteId &&
+      palette?.colors === lastProcessedSettings.current.paletteColors &&
       transparentThreshold ===
       lastProcessedSettings.current.transparentThreshold &&
       mapping === lastProcessedSettings.current.mapping &&
@@ -332,7 +332,7 @@ function PalettifyImage({
         fileName: null,
         width: null,
         height: null,
-        paletteId: null,
+        paletteColors: null,
         transparentThreshold: null,
         mapping: null,
         quantLevel: null,
@@ -511,7 +511,7 @@ function PalettifyImage({
         fileName: file.name,
         width: dimensions.width,
         height: dimensions.height,
-        paletteId: palette.id,
+        paletteColors: palette.colors,
         transparentThreshold,
         mapping,
         quantLevel,

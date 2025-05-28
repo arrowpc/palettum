@@ -14,6 +14,7 @@ import {
   MAPPING_SMOOTHED,
   MIN_THRESHOLD,
   DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED,
+  FilterKey,
 } from "./adjustments.types";
 import { GeneralSettings } from "./GeneralSettings";
 import { ColorMatchingSettings } from "./ColorMatchingSettings";
@@ -29,6 +30,7 @@ interface AdjustmentsAccordionProps {
   currentDitheringStyle: DitheringKey;
   currentDitheringStrength: number;
   currentQuantLevel: number;
+  currentFilter: FilterKey;
   onMappingChange: (mapping: MappingKey) => void;
   onFormulaChange: (formula: FormulaKey) => void;
   onSmoothingStyleChange: (style: SmoothingStyleKey) => void;
@@ -37,6 +39,7 @@ interface AdjustmentsAccordionProps {
   onDitheringStyleChange: (style: DitheringKey) => void;
   onDitheringStrengthChange: (strength: number) => void;
   onQuantLevelChange: (level: number) => void;
+  onFilterChange: (filter: FilterKey) => void;
 }
 
 const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
@@ -49,6 +52,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
   currentDitheringStyle,
   currentDitheringStrength,
   currentQuantLevel,
+  currentFilter,
   onFormulaChange,
   onSmoothingStyleChange,
   onThresholdChange,
@@ -56,6 +60,7 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
   onDitheringStyleChange,
   onDitheringStrengthChange,
   onQuantLevelChange,
+  onFilterChange,
 }) => {
   const [imageSupportsTransparency, setImageSupportsTransparency] =
     useState(false);
@@ -204,6 +209,8 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
             currentQuantLevel={currentQuantLevel}
             onQuantLevelChange={handleQuantLevelSliderChange}
             isImageUploaded={isImageUploaded}
+            currentFilter={currentFilter}
+            onFilterChange={onFilterChange}
           />
           <ColorMatchingSettings
             currentThreshold={currentThreshold}

@@ -1,8 +1,10 @@
 import React from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { FormulaKey } from "./adjustments.types";
+import { FilterKey, FormulaKey } from "./adjustments.types";
 import { FormulaSelector } from "./FormulaSelector";
+import { FilterSelector } from "./FilterSelector";
 import { QuantizationLevelControl } from "./QuantizationLevelControl";
+import { Filter } from "@/wasm/pkg/wasm";
 
 interface GeneralSettingsProps {
   currentFormula: FormulaKey;
@@ -10,6 +12,8 @@ interface GeneralSettingsProps {
   currentQuantLevel: number;
   onQuantLevelChange: (value: number[]) => void;
   isImageUploaded: boolean;
+  currentFilter: Filter;
+  onFilterChange: (filter: FilterKey) => void;
 }
 
 export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
@@ -18,6 +22,8 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
   currentQuantLevel,
   onQuantLevelChange,
   isImageUploaded,
+  currentFilter,
+  onFilterChange,
 }) => {
   return (
     <div className="space-y-6 p-4 rounded-md border border-primary/30 bg-primary/5 mb-6">
@@ -38,6 +44,16 @@ export const GeneralSettings: React.FC<GeneralSettingsProps> = ({
           onQuantLevelChange={onQuantLevelChange}
           isImageUploaded={isImageUploaded}
         />
+        <div className="space-y-4 p-4 border rounded-lg bg-background">
+          <TooltipProvider delayDuration={200}>
+            <FilterSelector
+              currentFilter={currentFilter}
+              onFilterChange={onFilterChange}
+              isActive={isImageUploaded}
+              isImageUploaded={isImageUploaded}
+            />
+          </TooltipProvider>
+        </div>
       </div>
     </div>
   );

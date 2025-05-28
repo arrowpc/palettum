@@ -20,6 +20,8 @@ import {
   DEFAULT_DITHERING_STYLE,
   DEFAULT_DITHERING_STRENGTH,
   DEFAULT_QUANT_LEVEL,
+  DEFAULT_FILTER,
+  FilterKey,
 } from "@/components/adjustments/adjustments.types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -81,6 +83,7 @@ function App() {
   const [ditheringStrength, setDitheringStrength] = useState<number>(
     DEFAULT_DITHERING_STRENGTH,
   );
+  const [filter, setFilter] = useState<FilterKey>(DEFAULT_FILTER);
 
   const handleFileSelect = useCallback((file: File | null) => {
     setUploadedFile(file);
@@ -130,6 +133,10 @@ function App() {
 
   const handleQuantLevelChange = useCallback((newLevel: number) => {
     setQuantLevel(newLevel);
+  }, []);
+
+  const handleFilterChange = useCallback((newFilter: FilterKey) => {
+    setFilter(newFilter);
   }, []);
 
   const renderColorMappingMethod = () => (
@@ -212,6 +219,7 @@ function App() {
             currentDitheringStyle={ditheringStyle}
             currentDitheringStrength={ditheringStrength}
             currentQuantLevel={quantLevel}
+            currentFilter={filter}
             onMappingChange={handleMappingChange}
             onFormulaChange={handleFormulaChange}
             onSmoothingStyleChange={handleSmoothingStyleChange}
@@ -220,6 +228,7 @@ function App() {
             onDitheringStyleChange={handleDitheringStyleChange}
             onDitheringStrengthChange={handleDitheringStrengthChange}
             onQuantLevelChange={handleQuantLevelChange}
+            onFilterChange={handleFilterChange}
           />
 
           <PalettifyImage
@@ -234,6 +243,7 @@ function App() {
             smoothingStrength={smoothingStrength}
             ditheringStyle={ditheringStyle}
             ditheringStrength={ditheringStrength}
+            filter={filter}
           />
         </div>
 

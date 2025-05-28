@@ -20,7 +20,7 @@ export const QuantizationLevelControl: React.FC<
   const isActive = isImageUploaded;
 
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-background">
+    <div className="space-y-4 p-4 border rounded-lg bg-background md:col-span-2">
       <div className={cn("space-y-2", !isActive && "opacity-60")}>
         <Label
           htmlFor="quant-level-slider"

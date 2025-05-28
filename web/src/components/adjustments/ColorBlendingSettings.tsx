@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { SmoothingStyleKey } from "./adjustments.types";
 import { SmoothingStyleSelector } from "./SmoothingStyleSelector";
 import { SmoothingStrengthControl } from "./SmoothingStrengthControl";
+import { DynamicGrid } from "./DynamicGrid";
 
 interface ColorBlendingSettingsProps {
   currentSmoothingStyle: SmoothingStyleKey;
@@ -35,22 +36,26 @@ export const ColorBlendingSettings: React.FC<ColorBlendingSettingsProps> = ({
       )}
     >
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-medium">Color Blending Settings</h3>
+        <h3 className="text-base font-medium">Blend Settings</h3>
         <Badge variant={isSmoothedActive ? "default" : "outline"}>
           {isSmoothedActive ? "Active" : "Inactive"}
         </Badge>
       </div>
-      <div className="space-y-6">
-        <TooltipProvider delayDuration={200}>
-          <SmoothingStyleSelector
-            currentSmoothingStyle={currentSmoothingStyle}
-            onSmoothingStyleChange={onSmoothingStyleChange}
-            isActive={isSmoothedActive}
-            isImageUploaded={isImageUploaded}
-            usesSmoothed={usesSmoothed}
-          />
-        </TooltipProvider>
-        <div className="grid grid-cols-1 gap-8 items-start">
+
+      <DynamicGrid>
+        <div className="space-y-4 p-4 border rounded-lg bg-background">
+          <TooltipProvider delayDuration={200}>
+            <SmoothingStyleSelector
+              currentSmoothingStyle={currentSmoothingStyle}
+              onSmoothingStyleChange={onSmoothingStyleChange}
+              isActive={isSmoothedActive}
+              isImageUploaded={isImageUploaded}
+              usesSmoothed={usesSmoothed}
+            />
+          </TooltipProvider>
+        </div>
+
+        <div className="space-y-4 p-4 border rounded-lg bg-background">
           <SmoothingStrengthControl
             currentSmoothingStrength={currentSmoothingStrength}
             onSmoothingStrengthChange={onSmoothingStrengthSliderChange}
@@ -59,7 +64,7 @@ export const ColorBlendingSettings: React.FC<ColorBlendingSettingsProps> = ({
             usesSmoothed={usesSmoothed}
           />
         </div>
-      </div>
+      </DynamicGrid>
     </div>
   );
 };

@@ -52,7 +52,7 @@ export const DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED = 128;
 export const MAX_THRESHOLD = 255;
 export const MIN_THRESHOLD = 1;
 
-export const MIN_SMOOTHING_STRENGTH = 0.1;
+export const MIN_SMOOTHING_STRENGTH = 0.01;
 export const MAX_SMOOTHING_STRENGTH = 1.0;
 export const SMOOTHING_STRENGTH_STEP = 0.01;
 
@@ -86,7 +86,7 @@ export const DITHERING_TOOLTIPS: Record<DitheringKey, string> = {
 
 export const DEFAULT_DITHERING_STYLE: DitheringKey = DITHERING_NONE;
 
-export const MIN_DITHERING_STRENGTH = 0.1;
+export const MIN_DITHERING_STRENGTH = 0.01;
 export const MAX_DITHERING_STRENGTH = 1.0;
 export const DITHERING_STRENGTH_STEP = 0.01;
 export const DEFAULT_DITHERING_STRENGTH = 0.5;

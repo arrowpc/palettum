@@ -212,6 +212,17 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
             currentFilter={currentFilter}
             onFilterChange={onFilterChange}
           />
+          <ColorBlendingSettings
+            currentSmoothingStyle={currentSmoothingStyle}
+            onSmoothingStyleChange={onSmoothingStyleChange}
+            currentSmoothingStrength={currentSmoothingStrength}
+            onSmoothingStrengthSliderChange={
+              handleSmoothingStrengthSliderChange
+            }
+            isSmoothedActive={isSmoothedActive}
+            isImageUploaded={isImageUploaded}
+            usesSmoothed={usesSmoothed}
+          />
           <ColorMatchingSettings
             currentThreshold={currentThreshold}
             onThresholdSliderChange={handleThresholdSliderChange}
@@ -227,17 +238,6 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
             onDitheringStrengthSliderChange={
               handleDitheringStrengthSliderChange
             }
-          />
-          <ColorBlendingSettings
-            currentSmoothingStyle={currentSmoothingStyle}
-            onSmoothingStyleChange={onSmoothingStyleChange}
-            currentSmoothingStrength={currentSmoothingStrength}
-            onSmoothingStrengthSliderChange={
-              handleSmoothingStrengthSliderChange
-            }
-            isSmoothedActive={isSmoothedActive}
-            isImageUploaded={isImageUploaded}
-            usesSmoothed={usesSmoothed}
           />
         </AccordionContent>
       </AccordionItem>

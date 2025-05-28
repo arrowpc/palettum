@@ -49,6 +49,9 @@ const BORDER_THICKNESS = 5;
 const HORIZONTAL_PIXELS = 40;
 const VERTICAL_PIXELS = 30;
 
+const PIXELATION_THRESHOLD_WIDTH = 300;
+const PIXELATION_THRESHOLD_HEIGHT = 300;
+
 function PixelBorder({
   colors,
   side,
@@ -172,7 +175,7 @@ interface ProcessedSettings {
   fileName: string | null;
   width: number | null;
   height: number | null;
-  paletteId: string | null;
+  paletteColors: Rgb[] | null;
   transparentThreshold: number | null;
   mapping: string | null;
   quantLevel: number | null;
@@ -225,6 +228,9 @@ function PalettifyImage({
   >(null);
   const [containerDimensions, setContainerDimensions] =
     useState<ImageDimensions | null>(null);
+  const [imageRenderingStyle, setImageRenderingStyle] = useState<
+    "auto" | "pixelated"
+  >("auto");
 
   const processedPaletteRef = useRef<Palette | null>(null);
   const imageContainerRef = useRef<HTMLDivElement | null>(null);
@@ -236,7 +242,7 @@ function PalettifyImage({
     fileName: null,
     width: null,
     height: null,
-    paletteId: null,
+    paletteColors: null,
     transparentThreshold: null,
     mapping: null,
     quantLevel: null,
@@ -254,7 +260,7 @@ function PalettifyImage({
       file?.name === lastProcessedSettings.current.fileName &&
       dimensions.width === lastProcessedSettings.current.width &&
       dimensions.height === lastProcessedSettings.current.height &&
-      palette?.id === lastProcessedSettings.current.paletteId &&
+      palette?.colors === lastProcessedSettings.current.paletteColors &&
       transparentThreshold ===
       lastProcessedSettings.current.transparentThreshold &&
       mapping === lastProcessedSettings.current.mapping &&
@@ -323,8 +329,20 @@ function PalettifyImage({
       setCurrentProcessedFile(null);
       setError(null);
       lastProcessedSettings.current = {
-        /* Reset */
-      } as ProcessedSettings;
+        fileName: null,
+        width: null,
+        height: null,
+        paletteColors: null,
+        transparentThreshold: null,
+        mapping: null,
+        quantLevel: null,
+        formula: null,
+        smoothingStyle: null,
+        ditheringStyle: null,
+        smoothingStrength: null,
+        ditheringStrength: null,
+        filter: null,
+      };
     }
   }, [file, currentProcessedFile, processedImageUrl]);
 
@@ -332,6 +350,51 @@ function PalettifyImage({
     return () => {
       if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
     };
+  }, [processedImageUrl]);
+
+  useEffect(() => {
+    if (!processedImageUrl) {
+      setImageRenderingStyle("auto");
+      return;
+    }
+
+    const { width: processedOutputWidth, height: processedOutputHeight } =
+      lastProcessedSettings.current;
+
+    if (processedOutputWidth !== null && processedOutputHeight !== null) {
+      if (
+        processedOutputWidth < PIXELATION_THRESHOLD_WIDTH ||
+        processedOutputHeight < PIXELATION_THRESHOLD_HEIGHT
+      ) {
+        setImageRenderingStyle("pixelated");
+      } else {
+        setImageRenderingStyle("auto");
+      }
+    } else {
+      const img = new Image();
+      img.onload = () => {
+        if (
+          img.naturalWidth < PIXELATION_THRESHOLD_WIDTH ||
+          img.naturalHeight < PIXELATION_THRESHOLD_HEIGHT
+        ) {
+          setImageRenderingStyle("pixelated");
+        } else {
+          setImageRenderingStyle("auto");
+        }
+      };
+      img.onerror = () => {
+        console.error(
+          "Failed to load processed image to get natural dimensions for rendering style.",
+        );
+        setImageRenderingStyle("auto");
+      };
+      img.src = processedImageUrl;
+
+      return () => {
+        img.onload = null;
+        img.onerror = null;
+      };
+    }
   }, [processedImageUrl]);
 
   useEffect(() => {
@@ -443,15 +506,12 @@ function PalettifyImage({
         mimeType,
       );
       const url = URL.createObjectURL(outputBlob);
-      if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
-      setProcessedImageUrl(url);
-      setCurrentProcessedFile(file.name);
-      processedPaletteRef.current = { ...palette };
+
       lastProcessedSettings.current = {
         fileName: file.name,
         width: dimensions.width,
         height: dimensions.height,
-        paletteId: palette.id,
+        paletteColors: palette.colors,
         transparentThreshold,
         mapping,
         quantLevel,
@@ -462,6 +522,11 @@ function PalettifyImage({
         ditheringStrength,
         filter,
       };
+
+      if (processedImageUrl) URL.revokeObjectURL(processedImageUrl);
+      setProcessedImageUrl(url);
+      setCurrentProcessedFile(file.name);
+      processedPaletteRef.current = { ...palette };
     } catch (err: any) {
       console.error("Processing error:", err);
       setError(
@@ -508,6 +573,11 @@ function PalettifyImage({
 
   const canProcess =
     !!file && !!palette && !!palette.colors && palette.colors.length > 0;
+
+  const dynamicImageClassName = useMemo(() => {
+    const baseClasses = "w-full object-contain max-h-[60vh] block";
+    return `${baseClasses} [image-rendering:${imageRenderingStyle}]`;
+  }, [imageRenderingStyle]);
 
   return (
     <div className="space-y-6">
@@ -595,11 +665,11 @@ function PalettifyImage({
               showRemoveButton={false}
               enableViewFullSize={true}
               className="w-full max-h-[60vh]"
-              imageClassName="w-full object-contain max-h-[60vh] block [image-rendering:-webkit-optimize-contrast] [image-rendering:pixelated]"
+              imageClassName={dynamicImageClassName}
             />
             {getProcessedColors().length > 0 && containerDimensions && (
               <PixelBorders
-                key={processedImageUrl} // Re-render on new image to restart animation
+                key={processedImageUrl}
                 colors={getProcessedColors()}
                 dimensions={containerDimensions}
               />

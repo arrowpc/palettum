@@ -36,14 +36,11 @@ pub enum Error {
     #[error("Invalid quant_level: must be between 0 (to disable) and {max}, got {value}")]
     InvalidQuantLevel { value: u8, max: u8 },
 
-    #[error("Invalid smoothing_strength: must be between 0.0 and 1.0, got {0}")]
-    InvalidsmoothingStrength(f32),
+    #[error("Invalid smooth_strength: must be between 0.0 and 1.0, got {0}")]
+    InvalidsmoothStrength(f32),
 
-    #[error("Invalid dithering_strength: must be between 0.0 and 1.0, got {0}")]
-    InvalidDitheringStrength(f32),
-
-    #[error("Invalid lab_scales: scale values must be positive")]
-    InvalidLabScales,
+    #[error("Invalid dither_strength: must be between 0.0 and 1.0, got {0}")]
+    InvalidDitherStrength(f32),
 
     #[error("Invalid resize dimensions: width and height must be positive")]
     InvalidResizeDimensions,

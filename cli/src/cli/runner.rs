@@ -27,30 +27,29 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             const INDIVIDUAL_FILES_LABEL: &str = "Individual";
             // --- 1) BUILD JOB LIST & COUNT FILES ---
             let (jobs, total_files) = if let Some(output_files) = &args.output_files {
-                if output_files.len() != args.input_paths.len() {
+                if output_files.len() != args.input.len() {
                     return Err(Error::ParseError(format!(
                         "--output-files expects {} paths, got {}",
-                        args.input_paths.len(),
+                        args.input.len(),
                         output_files.len()
                     )));
                 }
                 let pairs = args
-                    .input_paths
+                    .input
                     .iter()
                     .cloned()
                     .zip(output_files.iter().cloned())
                     .collect::<Vec<_>>();
                 let mut map = BTreeMap::new();
                 map.insert(INDIVIDUAL_FILES_LABEL.to_string(), pairs);
-                (map, args.input_paths.len())
+                (map, args.input.len())
             } else {
                 let mut map: BTreeMap<String, Vec<(PathBuf, PathBuf)>> = BTreeMap::new();
                 let mut count = 0;
-                for input in &args.input_paths {
+                for input in &args.input {
                     if input.is_dir() {
                         // Directory
-                        let out_dir =
-                            determine_output_path(args.output_path.as_deref(), input, args.mapping);
+                        let out_dir = determine_output(args.output.as_deref(), input, args.mapping);
                         let files = process_files(input, &out_dir)?;
                         let dir_name = input
                             .file_name()
@@ -69,8 +68,7 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                         }
                     } else {
                         // File
-                        let out =
-                            determine_output_path(args.output_path.as_deref(), input, args.mapping);
+                        let out = determine_output(args.output.as_deref(), input, args.mapping);
                         map.entry(INDIVIDUAL_FILES_LABEL.to_string())
                             .or_default()
                             .push((input.clone(), out));
@@ -92,13 +90,12 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     Config::builder()
                         .palette(args.palette.clone())
                         .mapping(args.mapping)
-                        .palettized_formula(args.palettized_formula)
-                        .transparency_threshold(args.alpha_threshold)
-                        .dithering_algorithm(args.dithering_algorithm)
-                        .dithering_strength(args.dithering_strength)
-                        .smoothed_formula(args.smoothed_formula)
-                        .smoothing_strength(args.smoothing_strength)
-                        .lab_scales(args.lab_scales)
+                        .diff_formula(args.diff_formula)
+                        .transparency_threshold(args.alpha)
+                        .dither_algorithm(args.dither_algorithm)
+                        .dither_strength(args.dither_strength)
+                        .smooth_formula(args.smooth_formula)
+                        .smooth_strength(args.smooth_strength)
                         .num_threads(args.threads.max(1))
                         .quant_level(args.quantization)
                         .build(),
@@ -179,11 +176,10 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     let job_pbs = Arc::clone(&job_pbs);
                     let palette = args.palette.clone();
                     let mapping = args.mapping;
-                    let pal_f = args.palettized_formula;
-                    let tmp_f = args.smoothed_formula;
-                    let alpha = args.alpha_threshold;
-                    let smooth = args.smoothing_strength;
-                    let labs = args.lab_scales;
+                    let pal_f = args.diff_formula;
+                    let tmp_f = args.smooth_formula;
+                    let alpha = args.alpha;
+                    let smooth = args.smooth_strength;
                     let q = args.quantization;
                     let error_count = Arc::clone(&error_count);
 
@@ -197,13 +193,12 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                             Config::builder()
                                 .palette(palette.clone())
                                 .mapping(mapping)
-                                .palettized_formula(pal_f)
+                                .diff_formula(pal_f)
                                 .transparency_threshold(alpha)
-                                .dithering_algorithm(args.dithering_algorithm)
-                                .dithering_strength(args.dithering_strength)
-                                .smoothed_formula(tmp_f)
-                                .smoothing_strength(smooth)
-                                .lab_scales(labs)
+                                .dither_algorithm(args.dither_algorithm)
+                                .dither_strength(args.dither_strength)
+                                .smooth_formula(tmp_f)
+                                .smooth_strength(smooth)
                                 .num_threads(pixel_threads)
                                 .quant_level(q)
                                 .build(),
@@ -309,25 +304,25 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
         Commands::Extract(args) => {
             let media = load_media_from_path(&args.input)?;
             let palette = Palette::from_media(&media, args.colors)?;
-            let output_path = if let Some(ref out) = args.output {
+            let output = if let Some(ref out) = args.output {
                 PathBuf::from(out)
             } else {
-                extracted_output_path(&args.input)
+                extracted_output(&args.input)
             };
-            palette_to_file(&palette, &output_path)?;
+            palette_to_file(&palette, &output)?;
 
-            let mut json_output_path = output_path.clone();
-            json_output_path.set_extension("json");
+            let mut json_output = output.clone();
+            json_output.set_extension("json");
             info!(
                 "Extracted palette saved to: {}",
-                s.secondary.apply_to(json_output_path.display())
+                s.secondary.apply_to(json_output.display())
             );
             Ok(())
         }
     }
 }
 
-fn extracted_output_path(input: &Path) -> PathBuf {
+fn extracted_output(input: &Path) -> PathBuf {
     let parent = input.parent().unwrap_or_else(|| Path::new(""));
     let stem = input.file_stem().unwrap_or_default();
     let mut new_name = stem.to_os_string();
@@ -335,11 +330,7 @@ fn extracted_output_path(input: &Path) -> PathBuf {
     parent.join(new_name)
 }
 
-fn determine_output_path(
-    output: Option<&Path>,
-    input: &Path,
-    mapping: palettum::Mapping,
-) -> PathBuf {
+fn determine_output(output: Option<&Path>, input: &Path, mapping: palettum::Mapping) -> PathBuf {
     if let Some(path) = output {
         return path.to_path_buf();
     }
@@ -347,7 +338,6 @@ fn determine_output_path(
     let suffix = match mapping {
         palettum::Mapping::Palettized => "_palettized",
         palettum::Mapping::Smoothed => "_smoothed",
-        palettum::Mapping::SmoothedPalettized => "_smoothed_palettized",
     };
 
     let parent = input.parent().unwrap_or_else(|| Path::new("."));

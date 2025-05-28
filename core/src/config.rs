@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tsify::Tsify;
 
 use crate::{
-    dithered,
+    color_difference,
     error::{Error, Result},
     palettized, smoothed, Mapping, Palette,
 };
@@ -24,9 +24,9 @@ pub struct Config {
     #[builder(default)]
     pub mapping: Mapping,
 
-    #[cfg_attr(feature = "wasm", tsify(type = "PalettizedFormula"))]
+    #[cfg_attr(feature = "wasm", tsify(type = "DiffFormula"))]
     #[builder(default)]
-    pub palettized_formula: palettized::Formula,
+    pub diff_formula: color_difference::Formula,
 
     #[builder(default = 0)]
     pub quant_level: u8,
@@ -38,22 +38,19 @@ pub struct Config {
     #[cfg_attr(feature = "wasm", serde(skip))]
     pub num_threads: usize,
 
-    #[cfg_attr(feature = "wasm", tsify(type = "SmoothedFormula"))]
+    #[cfg_attr(feature = "wasm", tsify(type = "SmoothFormula"))]
     #[builder(default = smoothed::Formula::Idw)]
-    pub smoothed_formula: smoothed::Formula,
+    pub smooth_formula: smoothed::Formula,
 
     #[builder(default = 0.5)]
-    pub smoothing_strength: f32,
+    pub smooth_strength: f32,
 
-    #[builder(default = [1.0, 1.0, 1.0])]
-    pub lab_scales: [f32; 3],
-
-    #[cfg_attr(feature = "wasm", tsify(type = "DitheredAlgorithm"))]
+    #[cfg_attr(feature = "wasm", tsify(type = "DitherAlgorithm"))]
     #[builder(default)]
-    pub dithering_algorithm: dithered::Algorithm,
+    pub dither_algorithm: palettized::Dithering,
 
     #[builder(default = 0.5)]
-    pub dithering_strength: f32,
+    pub dither_strength: f32,
 
     #[cfg_attr(all(feature = "serde", not(feature = "wasm")), serde(skip))]
     pub resize_width: Option<u32>,
@@ -69,17 +66,16 @@ impl fmt::Display for Config {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "Config {{ palette: ..., mapping: {:?}, palettized_formula: {:?}, quant_level: {}, transparency_threshold: {}, num_threads: {}, smoothed_formula: {:?}, smoothing_strength: {}, lab_scales: {:?}, dithering_algorithm: {:?}, dithering_strength: {:?} }}",
+            "Config {{ palette: ..., mapping: {:?}, color_diff_formula: {:?}, quant_level: {}, transparency_threshold: {}, num_threads: {}, smoothed_formula: {:?}, smoothing_strength: {}, dithering_algorithm: {:?}, dithering_strength: {:?} }}",
             self.mapping,
-            self.palettized_formula,
+            self.diff_formula,
             self.quant_level,
             self.transparency_threshold,
             self.num_threads,
-            self.smoothed_formula,
-            self.smoothing_strength,
-            self.lab_scales,
-            self.dithering_algorithm,
-            self.dithering_strength,
+            self.smooth_formula,
+            self.smooth_strength,
+            self.dither_algorithm,
+            self.dither_strength,
         )
     }
 }
@@ -103,16 +99,12 @@ impl Config {
             });
         }
 
-        if self.smoothing_strength < 0.0 || self.smoothing_strength > 1.0 {
-            return Err(Error::InvalidsmoothingStrength(self.smoothing_strength));
+        if self.smooth_strength < 0.0 || self.smooth_strength > 1.0 {
+            return Err(Error::InvalidsmoothStrength(self.smooth_strength));
         }
 
-        if self.dithering_strength < 0.0 || self.dithering_strength > 1.0 {
-            return Err(Error::InvalidDitheringStrength(self.dithering_strength));
-        }
-
-        if self.lab_scales.iter().any(|&scale| scale <= 0.0) {
-            return Err(Error::InvalidLabScales);
+        if self.dither_strength < 0.0 || self.dither_strength > 1.0 {
+            return Err(Error::InvalidDitherStrength(self.dither_strength));
         }
 
         #[cfg(not(target_arch = "wasm32"))]

@@ -62,7 +62,7 @@ export const DitheringStrengthControl: React.FC<
           ? "Upload an image first"
           : !isActive
             ? "Select a dithering method (other than None) first"
-            : "Controls the intensity of the dithering effect."}
+            : "Controls the intensity of the dithering effect"}
       </p>
     </div>
   );

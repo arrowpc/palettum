@@ -15,11 +15,11 @@ import {
   type DitheringKey,
   MAPPING_PALETTIZED,
   MAPPING_SMOOTHED,
-  MAPPING_SMOOTHED_PALETTIZED,
   FORMULA_CIEDE2000,
   SMOOTHING_STYLE_IDW,
   DEFAULT_DITHERING_STYLE,
   DEFAULT_DITHERING_STRENGTH,
+  DEFAULT_QUANT_LEVEL,
 } from "@/components/adjustments/adjustments.types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -41,25 +41,17 @@ if (import.meta.env.MODE === "development") {
 const DEFAULT_MAPPING: MappingKey = MAPPING_PALETTIZED;
 const DEFAULT_FORMULA: FormulaKey = FORMULA_CIEDE2000;
 const DEFAULT_SMOOTHING_STYLE: SmoothingStyleKey = SMOOTHING_STYLE_IDW;
-const DEFAULT_TRANSPARENCY_THRESHOLD = 0;
-const DEFAULT_LAB_SCALES: [number, number, number] = [1.0, 1.0, 1.0];
+const DEFAULT_TRANSPARENCY_THRESHOLD = 128;
 const DEFAULT_SMOOTHING_STRENGTH = 0.5;
-const HARDCODED_QUANT_LEVEL = 0;
 
-const MAPPING_OPTIONS: MappingKey[] = [
-  MAPPING_PALETTIZED,
-  MAPPING_SMOOTHED,
-  MAPPING_SMOOTHED_PALETTIZED,
-];
+const MAPPING_OPTIONS: MappingKey[] = [MAPPING_PALETTIZED, MAPPING_SMOOTHED];
 const MAPPING_NAMES: Record<MappingKey, string> = {
   [MAPPING_PALETTIZED]: "Snap to Palette",
   [MAPPING_SMOOTHED]: "Color Blend",
-  [MAPPING_SMOOTHED_PALETTIZED]: "Blend then Snap",
 };
 const MAPPING_TOOLTIPS: Record<MappingKey, string> = {
   [MAPPING_PALETTIZED]: "Match each pixel to closest palette color",
   [MAPPING_SMOOTHED]: "Blend colors based on distance weighting",
-  [MAPPING_SMOOTHED_PALETTIZED]: "Blend colors first, then match to palette",
 };
 
 function App() {
@@ -78,11 +70,10 @@ function App() {
   const [smoothingStyle, setSmoothingStyle] = useState<SmoothingStyleKey>(
     DEFAULT_SMOOTHING_STYLE,
   );
-  const [labScales, setLabScales] =
-    useState<[number, number, number]>(DEFAULT_LAB_SCALES);
   const [smoothingStrength, setSmoothingStrength] = useState<number>(
     DEFAULT_SMOOTHING_STRENGTH,
   );
+  const [quantLevel, setQuantLevel] = useState<number>(DEFAULT_QUANT_LEVEL);
 
   const [ditheringStyle, setDitheringStyle] = useState<DitheringKey>(
     DEFAULT_DITHERING_STYLE,
@@ -125,13 +116,6 @@ function App() {
     [],
   );
 
-  const handleLabScalesChange = useCallback(
-    (newScales: [number, number, number]) => {
-      setLabScales(newScales);
-    },
-    [],
-  );
-
   const handleSmoothingStrengthChange = useCallback((s: number) => {
     setSmoothingStrength(s);
   }, []);
@@ -142,6 +126,10 @@ function App() {
 
   const handleDitheringStrengthChange = useCallback((newStrength: number) => {
     setDitheringStrength(newStrength);
+  }, []);
+
+  const handleQuantLevelChange = useCallback((newLevel: number) => {
+    setQuantLevel(newLevel);
   }, []);
 
   const renderColorMappingMethod = () => (
@@ -220,18 +208,18 @@ function App() {
             currentFormula={formula}
             currentSmoothingStyle={smoothingStyle}
             currentThreshold={transparentThreshold}
-            currentLabScales={labScales}
             currentSmoothingStrength={smoothingStrength}
             currentDitheringStyle={ditheringStyle}
             currentDitheringStrength={ditheringStrength}
+            currentQuantLevel={quantLevel}
             onMappingChange={handleMappingChange}
             onFormulaChange={handleFormulaChange}
             onSmoothingStyleChange={handleSmoothingStyleChange}
             onThresholdChange={handleThresholdChange}
-            onLabScalesChange={handleLabScalesChange}
             onSmoothingStrengthChange={handleSmoothingStrengthChange}
             onDitheringStyleChange={handleDitheringStyleChange}
             onDitheringStrengthChange={handleDitheringStrengthChange}
+            onQuantLevelChange={handleQuantLevelChange}
           />
 
           <PalettifyImage
@@ -240,10 +228,9 @@ function App() {
             palette={selectedPalette}
             transparentThreshold={transparentThreshold}
             mapping={mapping}
-            quantLevel={HARDCODED_QUANT_LEVEL}
+            quantLevel={quantLevel}
             formula={formula}
             smoothingStyle={smoothingStyle}
-            labScales={labScales}
             smoothingStrength={smoothingStrength}
             ditheringStyle={ditheringStyle}
             ditheringStrength={ditheringStrength}

@@ -13,11 +13,17 @@ import { ExclamationTriangleIcon } from "@radix-ui/react-icons";
 import { type Palette, type Rgb } from "palettum";
 import type {
   Config,
-  DitheringAlgorithm,
+  Dithering,
   Mapping,
   PalettizedFormula,
   SmoothedFormula,
 } from "palettum";
+import {
+  DitheringKey,
+  DITHERING_NONE,
+  DITHERING_FLOYD_STEINBERG,
+  DITHERING_BLUE_NOISE,
+} from "@/components/adjustments/adjustments.types";
 
 interface ImageDimensions {
   containerWidth: number;
@@ -154,8 +160,7 @@ interface PalettifyImageProps {
   quantLevel: number;
   formula: string;
   smoothingStyle: string;
-  ditheringStyle: string;
-  labScales: [number, number, number];
+  ditheringStyle: DitheringKey;
   smoothingStrength: number;
   ditheringStrength: number;
 }
@@ -170,8 +175,7 @@ interface ProcessedSettings {
   quantLevel: number | null;
   formula: string | null;
   smoothingStyle: string | null;
-  ditheringStyle: string | null;
-  labScales: [number, number, number] | null;
+  ditheringStyle: DitheringKey | null;
   smoothingStrength: number | null;
   ditheringStrength: number | null;
 }
@@ -179,6 +183,18 @@ interface ProcessedSettings {
 type TaskCallbacks = {
   resolve: (value: Uint8Array) => void;
   reject: (reason?: any) => void;
+};
+
+const mapDitheringKeyToWasm = (ditheringKey: DitheringKey): Dithering => {
+  switch (ditheringKey) {
+    case DITHERING_FLOYD_STEINBERG:
+      return "Fs";
+    case DITHERING_BLUE_NOISE:
+      return "Bn";
+    case DITHERING_NONE:
+    default:
+      return "None";
+  }
 };
 
 function PalettifyImage({
@@ -191,7 +207,6 @@ function PalettifyImage({
   formula,
   smoothingStyle,
   ditheringStyle,
-  labScales,
   smoothingStrength,
   ditheringStrength,
 }: PalettifyImageProps): JSX.Element {
@@ -223,7 +238,6 @@ function PalettifyImage({
     formula: null,
     smoothingStyle: null,
     ditheringStyle: null,
-    labScales: null,
     smoothingStrength: null,
     ditheringStrength: null,
   });
@@ -243,12 +257,7 @@ function PalettifyImage({
       smoothingStyle === lastProcessedSettings.current.smoothingStyle &&
       smoothingStrength === lastProcessedSettings.current.smoothingStrength &&
       ditheringStyle === lastProcessedSettings.current.ditheringStyle &&
-      ditheringStrength === lastProcessedSettings.current.ditheringStrength &&
-      labScales.length ===
-      (lastProcessedSettings.current.labScales?.length ?? 0) &&
-      labScales.every(
-        (v, i) => v === lastProcessedSettings.current.labScales?.[i],
-      ),
+      ditheringStrength === lastProcessedSettings.current.ditheringStrength,
     [
       processedImageUrl,
       file,
@@ -260,7 +269,6 @@ function PalettifyImage({
       formula,
       smoothingStyle,
       ditheringStyle,
-      labScales,
       smoothingStrength,
       ditheringStrength,
     ],
@@ -397,6 +405,7 @@ function PalettifyImage({
     try {
       const arrayBuffer = await file.arrayBuffer();
       const imageBytes = new Uint8Array(arrayBuffer);
+
       const configJs: Config = {
         palette: {
           id: palette.id || "custom",
@@ -405,16 +414,15 @@ function PalettifyImage({
           kind: palette.kind || "Unset",
         },
         mapping: mapping as Mapping,
-        palettizedFormula: formula as PalettizedFormula,
-        quantLevel,
+        diffFormula: formula as PalettizedFormula,
+        quantLevel: quantLevel,
         transparencyThreshold: transparentThreshold,
-        smoothedFormula: smoothingStyle as SmoothedFormula,
-        smoothingStrength,
-        ditheringAlgorithm: ditheringStyle as DitheringAlgorithm,
-        ditheringStrength,
-        labScales,
-        resizeWidth: dimensions.width || null,
-        resizeHeight: dimensions.height || null,
+        smoothFormula: smoothingStyle as SmoothedFormula,
+        smoothStrength: smoothingStrength,
+        ditherAlgorithm: mapDitheringKeyToWasm(ditheringStyle),
+        ditherStrength: ditheringStrength,
+        resizeWidth: dimensions.width || undefined,
+        resizeHeight: dimensions.height || undefined,
       };
 
       const isGif =
@@ -441,7 +449,6 @@ function PalettifyImage({
         formula,
         smoothingStyle,
         ditheringStyle,
-        labScales,
         smoothingStrength,
         ditheringStrength,
       };
@@ -582,7 +589,7 @@ function PalettifyImage({
             />
             {getProcessedColors().length > 0 && containerDimensions && (
               <PixelBorders
-                key={processedImageUrl}
+                key={processedImageUrl} // Re-render on new image to restart animation
                 colors={getProcessedColors()}
                 dimensions={containerDimensions}
               />

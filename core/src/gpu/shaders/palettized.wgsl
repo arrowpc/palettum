@@ -241,76 +241,75 @@ fn main(
     let width = config.image_width;
     let height = config.image_height;
 
-    if config.dither_algorithm == 1u { // Floyd–Steinberg Dithering
+    if config.dither_algorithm == 1u { // Floyd-Steinberg Dithering
         let num_pixels = width * height;
+
         for (var i = local_idx; i < num_pixels; i = i + FS_TOTAL_INVOCATIONS) {
             output_rgba[i] = input_rgba[i];
         }
         workgroupBarrier();
 
         let fs_loop_width = max(FS_TOTAL_INVOCATIONS * 3u, width);
-        let fs_i_max = ((height + FS_TOTAL_INVOCATIONS - 1u) / (FS_TOTAL_INVOCATIONS)) * fs_loop_width + (FS_TOTAL_INVOCATIONS - 1u) * 3u;
+        let fs_i_max = ((height + FS_TOTAL_INVOCATIONS - 1u) / FS_TOTAL_INVOCATIONS) * fs_loop_width + (FS_TOTAL_INVOCATIONS - 1u) * 3u;
 
         for (var i_fs = 0u; i_fs < fs_i_max; i_fs = i_fs + 1u) {
             storageBarrier();
+
             let wi_signed = i32(i_fs) - i32(local_idx) * 3;
-            if wi_signed < 0 { continue; }
-            let wi = u32(wi_signed);
-            let y = wi / fs_loop_width * FS_TOTAL_INVOCATIONS + local_idx;
-            let x = wi % fs_loop_width;
+            if wi_signed >= 0 {
+                let wi = u32(wi_signed);
+                let y = (wi / fs_loop_width) * FS_TOTAL_INVOCATIONS + local_idx;
+                let x = wi % fs_loop_width;
 
-            if x >= width || y >= height { continue; }
+                if x < width && y < height {
+                    let idx = y * width + x;
+                    let packed_pixel = output_rgba[idx];
+                    let alpha = (packed_pixel >> 24u) & 0xFFu;
 
-            let idx = y * width + x;
-            let packed_pixel = output_rgba[idx];
-            let alpha = (packed_pixel >> 24u) & 0xFFu;
-            if alpha < config.transparency_threshold {
-                output_rgba[idx] = 0u;
-                continue;
-            }
+                    if alpha < config.transparency_threshold {
+                        output_rgba[idx] = 0u;
+                    } else {
+                        var pixel_f32 = unpack_rgba_f32(packed_pixel);
+                        let pixel_lab = rgba_to_lab(packed_pixel);
+                        var min_dist = 1e20;
+                        var best_index = 0u;
+                        for (var j = 0u; j < config.palette_size; j = j + 1u) {
+                            let pal_lab = rgba_to_lab(palette[j]);
+                            let d = delta_e(pixel_lab, pal_lab, config.diff_formula);
+                            if d < min_dist {
+                                min_dist = d;
+                                best_index = j;
+                            }
+                        }
+                        let quantized = palette[best_index];
+                        output_rgba[idx] = quantized;
 
-            var pixel_f32 = unpack_rgba_f32(packed_pixel);
+                        var quant_f32 = unpack_rgba_f32(quantized);
+                        let error = pixel_f32.rgb - quant_f32.rgb;
+                        let offsets = array<vec2<i32>,4>(
+                            vec2<i32>(1, 0),  // right
+                            vec2<i32>(-1, 1), // bottom-left
+                            vec2<i32>(0, 1),  // bottom 
+                            vec2<i32>(1, 1)   // bottom-right
+                        );
+                        let factors = array<f32,4>(7.0 / 16.0, 3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0);
 
-            let pixel_lab = rgba_to_lab(packed_pixel);
-            var min_distance = 1e20;
-            var best_index = 0u;
-            for (var i = 0u; i < config.palette_size; i = i + 1u) {
-                let palette_lab = rgba_to_lab(palette[i]);
-                let distance = delta_e(pixel_lab, palette_lab, config.diff_formula);
-                if distance < min_distance {
-                    min_distance = distance;
-                    best_index = i;
-                }
-            }
-            let quantized = palette[best_index];
-            output_rgba[idx] = quantized;
-
-            let quantized_f32 = unpack_rgba_f32(quantized);
-            let error = pixel_f32.rgb - quantized_f32.rgb;
-            let dither_strength = config.dither_strength;
-
-            let offsets = array<vec2i, 4>(
-                vec2i(1, 0),   // right
-                vec2i(-1, 1),  // bottom-left
-                vec2i(0, 1),   // bottom
-                vec2i(1, 1)    // bottom-right
-            );
-            let factors = array<f32, 4>(7.0 / 16.0, 3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0);
-
-            for (var j = 0u; j < 4u; j = j + 1u) {
-                let nx = i32(x) + offsets[j].x;
-                let ny = i32(y) + offsets[j].y;
-                if nx >= 0 && nx < i32(width) && ny >= 0 && ny < i32(height) {
-                    let nidx = u32(ny) * width + u32(nx);
-                    var neighbor = unpack_rgba_f32(output_rgba[nidx]);
-                    neighbor.r = neighbor.r + error.r * factors[j] * dither_strength;
-                    neighbor.g = neighbor.g + error.g * factors[j] * dither_strength;
-                    neighbor.b = neighbor.b + error.b * factors[j] * dither_strength;
-                    output_rgba[nidx] = pack_rgba_u32(neighbor);
+                        for (var k = 0u; k < 4u; k = k + 1u) {
+                            let nx = i32(x) + offsets[k].x;
+                            let ny = i32(y) + offsets[k].y;
+                            if nx >= 0 && nx < i32(width) && ny >= 0 && ny < i32(height) {
+                                let nidx = u32(ny) * width + u32(nx);
+                                var neighbor = unpack_rgba_f32(output_rgba[nidx]);
+                                neighbor.r = neighbor.r + error.r * factors[k] * config.dither_strength;
+                                neighbor.g = neighbor.g + error.g * factors[k] * config.dither_strength;
+                                neighbor.b = neighbor.b + error.b * factors[k] * config.dither_strength;
+                                output_rgba[nidx] = pack_rgba_u32(neighbor);
+                            }
+                        }
+                    }
                 }
             }
         }
-
     } else if config.dither_algorithm == 2u { // Blue-Noise Dithering
         let x = global_id.x;
         let y = global_id.y;

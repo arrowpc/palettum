@@ -334,18 +334,7 @@ impl GpuImageProcessor {
                         Dithering::Fs => {
                             compute_pass.dispatch_workgroups(1, 1, 1);
                         }
-                        Dithering::Bn => {
-                            log::warn!(
-                                "GPU Blue Noise dithering not implemented for chunk {}. Falling back to non-dithered.",
-                                chunk_index
-                            );
-                            let dispatch_x =
-                                gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
-                            let dispatch_y =
-                                gpu_chunk_config.image_height.div_ceil(WORKGROUP_SIZE_Y);
-                            compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
-                        }
-                        Dithering::None => {
+                        Dithering::Bn | Dithering::None => {
                             let dispatch_x =
                                 gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
                             let dispatch_y =

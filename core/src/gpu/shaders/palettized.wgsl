@@ -11,13 +11,13 @@ struct Config {
     smooth_formula: u32,
     palette_size: u32,
     smooth_strength: f32,
-    _pad0: u32,
-    _pad1: u32,
-    _pad2: u32,
+    dither_algorithm: u32,
+    dither_strength: f32,
+    _pad_config1: u32,
     image_width: u32,
     image_height: u32,
-    _pad3: u32,
-    _pad4: u32,
+    _pad_config2: u32,
+    _pad_config3: u32,
 };
 
 @group(0) @binding(0) var<storage, read> input_rgba: array<u32>;
@@ -25,35 +25,113 @@ struct Config {
 @group(0) @binding(2) var<uniform> config: Config;
 @group(0) @binding(3) var<storage, read_write> output_rgba: array<u32>;
 
-@compute @workgroup_size(32, 8, 1)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let x = global_id.x;
-    let y = global_id.y;
+const WORKGROUP_SIZE_X: u32 = 16u;
+const WORKGROUP_SIZE_Y: u32 = 16u;
+const FS_TOTAL_INVOCATIONS: u32 = WORKGROUP_SIZE_X * WORKGROUP_SIZE_Y;
 
-    let index = y * config.image_width + x;
+@compute @workgroup_size(16, 16, 1)
+fn main(
+    @builtin(global_invocation_id) global_id: vec3<u32>,
+    @builtin(local_invocation_index) local_idx: u32
+) {
+    let width = config.image_width;
+    let height = config.image_height;
 
-    let packed_pixel_rgba = input_rgba[index];
-    let alpha_u8 = (packed_pixel_rgba >> 24u) & 0xFFu;
-    if alpha_u8 < config.transparency_threshold {
-        output_rgba[index] = 0u;
-        return;
-    }
-
-    let pixel_lab = rgba_to_lab(packed_pixel_rgba);
-
-    var min_distance = 1e20;
-    var best_index = 0u;
-    for (var i = 0u; i < config.palette_size; i = i + 1u) {
-        let packed_palette_rgba = palette[i];
-        let palette_lab = rgba_to_lab(packed_palette_rgba);
-        let distance = delta_e(pixel_lab, palette_lab, config.diff_formula);
-        if distance < min_distance {
-            min_distance = distance;
-            best_index = i;
+    if config.dither_algorithm == 1u { // Floyd–Steinberg Dithering
+        let num_pixels = width * height;
+        for (var i = local_idx; i < num_pixels; i = i + FS_TOTAL_INVOCATIONS) {
+            output_rgba[i] = input_rgba[i];
         }
-    }
+        workgroupBarrier();
 
-    output_rgba[index] = palette[best_index];
+        let fs_loop_width = max(FS_TOTAL_INVOCATIONS * 3u, width);
+        let fs_i_max = ((height + FS_TOTAL_INVOCATIONS - 1u) / (FS_TOTAL_INVOCATIONS)) * fs_loop_width + (FS_TOTAL_INVOCATIONS - 1u) * 3u;
+
+        for (var i_fs = 0u; i_fs < fs_i_max; i_fs = i_fs + 1u) {
+            storageBarrier();
+            let wi_signed = i32(i_fs) - i32(local_idx) * 3;
+            if wi_signed < 0 { continue; }
+            let wi = u32(wi_signed);
+            let y = wi / fs_loop_width * FS_TOTAL_INVOCATIONS + local_idx;
+            let x = wi % fs_loop_width;
+
+            if x >= width || y >= height { continue; }
+
+            let idx = y * width + x;
+            let packed_pixel = output_rgba[idx];
+            let alpha = (packed_pixel >> 24u) & 0xFFu;
+            if alpha < config.transparency_threshold {
+                output_rgba[idx] = 0u;
+                continue;
+            }
+
+            var pixel_f32 = unpack_rgba_f32(packed_pixel);
+
+            let pixel_lab = rgba_to_lab(packed_pixel);
+            var min_distance = 1e20;
+            var best_index = 0u;
+            for (var i = 0u; i < config.palette_size; i = i + 1u) {
+                let palette_lab = rgba_to_lab(palette[i]);
+                let distance = delta_e(pixel_lab, palette_lab, config.diff_formula);
+                if distance < min_distance {
+                    min_distance = distance;
+                    best_index = i;
+                }
+            }
+            let quantized = palette[best_index];
+            output_rgba[idx] = quantized;
+
+            let quantized_f32 = unpack_rgba_f32(quantized);
+            let error = pixel_f32.rgb - quantized_f32.rgb;
+            let dither_strength = config.dither_strength;
+
+            let offsets = array<vec2i, 4>(
+                vec2i(1, 0),   // right
+                vec2i(-1, 1),  // bottom-left
+                vec2i(0, 1),   // bottom
+                vec2i(1, 1)    // bottom-right
+            );
+            let factors = array<f32, 4>(7.0 / 16.0, 3.0 / 16.0, 5.0 / 16.0, 1.0 / 16.0);
+
+            for (var j = 0u; j < 4u; j = j + 1u) {
+                let nx = i32(x) + offsets[j].x;
+                let ny = i32(y) + offsets[j].y;
+                if nx >= 0 && nx < i32(width) && ny >= 0 && ny < i32(height) {
+                    let nidx = u32(ny) * width + u32(nx);
+                    var neighbor = unpack_rgba_f32(output_rgba[nidx]);
+                    neighbor.r = neighbor.r + error.r * factors[j] * dither_strength;
+                    neighbor.g = neighbor.g + error.g * factors[j] * dither_strength;
+                    neighbor.b = neighbor.b + error.b * factors[j] * dither_strength;
+                    output_rgba[nidx] = pack_rgba_u32(neighbor);
+                }
+            }
+        }
+    } else { // No dithering
+        let x = global_id.x;
+        let y = global_id.y;
+        if x >= width || y >= height { return; }
+
+        let idx = y * width + x;
+        let packed_pixel = input_rgba[idx];
+        let alpha = (packed_pixel >> 24u) & 0xFFu;
+        if alpha < config.transparency_threshold {
+            output_rgba[idx] = 0u;
+            return;
+        }
+
+        let pixel_lab = rgba_to_lab(packed_pixel);
+        var min_distance = 1e20;
+        var best_index = 0u;
+        for (var i = 0u; i < config.palette_size; i = i + 1u) {
+            let palette_lab = rgba_to_lab(palette[i]);
+            let distance = delta_e(pixel_lab, palette_lab, config.diff_formula);
+            if distance < min_distance {
+                min_distance = distance;
+                best_index = i;
+            }
+        }
+        output_rgba[idx] = palette[best_index];
+    }
 }
 
 fn delta_e(lab1: Lab, lab2: Lab, formula: u32) -> f32 {
@@ -221,13 +299,29 @@ fn ciede2000(lab1_in: Lab, lab2_in: Lab) -> f32 {
     return sqrt(sum_terms);
 }
 
+fn unpack_rgba_f32(packed: u32) -> vec4f {
+    return vec4f(
+        f32((packed >> 0u) & 0xFFu),  // R
+        f32((packed >> 8u) & 0xFFu),  // G
+        f32((packed >> 16u) & 0xFFu), // B
+        f32((packed >> 24u) & 0xFFu)  // A
+    ) / 255.0;
+}
+
+fn pack_rgba_u32(color_01: vec4f) -> u32 {
+    let r = u32(clamp(color_01.r * 255.0, 0.0, 255.0));
+    let g = u32(clamp(color_01.g * 255.0, 0.0, 255.0));
+    let b = u32(clamp(color_01.b * 255.0, 0.0, 255.0));
+    let a = u32(clamp(color_01.a * 255.0, 0.0, 255.0));
+    return (r << 0u) | (g << 8u) | (b << 16u) | (a << 24u);
+}
 
 
-const WHITE_X: f32 = 95.047;
-const WHITE_Y: f32 = 100.000;
-const WHITE_Z: f32 = 108.883;
-const EPSILON: f32 = 0.008856;
-const KAPPA: f32 = 903.3;
+    const WHITE_X: f32 = 95.047;
+    const WHITE_Y: f32 = 100.000;
+    const WHITE_Z: f32 = 108.883;
+    const EPSILON: f32 = 0.008856;
+    const KAPPA: f32 = 903.3;
 
 fn lab_to_rgb(lab: Lab) -> vec3<f32> {
     let y = (lab.l + 16.0) / 116.0;

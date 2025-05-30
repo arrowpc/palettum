@@ -1,6 +1,11 @@
-use crate::{config::Config, error::Result, Mapping};
-use std::borrow::Cow;
+use crate::{config::Config, error::Result, palettized::Dithering, Mapping};
+use std::{borrow::Cow, sync::Arc};
 use wgpu::util::DeviceExt;
+
+#[cfg(not(target_arch = "wasm32"))]
+use async_once_cell::OnceCell;
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -19,27 +24,17 @@ pub struct GpuConfig {
     pub smooth_formula: u32,
     pub palette_size: u32,
     pub smooth_strength: f32,
-    pub _pad0: u32,
-    pub _pad1: u32,
-    pub _pad2: u32,
+    pub dither_algorithm: u32,
+    pub dither_strength: f32,
+    pub _pad_config1: u32,
     pub image_width: u32,
     pub image_height: u32,
-    pub _pad3: u32,
-    pub _pad4: u32,
-}
-
-pub struct MappingDispatch<'a> {
-    pub encoder: &'a mut wgpu::CommandEncoder,
-    pub rgba_buffer: &'a wgpu::Buffer,
-    pub palette_buffer: &'a wgpu::Buffer,
-    pub config_buffer: &'a wgpu::Buffer,
-    pub result_buffer: &'a wgpu::Buffer,
-    pub dispatch_x_groups: u32,
-    pub dispatch_y_groups: u32,
+    pub _pad_config2: u32,
+    pub _pad_config3: u32,
 }
 
 impl GpuConfig {
-    pub fn from_config(config: &Config, width: u32, height: u32) -> Self {
+    pub fn from_config(config: &Config, processing_width: u32, processing_height: u32) -> Self {
         Self {
             transparency_threshold: config.transparency_threshold as u32,
             diff_formula: match config.diff_formula {
@@ -54,23 +49,20 @@ impl GpuConfig {
             },
             palette_size: config.palette.colors.len() as u32,
             smooth_strength: config.smooth_strength,
-            _pad0: 0,
-            _pad1: 0,
-            _pad2: 0,
-            image_width: width,
-            image_height: height,
-            _pad3: 0,
-            _pad4: 0,
+            dither_algorithm: match config.dither_algorithm {
+                Dithering::None => 0,
+                Dithering::Fs => 1,
+                Dithering::Bn => 2,
+            },
+            dither_strength: config.dither_strength,
+            _pad_config1: 0,
+            image_width: processing_width,
+            image_height: processing_height,
+            _pad_config2: 0,
+            _pad_config3: 0,
         }
     }
 }
-
-#[cfg(not(target_arch = "wasm32"))]
-use async_once_cell::OnceCell;
-#[cfg(target_arch = "wasm32")]
-use std::cell::RefCell;
-
-use std::sync::Arc;
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
@@ -140,6 +132,9 @@ pub struct GpuImageProcessor {
     mapping_layout: wgpu::BindGroupLayout,
 }
 
+const WORKGROUP_SIZE_X: u32 = 16;
+const WORKGROUP_SIZE_Y: u32 = 16;
+
 impl GpuImageProcessor {
     pub async fn new() -> Option<Self> {
         let instance = wgpu::Instance::default();
@@ -188,34 +183,38 @@ impl GpuImageProcessor {
             return Ok(Vec::new());
         }
 
-        let max_bindable_storage_buffer_size =
-            self.device.limits().max_storage_buffer_binding_size as u64;
         let bytes_per_rgba_pixel = std::mem::size_of::<GpuRgba>() as u64;
-
         let bytes_per_row_for_rgba = width as u64 * bytes_per_rgba_pixel;
 
         if bytes_per_row_for_rgba == 0 && width > 0 {
             todo!("bytes_per_row_for_rgba is zero with non-zero width.");
         }
 
-        if bytes_per_row_for_rgba > max_bindable_storage_buffer_size {
-            todo!(
-                "Image width ({}) is too large for GPU processing: a single row of RGBA data ({} bytes) \
-                 would exceed max_storage_buffer_binding_size ({} bytes).",
-                width, bytes_per_row_for_rgba, max_bindable_storage_buffer_size
-            );
-        }
-
-        let max_rows_per_chunk = if bytes_per_row_for_rgba > 0 {
-            (max_bindable_storage_buffer_size / bytes_per_row_for_rgba) as u32
+        let max_buffer_size = self.device.limits().max_buffer_size;
+        let max_rows_per_chunk_based_on_total_size = if bytes_per_row_for_rgba > 0 {
+            (max_buffer_size / bytes_per_row_for_rgba) as u32
         } else {
             height
         };
 
+        let max_bindable_storage_buffer_size = self.device.limits().max_storage_buffer_binding_size;
+        let max_rows_per_chunk_based_on_binding = if bytes_per_row_for_rgba > 0 {
+            (max_bindable_storage_buffer_size as u64 / bytes_per_row_for_rgba) as u32
+        } else {
+            height
+        };
+
+        let max_rows_per_chunk =
+            max_rows_per_chunk_based_on_total_size.min(max_rows_per_chunk_based_on_binding);
+
         if max_rows_per_chunk == 0 && height > 0 {
             todo!(
-                "Cannot determine a valid chunk size (max_rows_per_chunk is 0 but height > 0). \
-                 This might be due to an extremely large image width relative to max_storage_buffer_binding_size."
+                "Cannot determine a valid chunk size (max_rows_per_chunk is 0 but height {} > 0). \
+                 Image width ({}) might be too large. Max buffer size: {}, max binding size: {}",
+                height,
+                width,
+                max_buffer_size,
+                max_bindable_storage_buffer_size
             );
         }
 
@@ -270,7 +269,7 @@ impl GpuImageProcessor {
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some(&format!("RGBA Image Chunk Buffer {}", chunk_index)),
                         contents: current_image_data_slice,
-                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+                        usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
                     });
 
             let gpu_chunk_config = GpuConfig::from_config(config, width, current_chunk_height);
@@ -286,43 +285,87 @@ impl GpuImageProcessor {
             let result_chunk_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some(&format!("Result RGBA Chunk Buffer {}", chunk_index)),
                 size: result_chunk_buffer_size,
-                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                usage: wgpu::BufferUsages::STORAGE
+                    | wgpu::BufferUsages::COPY_SRC
+                    | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
 
             let mut encoder = self
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some(&format!("Image Processing Chunk Commands {}", chunk_index)),
+                    label: Some(&format!("Image Proc. Commands Chunk {}", chunk_index)),
                 });
 
-            const MAPPING_WORKGROUP_SIZE_X: u32 = 16;
-            const MAPPING_WORKGROUP_SIZE_Y: u32 = 16;
-            let mapping_dispatch_x_chunk = width.div_ceil(MAPPING_WORKGROUP_SIZE_X);
-            let mapping_dispatch_y_chunk = current_chunk_height.div_ceil(MAPPING_WORKGROUP_SIZE_Y);
+            let general_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(&format!("General Bind Group Chunk {}", chunk_index)),
+                layout: &self.mapping_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: rgba_chunk_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: palette_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: config_chunk_buffer.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: result_chunk_buffer.as_entire_binding(),
+                    },
+                ],
+            });
 
             match config.mapping {
                 Mapping::Palettized => {
-                    self.dispatch_palettized(MappingDispatch {
-                        encoder: &mut encoder,
-                        rgba_buffer: &rgba_chunk_buffer,
-                        palette_buffer: &palette_buffer,
-                        config_buffer: &config_chunk_buffer,
-                        result_buffer: &result_chunk_buffer,
-                        dispatch_x_groups: mapping_dispatch_x_chunk,
-                        dispatch_y_groups: mapping_dispatch_y_chunk,
-                    });
+                    let mut compute_pass =
+                        encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                            label: Some(&format!("Palettized Pass Chunk {}", chunk_index)),
+                            timestamp_writes: None,
+                        });
+                    compute_pass.set_pipeline(&self.palettized_pipeline);
+                    compute_pass.set_bind_group(0, &general_bind_group, &[]);
+
+                    match config.dither_algorithm {
+                        Dithering::Fs => {
+                            compute_pass.dispatch_workgroups(1, 1, 1);
+                        }
+                        Dithering::Bn => {
+                            log::warn!(
+                                "GPU Blue Noise dithering not implemented for chunk {}. Falling back to non-dithered.",
+                                chunk_index
+                            );
+                            let dispatch_x =
+                                gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
+                            let dispatch_y =
+                                gpu_chunk_config.image_height.div_ceil(WORKGROUP_SIZE_Y);
+                            compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+                        }
+                        Dithering::None => {
+                            let dispatch_x =
+                                gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
+                            let dispatch_y =
+                                gpu_chunk_config.image_height.div_ceil(WORKGROUP_SIZE_Y);
+                            compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+                        }
+                    }
                 }
                 Mapping::Smoothed => {
-                    self.dispatch_smoothed(MappingDispatch {
-                        encoder: &mut encoder,
-                        rgba_buffer: &rgba_chunk_buffer,
-                        palette_buffer: &palette_buffer,
-                        config_buffer: &config_chunk_buffer,
-                        result_buffer: &result_chunk_buffer,
-                        dispatch_x_groups: mapping_dispatch_x_chunk,
-                        dispatch_y_groups: mapping_dispatch_y_chunk,
-                    });
+                    let mut compute_pass =
+                        encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                            label: Some(&format!("Smoothed Pass Chunk {}", chunk_index)),
+                            timestamp_writes: None,
+                        });
+                    compute_pass.set_pipeline(&self.smoothed_pipeline);
+                    compute_pass.set_bind_group(0, &general_bind_group, &[]);
+
+                    let dispatch_x = gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
+                    let dispatch_y = gpu_chunk_config.image_height.div_ceil(WORKGROUP_SIZE_Y);
+                    compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
                 }
             }
 
@@ -346,7 +389,9 @@ impl GpuImageProcessor {
             let buffer_slice = staging_chunk_buffer.slice(..);
             let (sender, receiver) = futures::channel::oneshot::channel();
             buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                sender.send(result).ok();
+                if sender.send(result).is_err() {
+                    log::warn!("Receiver dropped before map_async result for staging buffer");
+                }
             });
 
             self.device.poll(wgpu::MaintainBase::Wait).unwrap();
@@ -358,83 +403,16 @@ impl GpuImageProcessor {
                     drop(data);
                     staging_chunk_buffer.unmap();
                 }
-                _ => {
-                    todo!("Handle buffer mapping error");
+                Ok(Err(e)) => {
+                    todo!("Buffer mapping error for chunk {}: {:?}", chunk_index, e);
+                }
+                Err(e) => {
+                    todo!("Channel receive error for chunk {}: {:?}", chunk_index, e);
                 }
             }
         }
 
         Ok(all_results)
-    }
-
-    fn dispatch_palettized(&self, d: MappingDispatch) {
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Palettized Mapping Bind Group"),
-            layout: &self.mapping_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: d.rgba_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: d.palette_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: d.config_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: d.result_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
-        let mut compute_pass = d.encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-            label: Some("Palettized Mapping Pass"),
-            timestamp_writes: None,
-        });
-
-        compute_pass.set_pipeline(&self.palettized_pipeline);
-        compute_pass.set_bind_group(0, &bind_group, &[]);
-        compute_pass.dispatch_workgroups(d.dispatch_x_groups, d.dispatch_y_groups, 1);
-    }
-
-    fn dispatch_smoothed(&self, dispatch: MappingDispatch) {
-        let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Smoothed Mapping Bind Group"),
-            layout: &self.mapping_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: dispatch.rgba_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: dispatch.palette_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: dispatch.config_buffer.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: dispatch.result_buffer.as_entire_binding(),
-                },
-            ],
-        });
-
-        let mut compute_pass = dispatch
-            .encoder
-            .begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("Smoothed Mapping Pass"),
-                timestamp_writes: None,
-            });
-
-        compute_pass.set_pipeline(&self.smoothed_pipeline);
-        compute_pass.set_bind_group(0, &bind_group, &[]);
-        compute_pass.dispatch_workgroups(dispatch.dispatch_x_groups, dispatch.dispatch_y_groups, 1);
     }
 
     fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -499,13 +477,13 @@ impl GpuImageProcessor {
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Palettized Mapping Pipeline Layout"),
+            label: Some("Palettized Pipeline Layout"),
             bind_group_layouts: &[layout],
             push_constant_ranges: &[],
         });
 
         device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Palettized Mapping Pipeline"),
+            label: Some("Palettized Pipeline"),
             layout: Some(&pipeline_layout),
             module: &shader,
             entry_point: Some("main"),
@@ -519,18 +497,18 @@ impl GpuImageProcessor {
         layout: &wgpu::BindGroupLayout,
     ) -> wgpu::ComputePipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Smoothed Mapping Shader"),
+            label: Some("Smoothed Shader"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shaders/smoothed.wgsl"))),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Smoothed Mapping Pipeline Layout"),
+            label: Some("Smoothed Pipeline Layout"),
             bind_group_layouts: &[layout],
             push_constant_ranges: &[],
         });
 
         device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("Smoothed Mapping Pipeline"),
+            label: Some("Smoothed Pipeline"),
             layout: Some(&pipeline_layout),
             module: &shader,
             entry_point: Some("main"),

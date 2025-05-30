@@ -277,7 +277,7 @@ impl Gif {
         Ok((repeat, speed))
     }
 
-    pub fn palettify(&mut self, config: &Config) -> Result<()> {
+    pub async fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 
         let lab_colors = config
@@ -287,22 +287,9 @@ impl Gif {
             .map(|rgb| rgb.to_lab())
             .collect::<Vec<_>>();
 
-        let lookup = if config.quant_level > 0 {
-            let avg_frame_size = self.width as usize * self.height as usize;
-            processing::generate_lookup_table(config, &lab_colors, Some(avg_frame_size))
-        } else {
-            Vec::new()
-        };
-
-        let lookup_opt = if lookup.is_empty() {
-            None
-        } else {
-            Some(&lookup[..])
-        };
-
         log::debug!("Processing gif pixels ({}x{})", self.width, self.height);
         for frame in &mut self.frames {
-            processing::process_pixels(frame.buffer_mut(), config, &lab_colors, lookup_opt)?;
+            processing::process_pixels(frame.buffer_mut(), config, &lab_colors).await?;
         }
         log::debug!("Pixel processing complete.");
 

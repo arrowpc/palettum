@@ -209,7 +209,7 @@ fn get_mapped_color_for_pixel(
 
 /// Processes all pixels in the image according to the configuration.
 /// Dispatches to dithering or non-dithering paths.
-pub(crate) fn process_pixels(
+pub(crate) fn process_pixels_cpu(
     image: &mut RgbaImage,
     config: &Config,
     lab_colors: &[Lab],
@@ -361,4 +361,35 @@ pub(crate) fn process_pixels(
         }
     }
     Ok(())
+}
+
+use crate::gpu::GpuImageProcessor;
+
+pub(crate) async fn process_pixels(
+    image: &mut RgbaImage,
+    config: &Config,
+    lab_colors: &[Lab],
+) -> Result<()> {
+    if let Some(gpu_processor_arc) = super::gpu::get_gpu_processor().await? {
+        let gpu_processor_ref: &GpuImageProcessor = &gpu_processor_arc;
+
+        log::debug!("Using GPU for image processing");
+        let result = gpu_processor_ref
+            .process_image(image.as_raw(), image.width(), image.height(), config)
+            .await?;
+
+        *image = RgbaImage::from_raw(image.width(), image.height(), result).unwrap();
+        return Ok(());
+    }
+
+    log::debug!("Using CPU for image processing (GPU not available or failed to init)");
+
+    let lookup_table = if config.quant_level > 0 {
+        let img_size = image.width() as usize * image.height() as usize;
+        Some(generate_lookup_table(config, lab_colors, Some(img_size)))
+    } else {
+        None
+    };
+
+    process_pixels_cpu(image, config, lab_colors, lookup_table.as_deref())
 }

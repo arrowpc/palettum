@@ -246,7 +246,7 @@ impl Image {
         Ok(())
     }
 
-    pub fn palettify(&mut self, config: &Config) -> Result<()> {
+    pub async fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 
         let lab_colors = config
@@ -256,24 +256,9 @@ impl Image {
             .map(|rgb| rgb.to_lab())
             .collect::<Vec<Lab>>();
 
-        let lookup = if config.quant_level > 0 {
-            let img_size = self.width as usize * self.height as usize;
-            processing::generate_lookup_table(config, &lab_colors, Some(img_size))
-        } else {
-            Vec::new()
-        };
-
         log::debug!("Processing image pixels ({}x{})", self.width, self.height);
-        processing::process_pixels(
-            &mut self.buffer,
-            config,
-            &lab_colors,
-            if lookup.is_empty() {
-                None
-            } else {
-                Some(&lookup)
-            },
-        )?;
+        log::debug!("{}", config);
+        processing::process_pixels(&mut self.buffer, config, &lab_colors).await?;
         log::debug!("Pixel processing complete.");
 
         if config.mapping != Mapping::Smoothed {

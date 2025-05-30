@@ -190,7 +190,7 @@ impl Ico {
         Ok(())
     }
 
-    pub fn palettify(&mut self, config: &Config) -> Result<()> {
+    pub async fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 
         let lab_colors = config
@@ -200,36 +200,12 @@ impl Ico {
             .map(|rgb| rgb.to_lab())
             .collect::<Vec<Lab>>();
 
-        // Precompute lookup table if needed (size is max of all images)
-        let max_img_size = self
-            .widths
-            .iter()
-            .zip(self.heights.iter())
-            .map(|(&w, &h)| w as usize * h as usize)
-            .max()
-            .unwrap_or(0);
-
-        let lookup = if config.quant_level > 0 {
-            processing::generate_lookup_table(config, &lab_colors, Some(max_img_size))
-        } else {
-            Vec::new()
-        };
-
         for (i, buffer) in self.buffers.iter_mut().enumerate() {
             let width = self.widths[i];
             let height = self.heights[i];
 
             log::debug!("Processing icon pixels {} ({}x{})", i, width, height);
-            processing::process_pixels(
-                buffer,
-                config,
-                &lab_colors,
-                if lookup.is_empty() {
-                    None
-                } else {
-                    Some(&lookup)
-                },
-            )?;
+            processing::process_pixels(buffer, config, &lab_colors).await?;
         }
 
         log::debug!("All icons in ico palettified.");

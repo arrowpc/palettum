@@ -74,11 +74,11 @@ impl Media {
         }
     }
 
-    pub fn palettify(&mut self, config: &Config) -> Result<()> {
+    pub async fn palettify(&mut self, config: &Config) -> Result<()> {
         match self {
-            Media::Gif(gif) => gif.palettify(config),
-            Media::Ico(ico) => ico.palettify(config),
-            Media::Image(img) => img.palettify(config),
+            Media::Gif(gif) => gif.palettify(config).await,
+            Media::Ico(ico) => ico.palettify(config).await,
+            Media::Image(img) => img.palettify(config).await,
         }
     }
 

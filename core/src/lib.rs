@@ -11,6 +11,7 @@ pub mod smoothed;
 pub use config::Config;
 pub use error::{Error, Result};
 pub use media::{Gif, Ico, Image, Media};
+pub mod gpu;
 
 pub use palette::{
     create_id, custom_palettes_dir, delete_custom_palette, find_palette, get_all_palettes,

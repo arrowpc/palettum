@@ -1,6 +1,7 @@
 use super::args::{Cli, Commands};
 use crate::style;
 use anydir::AnyFileEntry;
+use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::{MultiProgress, ProgressBar};
 use log::{error, info};
 use palettum::{
@@ -8,7 +9,7 @@ use palettum::{
     Config, Palette, PaletteKind,
 };
 use palettum::{get_all_palettes, palette_from_file_entry, save_custom_palette};
-use rayon::{prelude::*, ThreadPoolBuilder};
+use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,7 +22,7 @@ use walkdir::WalkDir;
 use anyhow::{bail, Context, Result};
 const VALID_EXTS: [&str; 6] = ["gif", "png", "jpg", "jpeg", "webp", "ico"];
 
-pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
+pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
     let s = style::theme();
     match cli.command {
         Commands::Palettify(args) => {
@@ -109,7 +110,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 }
 
                 if !input.exists() {
-                    // TODO: style
                     bail!("Could not find {}. Make sure it exists", input.display())
                 }
 
@@ -120,7 +120,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                         .is_some_and(|ext| VALID_EXTS.contains(&ext))
                 {
                     bail!(
-                        // TODO: style
                         "Invalid file extension for {}. Allowed: {}",
                         input.display(),
                         VALID_EXTS.join(", ")
@@ -143,6 +142,7 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     .with_context(|| format!("Failed to resize {:?}", input))?;
                 media
                     .palettify(&config)
+                    .await
                     .with_context(|| format!("Failed to palettify {:?}", input))?;
                 media
                     .write_to_file(&output)
@@ -171,7 +171,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             let job_pbs = Arc::new(job_pbs);
 
             let main_pb = if job_names.len() > 1 {
-                // Main bar for multiple jobs
                 let pb = m.add(ProgressBar::new(total_files as u64));
                 pb.set_style(style::create_main_progress_style());
                 pb.set_prefix(format!("{:width$}", "Total", width = max_name_len));
@@ -180,25 +179,19 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 None
             };
 
-            // Thread allocation
             let total_threads = if args.threads > 0 {
                 args.threads
             } else {
                 num_cpus::get()
             };
             let file_threads = total_threads.min(total_files);
-            let pixel_threads = (total_threads / file_threads).max(1);
 
             let main_pb = Arc::new(main_pb);
-            let job_pbs = Arc::new(job_pbs);
-            let pool = ThreadPoolBuilder::new()
-                .num_threads(file_threads)
-                .build()
-                .context("Failed to build thread pool")?;
+            let job_pbs = Arc::clone(&job_pbs);
             let error_count = Arc::new(Mutex::new(0usize));
 
-            // Schedule jobs
-            let mut file_jobs = Vec::new();
+            // --- ASYNC PARALLEL JOBS ---
+            let file_jobs = FuturesUnordered::new();
             for (job_name, files) in jobs {
                 for (input, output) in files {
                     let job_name = job_name.clone();
@@ -212,8 +205,15 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     let smooth = args.smooth_strength;
                     let q = args.quantization;
                     let error_count = Arc::clone(&error_count);
+                    let dither_algorithm = args.dither_algorithm;
+                    let dither_strength = args.dither_strength;
+                    let width = args.width;
+                    let height = args.height;
+                    let scale = args.scale;
+                    let filter = args.filter;
+                    let pixel_threads = (total_threads / file_threads).max(1);
 
-                    file_jobs.push(move || {
+                    file_jobs.push(async move {
                         job_pbs.get(&job_name).unwrap();
 
                         if let Some(p) = output.parent() {
@@ -225,8 +225,8 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                                 .mapping(mapping)
                                 .diff_formula(pal_f)
                                 .transparency_threshold(alpha)
-                                .dither_algorithm(args.dither_algorithm)
-                                .dither_strength(args.dither_strength)
+                                .dither_algorithm(dither_algorithm)
+                                .dither_strength(dither_strength)
                                 .smooth_formula(tmp_f)
                                 .smooth_strength(smooth)
                                 .num_threads(pixel_threads)
@@ -234,21 +234,23 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                                 .build(),
                         );
 
-                        let result: Result<()> = (|| {
+                        let result: Result<()> = async {
                             let mut media = load_media_from_path(&input).with_context(|| {
                                 format!("Failed to load media from {:?}", input)
                             })?;
                             media
-                                .resize(args.width, args.height, args.scale, args.filter)
+                                .resize(width, height, scale, filter)
                                 .with_context(|| format!("Failed to resize {:?}", input))?;
                             media
                                 .palettify(&cfg)
+                                .await
                                 .with_context(|| format!("Failed to palettify {:?}", input))?;
                             media
                                 .write_to_file(&output)
                                 .with_context(|| format!("Failed to write output {:?}", output))?;
                             Ok(())
-                        })();
+                        }
+                        .await;
 
                         match result {
                             Ok(_) => {
@@ -274,11 +276,10 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 }
             }
 
-            // Run
             let start = Instant::now();
-            pool.install(|| {
-                file_jobs.into_par_iter().for_each(|job| job());
-            });
+            file_jobs
+                .for_each_concurrent(file_threads, |_| async {})
+                .await;
             m.clear().unwrap();
 
             let duration = start.elapsed();
@@ -300,7 +301,6 @@ pub fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
 
             Ok(())
         }
-
         Commands::List => {
             let palettes = get_all_palettes();
             let mut table = Table::new(&palettes);
@@ -412,37 +412,54 @@ pub fn format_duration(duration: Duration) -> String {
 
 // TODO: Check if directory already exists & implement --force flag for palettify command
 fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
-    let mut image_files = Vec::new();
-
     fs::create_dir_all(dst_dir)
         .with_context(|| format!("Failed to create directory {:?}", dst_dir))?;
 
-    for entry in WalkDir::new(src_dir).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file() {
+    let entries: Vec<walkdir::DirEntry> = WalkDir::new(src_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|entry| entry.file_type().is_file())
+        .collect();
+
+    let results: Vec<Result<Option<PathBuf>>> = entries
+        .par_iter()
+        .map(|entry| {
+            let path = entry.path();
+
+            let rel_path = path
+                .strip_prefix(src_dir)
+                .with_context(|| format!("Failed to strip prefix {:?} from {:?}", src_dir, path))?;
+            let dst_path = dst_dir.join(rel_path);
+
+            if let Some(parent) = dst_path.parent() {
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("Failed to create directory {:?}", parent))?;
+            }
+
+            fs::copy(path, &dst_path)
+                .with_context(|| format!("Failed to copy {:?} to {:?}", path, dst_path))?;
+
             let ext = path
                 .extension()
                 .and_then(|e| e.to_str())
                 .map(|e| e.to_ascii_lowercase());
-            let is_image = ext
-                .as_deref()
-                .map(|e| VALID_EXTS.contains(&e))
-                .unwrap_or(false);
 
-            if is_image {
-                image_files.push(path.to_path_buf());
+            if ext.as_deref().is_some_and(|e| VALID_EXTS.contains(&e)) {
+                Ok(Some(path.to_path_buf())) // It's an image, return its path
+            } else {
+                Ok(None)
             }
+        })
+        .collect();
 
-            if let Ok(rel_path) = path.strip_prefix(src_dir) {
-                let dst_path = dst_dir.join(rel_path);
-                if let Some(parent) = dst_path.parent() {
-                    fs::create_dir_all(parent)
-                        .with_context(|| format!("Failed to create directory {:?}", parent))?;
-                }
-                fs::copy(path, &dst_path)
-                    .with_context(|| format!("Failed to copy {:?} to {:?}", path, dst_path))?;
-            }
+    let mut image_files = Vec::new();
+    for result in results {
+        match result {
+            Ok(Some(image_path)) => image_files.push(image_path),
+            Ok(None) => {}
+            Err(e) => return Err(e),
         }
     }
+
     Ok(image_files)
 }

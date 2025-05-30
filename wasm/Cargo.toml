@@ -15,6 +15,7 @@ wasm-bindgen.workspace = true
 console_error_panic_hook = "0.1.7"
 wasm-logger = "0.2"
 web-time = "1.1.0"
+wasm-bindgen-futures = "0.4.50"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = [

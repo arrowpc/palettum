@@ -15,7 +15,8 @@ type MyProfilerGuard<'a> = ProfilerGuard<'a>;
 #[cfg(not(all(feature = "profiler", not(windows))))]
 type MyProfilerGuard<'a> = ();
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let args = Cli::parse();
 
     if args.verbose == 1 {
@@ -34,11 +35,10 @@ fn main() -> Result<()> {
 
     #[cfg(all(feature = "profiler", not(windows)))]
     {
-        // Adjust this path if your profiler module is elsewhere!
         _profiler_guard = profiler::start_profiling();
     }
 
-    let exit_code = match run_cli(args, multi) {
+    let exit_code = match run_cli(args, multi).await {
         Ok(()) => 0,
         Err(e) => {
             log::error!("{:?}", e);

@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { palettify } from "palettum";
+import { palettify, init_gpu_processor } from "palettum";
 import type { Config } from "palettum";
 
 interface WorkerRequest {
@@ -20,13 +20,28 @@ interface WorkerErrorResponse {
   error: string;
 }
 
-self.onmessage = function(e: MessageEvent<WorkerRequest>) {
+// Initialize WASM and GPU processor before handling any messages
+let ready: Promise<void> | null = null;
+
+function ensureReady() {
+  if (!ready) {
+    ready = (async () => {
+      await init_gpu_processor();
+      console.log("Worker: GPU processor initialized");
+    })();
+  }
+  return ready;
+}
+
+self.onmessage = async function(e: MessageEvent<WorkerRequest>) {
   try {
+    await ensureReady();
+
     const { imageBytes, config, id } = e.data;
 
     console.log("Worker: Processing image, size:", imageBytes.length);
 
-    const result = palettify(imageBytes, config);
+    const result = await palettify(imageBytes, config);
 
     console.log("Worker: Processing complete, result size:", result.length);
 

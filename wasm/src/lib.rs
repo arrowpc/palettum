@@ -1,10 +1,8 @@
-use palettum::{error::Result, media::load_media_from_memory, Config, Palette};
+use palettum::{error::Result, gpu, media::load_media_from_memory, Config, Palette};
 use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::js_sys::Uint8Array;
 use web_time::Instant;
-
-// TODO:
-// pub use wasm_bindgen_rayon::init_thread_pool;
 
 #[wasm_bindgen(start)]
 pub fn wasm_init() {
@@ -14,11 +12,22 @@ pub fn wasm_init() {
 }
 
 #[wasm_bindgen]
-pub fn palettify(image_bytes: Vec<u8>, config: Config) -> StdResult<Vec<u8>, JsValue> {
-    _palettify(image_bytes, config).map_err(|e| JsValue::from_str(&e.to_string()))
+pub async fn init_gpu_processor() -> StdResult<(), JsValue> {
+    gpu::get_gpu_processor()
+        .await
+        .map(|_| ())
+        .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
-fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
+#[wasm_bindgen]
+pub async fn palettify(image_bytes: Vec<u8>, config: Config) -> StdResult<Uint8Array, JsValue> {
+    let result = _palettify(image_bytes, config)
+        .await
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+    Ok(Uint8Array::from(&result[..]))
+}
+
+async fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
     let start_time = Instant::now();
     log::info!("Received image bytes for processing in WASM...");
 
@@ -33,7 +42,7 @@ fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
         config.resize_scale,
         config.filter,
     )?;
-    media.palettify(&config)?;
+    media.palettify(&config).await?;
 
     let duration = start_time.elapsed();
     log::info!("Palettification completed in {:?}", duration);

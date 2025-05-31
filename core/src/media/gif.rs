@@ -17,6 +17,7 @@ use std::{
     path::PathBuf,
 };
 
+#[derive(Clone)]
 pub struct Gif {
     pub frames: Vec<Frame>,
     pub width: u32,

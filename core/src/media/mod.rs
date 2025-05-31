@@ -13,6 +13,7 @@ use crate::{
 };
 use std::path::Path;
 
+#[derive(Clone)]
 pub enum Media {
     Gif(Gif),
     Ico(Ico),

@@ -1,17 +1,22 @@
 /// <reference lib="webworker" />
-import { palettify, init_gpu_processor } from "palettum";
+import {
+  palettify,
+  init_gpu_processor,
+  load_media,
+  clear_media,
+} from "palettum";
 import type { Config } from "palettum";
 
-interface WorkerRequest {
-  id: number;
-  imageBytes: Uint8Array;
-  config: Config;
-}
+type WorkerRequest =
+  | { id: number; type: "load"; bytes: Uint8Array }
+  | { id: number; type: "palettify"; config: Config }
+  | { id: number; type: "clear" }
+  | { id: number; type: "init" };
 
 interface WorkerSuccessResponse {
   id: number;
   status: "success";
-  result: Uint8Array;
+  result?: Uint8Array;
 }
 
 interface WorkerErrorResponse {
@@ -20,7 +25,6 @@ interface WorkerErrorResponse {
   error: string;
 }
 
-// Initialize WASM and GPU processor before handling any messages
 let ready: Promise<void> | null = null;
 
 function ensureReady() {
@@ -34,29 +38,48 @@ function ensureReady() {
 }
 
 self.onmessage = async function(e: MessageEvent<WorkerRequest>) {
+  const { id, type } = e.data;
   try {
     await ensureReady();
 
-    const { imageBytes, config, id } = e.data;
-
-    console.log("Worker: Processing image, size:", imageBytes.length);
-
-    const result = await palettify(imageBytes, config);
-
-    console.log("Worker: Processing complete, result size:", result.length);
-
-    const response: WorkerSuccessResponse = {
-      id,
-      status: "success",
-      result,
-    };
-
-    (self as DedicatedWorkerGlobalScope).postMessage(response, [result.buffer]);
+    if (type === "init") {
+      console.log("Worker: Received 'init' message. GPU should be ready.");
+      (self as DedicatedWorkerGlobalScope).postMessage({
+        id,
+        status: "success",
+      } as WorkerSuccessResponse);
+    } else if (type === "load") {
+      console.log("Worker: Received 'load' message.");
+      load_media(e.data.bytes);
+      console.log("Worker: 'load_media' WASM call appears successful from JS.");
+      (self as DedicatedWorkerGlobalScope).postMessage({
+        id,
+        status: "success",
+      } as WorkerSuccessResponse);
+    } else if (type === "palettify") {
+      const result = await palettify(e.data.config);
+      (self as DedicatedWorkerGlobalScope).postMessage(
+        {
+          id,
+          status: "success",
+          result,
+        } as WorkerSuccessResponse,
+        [result.buffer],
+      );
+    } else if (type === "clear") {
+      clear_media();
+      (self as DedicatedWorkerGlobalScope).postMessage({
+        id,
+        status: "success",
+      } as WorkerSuccessResponse);
+    } else {
+      throw new Error("Unknown worker request type");
+    }
   } catch (error: any) {
     console.error("Worker error:", error);
 
     const response: WorkerErrorResponse = {
-      id: e.data.id,
+      id: (e.data as any).id,
       status: "error",
       error: error instanceof Error ? error.message : String(error),
     };

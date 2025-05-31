@@ -1,11 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LIMITS } from "@/lib/palettes";
 import SharedImagePreview from "./SharedImagePreview";
-import { X } from "lucide-react";
+import { load, clear } from "@/lib/palettumWorker";
 
 interface ImageUploadProps {
   onFileSelect: (file: File | null) => void;
@@ -43,7 +43,9 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   }, [selectedFile]);
 
   const validateFile = useCallback(
-    (file: File | null) => {
+    async (file: File | null) => {
+      console.log("validateFile called with", file);
+
       if (!file) {
         setSelectedFile(null);
         onFileSelect(null);
@@ -51,6 +53,8 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
+        await clear();
+        console.log("Cleared image in worker");
         return true;
       }
 
@@ -59,6 +63,8 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         setError(`Invalid file type. Please upload a ${validTypesString}.`);
         setTimeout(() => setShake(false), 300);
         if (fileInputRef.current) fileInputRef.current.value = "";
+        await clear();
+        console.log("Invalid file type, cleared in worker");
         return false;
       }
 
@@ -69,63 +75,77 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         );
         setTimeout(() => setShake(false), 300);
         if (fileInputRef.current) fileInputRef.current.value = "";
+        await clear();
+        console.log("File too large, cleared in worker");
         return false;
       }
 
-      const img = new Image();
+      const img = new window.Image();
       const url = URL.createObjectURL(file);
 
-      img.onload = () => {
-        URL.revokeObjectURL(url);
+      return new Promise<boolean>((resolve) => {
+        img.onload = async () => {
+          URL.revokeObjectURL(url);
 
-        if (
-          img.width > LIMITS.MAX_DIMENSION ||
-          img.height > LIMITS.MAX_DIMENSION
-        ) {
+          if (
+            img.width > LIMITS.MAX_DIMENSION ||
+            img.height > LIMITS.MAX_DIMENSION
+          ) {
+            setShake(true);
+            setError(
+              `Image dimensions cannot exceed ${LIMITS.MAX_DIMENSION}px. Please upload a smaller image.`,
+            );
+            setTimeout(() => setShake(false), 300);
+            setSelectedFile(null);
+            onFileSelect(null);
+            if (fileInputRef.current) fileInputRef.current.value = "";
+            await clear();
+            console.log("Image too large, cleared in worker");
+            resolve(false);
+            return;
+          }
+
+          setError(null);
+          setSelectedFile(file);
+          onFileSelect(file);
+
+          const arrayBuffer = await file.arrayBuffer();
+          await load(new Uint8Array(arrayBuffer));
+          console.log("Loaded image in worker");
+          resolve(true);
+        };
+
+        img.onerror = async () => {
+          URL.revokeObjectURL(url);
           setShake(true);
-          setError(
-            `Image dimensions cannot exceed ${LIMITS.MAX_DIMENSION}px. Please upload a smaller image.`,
-          );
+          setError("Failed to load image. Please try another file.");
           setTimeout(() => setShake(false), 300);
           setSelectedFile(null);
           onFileSelect(null);
           if (fileInputRef.current) fileInputRef.current.value = "";
-          return;
-        }
+          await clear();
+          console.log("Failed to load image, cleared in worker");
+          resolve(false);
+        };
 
-        setError(null);
-        setSelectedFile(file);
-        onFileSelect(file);
-      };
-
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        setShake(true);
-        setError("Failed to load image. Please try another file.");
-        setTimeout(() => setShake(false), 300);
-        setSelectedFile(null);
-        onFileSelect(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      };
-
-      img.src = url;
-      return true;
+        img.src = url;
+      });
     },
     [onFileSelect, validTypesString],
   );
 
   const handleFileChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
-      validateFile(file || null);
+      await validateFile(file || null);
     },
     [validateFile],
   );
 
   const handleRemoveImage = useCallback(
-    (e?: React.MouseEvent) => {
+    async (e?: React.MouseEvent) => {
       e?.stopPropagation();
-      validateFile(null);
+      await validateFile(null);
     },
     [validateFile],
   );
@@ -141,7 +161,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   );
 
   const handleDrop = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
+    async (event: React.DragEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
       if (selectedFile) return;
@@ -154,7 +174,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         setTimeout(() => setShake(false), 300);
         return;
       }
-      validateFile(files[0] || null);
+      await validateFile(files[0] || null);
     },
     [validateFile, selectedFile],
   );
@@ -172,7 +192,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   );
 
   const handlePaste = useCallback(
-    (event: ClipboardEvent) => {
+    async (event: ClipboardEvent) => {
       if (selectedFile) return;
 
       const activeElement = document.activeElement;
@@ -201,7 +221,8 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           if (items[i].type.startsWith("image/")) {
             const file = items[i].getAsFile();
             if (file && validTypes.includes(file.type)) {
-              if (validateFile(file)) event.preventDefault();
+              const valid = await validateFile(file);
+              if (valid) event.preventDefault();
               imageFound = true;
               break;
             } else if (file) {
@@ -233,8 +254,13 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   );
 
   useEffect(() => {
-    document.addEventListener("paste", handlePaste);
-    return () => document.removeEventListener("paste", handlePaste);
+    const handler = (e: ClipboardEvent) => {
+      handlePaste(e).catch((err) => {
+        console.error("Paste handler error:", err);
+      });
+    };
+    document.addEventListener("paste", handler);
+    return () => document.removeEventListener("paste", handler);
   }, [handlePaste]);
 
   return (
@@ -269,7 +295,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <Button onClick={triggerFileInput} variant="outline" size="sm">
+            <Button onClick={handleButtonClick} variant="outline" size="sm">
               Change
             </Button>
           </div>

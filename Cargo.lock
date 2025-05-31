@@ -2152,6 +2152,7 @@ version = "0.5.2"
 dependencies = [
  "console_error_panic_hook",
  "log",
+ "once_cell",
  "palettum",
  "wasm-bindgen",
  "wasm-bindgen-futures",

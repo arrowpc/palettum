@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import ImageDimensions from "@/components/ImageDimensions";
 import PaletteManager from "@/components/PaletteManager";
@@ -33,6 +33,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
+import { initializeWorker } from "@/lib/palettumWorker";
 
 if (import.meta.env.MODE === "development") {
   import("react-scan").then(({ scan }) => {
@@ -57,6 +58,21 @@ const MAPPING_TOOLTIPS: Record<MappingKey, string> = {
 };
 
 function App() {
+  useEffect(() => {
+    initializeWorker()
+      .then(() => {
+        console.log(
+          "App: Palettum worker initialized successfully on app mount.",
+        );
+      })
+      .catch((error) => {
+        console.error(
+          "App: Failed to initialize palettum worker on app mount:",
+          error,
+        );
+      });
+  }, []);
+
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [dimensions, setDimensions] = useState({
     width: null as number | null,

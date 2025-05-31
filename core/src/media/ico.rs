@@ -13,6 +13,7 @@ use std::io::Cursor;
 use std::path::Path;
 use std::{fs::File, path::PathBuf};
 
+#[derive(Clone)]
 pub struct Ico {
     pub buffers: Vec<RgbaImage>,
     pub widths: Vec<u32>,

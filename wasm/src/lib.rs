@@ -1,8 +1,11 @@
-use palettum::{error::Result, gpu, media::load_media_from_memory, Config, Palette};
-use std::result::Result as StdResult;
+use once_cell::sync::Lazy;
+use palettum::{error::Result, gpu, media::load_media_from_memory, Config, Media, Palette};
+use std::{result::Result as StdResult, sync::Mutex};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::js_sys::Uint8Array;
 use web_time::Instant;
+
+static MEDIA: Lazy<Mutex<Option<Media>>> = Lazy::new(|| Mutex::new(None));
 
 #[wasm_bindgen(start)]
 pub fn wasm_init() {
@@ -20,22 +23,49 @@ pub async fn init_gpu_processor() -> StdResult<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub async fn palettify(image_bytes: Vec<u8>, config: Config) -> StdResult<Uint8Array, JsValue> {
-    let result = _palettify(image_bytes, config)
+pub fn load_media(bytes: Vec<u8>) {
+    log::info!("Loading media...");
+    let media = match load_media_from_memory(&bytes) {
+        Ok(m) => m,
+        Err(e) => {
+            log::error!("Failed to load media: {}", e);
+            return;
+        }
+    };
+    let mut guard = MEDIA.lock().unwrap();
+    *guard = Some(media);
+    log::info!("Loaded media");
+}
+
+#[wasm_bindgen]
+pub fn clear_media() {
+    log::info!("Clearing media...");
+    let mut guard = MEDIA.lock().unwrap();
+    *guard = None;
+}
+
+#[wasm_bindgen]
+pub async fn palettify(config: Config) -> StdResult<Uint8Array, JsValue> {
+    let media = {
+        let guard = MEDIA.lock().unwrap();
+        guard
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No media loaded"))?
+            .clone()
+    };
+
+    let result = _palettify(&mut media.clone(), config)
         .await
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     Ok(Uint8Array::from(&result[..]))
 }
 
-async fn _palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
+async fn _palettify(media: &mut Media, config: Config) -> Result<Vec<u8>> {
     let start_time = Instant::now();
     log::info!("Received image bytes for processing in WASM...");
 
     log::info!("Using config: {}", config);
     log::info!("Resize filter: {:?} ", config.filter);
-
-    let bytes = image_bytes.to_vec();
-    let mut media = load_media_from_memory(&bytes)?;
     media.resize(
         config.resize_width,
         config.resize_height,

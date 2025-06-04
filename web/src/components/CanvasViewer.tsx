@@ -5,6 +5,9 @@ import React, {
   useCallback,
   memo,
   useMemo,
+  MouseEvent as ReactMouseEvent,
+  TouchEvent as ReactTouchEvent,
+  WheelEvent as ReactWheelEvent,
 } from "react";
 import { ZoomIn, ZoomOut, RotateCcw, X } from "lucide-react";
 import { useDebounceCallback } from "usehooks-ts";
@@ -20,14 +23,16 @@ import {
   DialogOverlay,
 } from "@/components/ui/dialog";
 
+// useContinuousTap hook remains the same
+
 function useContinuousTap(
-  singleTap: (e: React.MouseEvent | React.TouchEvent) => void,
-  doubleTap: (e: React.MouseEvent | React.TouchEvent) => void,
+  singleTap: (e: ReactMouseEvent | ReactTouchEvent) => void,
+  doubleTap: (e: ReactMouseEvent | ReactTouchEvent) => void,
 ) {
   const continuousClick = useRef(0);
 
   const debounceTap = useDebounceCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
+    (e: ReactMouseEvent | ReactTouchEvent) => {
       continuousClick.current = 0;
       singleTap(e);
     },
@@ -35,7 +40,7 @@ function useContinuousTap(
   );
 
   return useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
+    (e: ReactMouseEvent | ReactTouchEvent) => {
       continuousClick.current += 1;
       debounceTap(e);
 
@@ -49,27 +54,35 @@ function useContinuousTap(
   );
 }
 
-interface ImageViewerProps {
-  imageUrl: string;
+interface CanvasViewerProps {
+  canvas: OffscreenCanvas | null;
   onClose: () => void;
+  altText?: string;
+  // You might need to pass sourceMediaType if specific logic depends on it,
+  // but the continuous render loop will work for both image/video OffscreenCanvas.
+  // sourceMediaType?: "image" | "video" | null;
 }
 
 const ViewerBackground = memo(() => {
-  return <DialogOverlay className="bg-overlay-background" />;
+  return <DialogOverlay className="bg-overlay-background" />; // Ensure this CSS class provides desired background
 });
+ViewerBackground.displayName = "ViewerBackground";
 
 const ViewerDialogHeader = memo(() => {
+  // ... (remains the same)
   return (
     <DialogHeader className="sr-only">
-      <DialogTitle>Image Preview</DialogTitle>
+      <DialogTitle>Canvas Preview</DialogTitle>
       <DialogDescription>
-        Image viewer with zoom and pan controls
+        Canvas viewer with zoom and pan controls
       </DialogDescription>
     </DialogHeader>
   );
 });
+ViewerDialogHeader.displayName = "ViewerDialogHeader";
 
 interface ToolbarProps {
+  // ... (remains the same)
   zoomLevel: number;
   zoomLimits: { min: number; max: number };
   resetView: () => void;
@@ -92,6 +105,7 @@ const Toolbar: React.FC<ToolbarProps> = memo(
     isDefaultView,
     onClose,
   }) => {
+    // ... (remains the same)
     const isMinZoom = Math.abs(zoomLevel - zoomLimits.min) < 0.001;
     const isMaxZoom = Math.abs(zoomLevel - zoomLimits.max) < 0.001;
 
@@ -105,6 +119,7 @@ const Toolbar: React.FC<ToolbarProps> = memo(
             "transition-colors shadow-sm",
             isMinZoom && "opacity-50 cursor-not-allowed",
           )}
+          aria-label="Zoom out"
         >
           <ZoomOut className="h-4 w-4" />
         </Button>
@@ -116,6 +131,7 @@ const Toolbar: React.FC<ToolbarProps> = memo(
             "transition-colors shadow-sm",
             isMaxZoom && "opacity-50 cursor-not-allowed",
           )}
+          aria-label="Zoom in"
         >
           <ZoomIn className="h-4 w-4" />
         </Button>
@@ -127,6 +143,7 @@ const Toolbar: React.FC<ToolbarProps> = memo(
             "transition-colors shadow-sm",
             isDefaultView && "opacity-50 cursor-not-allowed",
           )}
+          aria-label="Reset view"
         >
           <RotateCcw className="h-4 w-4" />
         </Button>
@@ -137,6 +154,7 @@ const Toolbar: React.FC<ToolbarProps> = memo(
               "bg-destructive hover:bg-destructive-hover text-destructive-foreground w-8 h-8 p-0",
               "transition-colors shadow-sm",
             )}
+            aria-label="Close viewer"
           >
             <X className="h-4 w-4" />
           </Button>
@@ -144,16 +162,12 @@ const Toolbar: React.FC<ToolbarProps> = memo(
       </div>
     );
   },
-  (prevProps, nextProps) =>
-    prevProps.zoomLevel === nextProps.zoomLevel &&
-    prevProps.zoomLimits.min === nextProps.zoomLimits.min &&
-    prevProps.zoomLimits.max === nextProps.zoomLimits.max &&
-    prevProps.isDefaultView === nextProps.isDefaultView &&
-    prevProps.handleZoom === nextProps.handleZoom,
 );
+Toolbar.displayName = "Toolbar";
 
 const StableDialogContent = memo(
   ({ children }: { children: React.ReactNode }) => {
+    // ... (remains the same)
     return (
       <DialogContent className="max-w-5xl w-full p-0 overflow-hidden">
         {children}
@@ -161,46 +175,52 @@ const StableDialogContent = memo(
     );
   },
 );
+StableDialogContent.displayName = "StableDialogContent";
 
-const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
+const CanvasViewer: React.FC<CanvasViewerProps> = ({
+  canvas: canvasProp,
+  onClose,
+  altText = "Canvas Preview",
+}) => {
   const [zoomLevel, setZoomLevel] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [zoomLimits, setZoomLimits] = useState({ min: 0.1, max: 10 });
-  const [, setImageSize] = useState({ width: 0, height: 0 });
   const [touchDistance, setTouchDistance] = useState(0);
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [canvasReady, setCanvasReady] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
-  const rafRef = useRef<number>();
+  const displayCanvasRef = useRef<HTMLCanvasElement>(null);
+  const panRafRef = useRef<number>(); // Renamed from rafRef for clarity
+  const renderLoopRafRef = useRef<number>(); // For the continuous render loop
   const defaultZoomRef = useRef<number>(1);
 
   const ZOOM_STEP = 1.2;
   const TARGET_MAX_PIXEL_SIZE = 256;
 
   const calculateZoomLimits = useCallback(() => {
-    if (!viewportRef.current || !imageRef.current) return { min: 0.1, max: 10 };
-
-    const image = imageRef.current;
+    // ... (remains the same)
+    if (!viewportRef.current || !canvasProp) return { min: 0.1, max: 10 };
+    const sourceCanvas = canvasProp;
     const pixelOneToOne = window.devicePixelRatio || 1;
-    const MIN_IMAGE_SIZE = 200;
-    const minWidthZoom = MIN_IMAGE_SIZE / image.naturalWidth;
-    const minHeightZoom = MIN_IMAGE_SIZE / image.naturalHeight;
-    const minZoom = Math.max(minWidthZoom, minHeightZoom);
+    const MIN_CANVAS_DISPLAY_SIZE = 200;
+    if (sourceCanvas.width === 0 || sourceCanvas.height === 0)
+      return { min: 0.1, max: 10 };
+    const minWidthZoom = MIN_CANVAS_DISPLAY_SIZE / sourceCanvas.width;
+    const minHeightZoom = MIN_CANVAS_DISPLAY_SIZE / sourceCanvas.height;
+    const minZoom = Math.max(0.01, Math.max(minWidthZoom, minHeightZoom));
     const maxZoom = pixelOneToOne * TARGET_MAX_PIXEL_SIZE;
-
-    return { min: minZoom, max: maxZoom };
-  }, []);
+    return { min: Math.min(minZoom, 1), max: Math.max(maxZoom, 1.1) };
+  }, [canvasProp]);
 
   const calculateBoundaries = useCallback(() => {
-    if (!viewportRef.current || !imageRef.current)
+    // ... (remains the same)
+    if (!viewportRef.current || !canvasProp)
       return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
-
     const viewport = viewportRef.current;
-    const image = imageRef.current;
-    const scaledWidth = image.naturalWidth * zoomLevel;
-    const scaledHeight = image.naturalHeight * zoomLevel;
+    const sourceCanvas = canvasProp;
+    const scaledWidth = sourceCanvas.width * zoomLevel;
+    const scaledHeight = sourceCanvas.height * zoomLevel;
     const horizontalOverflow = Math.max(
       0,
       (scaledWidth - viewport.clientWidth) / 2,
@@ -209,31 +229,34 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
       0,
       (scaledHeight - viewport.clientHeight) / 2,
     );
-
     return {
       minX: -horizontalOverflow,
       maxX: horizontalOverflow,
       minY: -verticalOverflow,
       maxY: verticalOverflow,
     };
-  }, [zoomLevel]);
+  }, [zoomLevel, canvasProp]);
 
   const calculateFitToViewZoom = useCallback(() => {
-    if (!viewportRef.current || !imageRef.current) return 1;
-
+    // ... (remains the same)
+    if (
+      !viewportRef.current ||
+      !canvasProp ||
+      canvasProp.width === 0 ||
+      canvasProp.height === 0
+    )
+      return 1;
     const viewport = viewportRef.current;
-    const image = imageRef.current;
-
+    const sourceCanvas = canvasProp;
     const viewportWidth = viewport.clientWidth;
     const viewportHeight = viewport.clientHeight;
-
-    const widthRatio = viewportWidth / image.naturalWidth;
-    const heightRatio = viewportHeight / image.naturalHeight;
-
+    const widthRatio = viewportWidth / sourceCanvas.width;
+    const heightRatio = viewportHeight / sourceCanvas.height;
     return Math.min(widthRatio, heightRatio) * 0.95;
-  }, []);
+  }, [canvasProp]);
 
   const isDefaultView = useMemo(() => {
+    // ... (remains the same)
     const zoomDiff = Math.abs(zoomLevel - defaultZoomRef.current) < 0.001;
     const positionAtOrigin =
       Math.abs(position.x) < 1 && Math.abs(position.y) < 1;
@@ -241,13 +264,16 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   }, [zoomLevel, position]);
 
   const resetView = useCallback(() => {
+    // ... (remains the same)
+    if (!canvasProp || !viewportRef.current) return;
     const newZoom = calculateFitToViewZoom();
     defaultZoomRef.current = newZoom;
     setZoomLevel(newZoom);
     setPosition({ x: 0, y: 0 });
-  }, [calculateFitToViewZoom]);
+  }, [calculateFitToViewZoom, canvasProp]);
 
   const adjustPositionToBounds = useCallback(() => {
+    // ... (remains the same)
     const boundaries = calculateBoundaries();
     setPosition((prevPos) => ({
       x: Math.max(boundaries.minX, Math.min(boundaries.maxX, prevPos.x)),
@@ -255,41 +281,109 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     }));
   }, [calculateBoundaries]);
 
+  // Effect to initialize canvas dimensions, zoom, and position
   useEffect(() => {
-    const initializeImage = () => {
-      if (!imageRef.current?.complete) {
-        const handleLoad = () => {
-          if (imageRef.current) {
-            setImageSize({
-              width: imageRef.current.naturalWidth,
-              height: imageRef.current.naturalHeight,
-            });
-            resetView();
-            setZoomLimits(calculateZoomLimits());
-            setImageLoaded(true);
-          }
-        };
-        imageRef.current?.addEventListener("load", handleLoad);
-        return () => imageRef.current?.removeEventListener("load", handleLoad);
+    const initialize = () => {
+      if (
+        !canvasProp ||
+        canvasProp.width === 0 ||
+        canvasProp.height === 0 ||
+        !viewportRef.current // Needed for zoom calculations
+      ) {
+        setCanvasReady(false);
+        const displayEl = displayCanvasRef.current;
+        if (displayEl) {
+          const ctx = displayEl.getContext("2d");
+          if (ctx) ctx.clearRect(0, 0, displayEl.width, displayEl.height);
+        }
+        return;
       }
-      if (imageRef.current) {
-        setImageSize({
-          width: imageRef.current.naturalWidth,
-          height: imageRef.current.naturalHeight,
-        });
+
+      const displayEl = displayCanvasRef.current;
+      if (displayEl) {
+        if (displayEl.width !== canvasProp.width) {
+          displayEl.width = canvasProp.width;
+        }
+        if (displayEl.height !== canvasProp.height) {
+          displayEl.height = canvasProp.height;
+        }
       }
-      resetView();
-      setZoomLimits(calculateZoomLimits());
-      setImageLoaded(true);
+
+      const newLimits = calculateZoomLimits();
+      setZoomLimits(newLimits);
+      const fitZoom = calculateFitToViewZoom();
+      defaultZoomRef.current = fitZoom;
+      setZoomLevel(fitZoom);
+      setPosition({ x: 0, y: 0 });
+      setCanvasReady(true);
     };
 
-    const frame = requestAnimationFrame(initializeImage);
-    return () => cancelAnimationFrame(frame);
-  }, [imageUrl, resetView, calculateZoomLimits]);
+    // Use rAF for initialization to ensure DOM elements are measured correctly
+    const frameId = requestAnimationFrame(initialize);
+    return () => cancelAnimationFrame(frameId);
+  }, [canvasProp, calculateFitToViewZoom, calculateZoomLimits]);
 
+  // Effect for continuous rendering onto the displayCanvasRef
   useEffect(() => {
-    adjustPositionToBounds();
-  }, [zoomLevel, adjustPositionToBounds]);
+    if (!canvasReady || !canvasProp || !displayCanvasRef.current) {
+      if (renderLoopRafRef.current) {
+        cancelAnimationFrame(renderLoopRafRef.current);
+      }
+      return;
+    }
+
+    const displayEl = displayCanvasRef.current;
+    const sourceCanvas = canvasProp;
+    const ctx = displayEl.getContext("2d");
+
+    if (!ctx) {
+      if (renderLoopRafRef.current) {
+        cancelAnimationFrame(renderLoopRafRef.current);
+      }
+      console.error("CanvasViewer: Failed to get 2D context for rendering");
+      return;
+    }
+
+    // Ensure display canvas intrinsic size is correct (might be set by init effect too)
+    if (displayEl.width !== sourceCanvas.width) {
+      displayEl.width = sourceCanvas.width;
+    }
+    if (displayEl.height !== sourceCanvas.height) {
+      displayEl.height = sourceCanvas.height;
+    }
+
+    let isActive = true;
+    const renderLoop = () => {
+      if (!isActive || !sourceCanvas || !displayEl.isConnected) {
+        if (renderLoopRafRef.current) {
+          cancelAnimationFrame(renderLoopRafRef.current);
+        }
+        return;
+      }
+
+      ctx.imageSmoothingEnabled = !(zoomLevel > 3);
+      ctx.clearRect(0, 0, displayEl.width, displayEl.height);
+      ctx.drawImage(sourceCanvas, 0, 0, displayEl.width, displayEl.height);
+
+      renderLoopRafRef.current = requestAnimationFrame(renderLoop);
+    };
+
+    renderLoop();
+
+    return () => {
+      isActive = false;
+      if (renderLoopRafRef.current) {
+        cancelAnimationFrame(renderLoopRafRef.current);
+      }
+    };
+  }, [canvasReady, canvasProp, zoomLevel]); // zoomLevel for imageSmoothingEnabled
+
+  // Effect to adjust position when zoom changes (after canvas is ready)
+  useEffect(() => {
+    if (canvasReady) {
+      adjustPositionToBounds();
+    }
+  }, [zoomLevel, canvasReady, adjustPositionToBounds]);
 
   const handleZoom = useCallback(
     (
@@ -298,7 +392,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
       clientY?: number,
       targetZoom?: number,
     ) => {
-      if (!viewportRef.current || !imageRef.current) return;
+      // ... (remains the same)
+      if (!viewportRef.current || !canvasProp) return;
       const viewport = viewportRef.current;
       const viewportRect = viewport.getBoundingClientRect();
       const zoomPointX =
@@ -306,39 +401,42 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
       const zoomPointY =
         clientY ?? (viewportRect.top + viewportRect.bottom) / 2;
 
-      const imageCenterX = viewportRect.width / 2 + position.x;
-      const imageCenterY = viewportRect.height / 2 + position.y;
-      const offsetX = zoomPointX - viewportRect.left - imageCenterX;
-      const offsetY = zoomPointY - viewportRect.top - imageCenterY;
+      const currentCanvasCenterX = viewportRect.width / 2 + position.x;
+      const currentCanvasCenterY = viewportRect.height / 2 + position.y;
+      const offsetX = zoomPointX - viewportRect.left - currentCanvasCenterX;
+      const offsetY = zoomPointY - viewportRect.top - currentCanvasCenterY;
 
       const newZoom =
         targetZoom ??
         (zoomIn
           ? Math.min(zoomLevel * ZOOM_STEP, zoomLimits.max)
           : Math.max(zoomLevel / ZOOM_STEP, zoomLimits.min));
-
       const clampedZoom = Math.max(
         zoomLimits.min,
         Math.min(zoomLimits.max, newZoom),
       );
+      if (Math.abs(clampedZoom - zoomLevel) < 0.00001) return;
 
-      const scale = clampedZoom / zoomLevel;
-      const newX = position.x - offsetX * (scale - 1);
-      const newY = position.y - offsetY * (scale - 1);
+      const scaleChange = clampedZoom / zoomLevel;
+      const newX = position.x - offsetX * (scaleChange - 1);
+      const newY = position.y - offsetY * (scaleChange - 1);
 
       setZoomLevel(clampedZoom);
       setPosition({ x: newX, y: newY });
     },
-    [zoomLevel, position, zoomLimits],
+    [zoomLevel, position, zoomLimits, canvasProp],
   );
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleMouseDown = useCallback((e: ReactMouseEvent) => {
+    // ... (remains the same)
+    if (e.button !== 0) return;
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
   }, []);
 
   const updatePosition = useCallback(
     (deltaX: number, deltaY: number) => {
+      // ... (remains the same)
       const boundaries = calculateBoundaries();
       setPosition((prev) => ({
         x: Math.max(
@@ -355,14 +453,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   );
 
   const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+    (e: ReactMouseEvent) => {
+      // ... (remains the same, uses panRafRef)
       if (!isDragging) return;
-
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
+      if (panRafRef.current) {
+        cancelAnimationFrame(panRafRef.current);
       }
-
-      rafRef.current = requestAnimationFrame(() => {
+      panRafRef.current = requestAnimationFrame(() => {
         const deltaX = e.clientX - dragStart.x;
         const deltaY = e.clientY - dragStart.y;
         updatePosition(deltaX, deltaY);
@@ -373,12 +470,13 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   );
 
   const handleDoubleClick = useCallback(
-    (e: React.MouseEvent | React.TouchEvent) => {
+    (e: ReactMouseEvent | ReactTouchEvent) => {
+      // ... (remains the same)
       e.preventDefault();
       if (!isDefaultView) {
         resetView();
       } else {
-        const targetZoom = zoomLevel * 2.5;
+        const targetZoomFactor = 2.5;
         const clientX =
           "clientX" in e
             ? e.clientX
@@ -387,7 +485,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
           "clientY" in e
             ? e.clientY
             : e.touches[0]?.clientY || window.innerHeight / 2;
-        handleZoom(true, clientX, clientY, targetZoom);
+        handleZoom(true, clientX, clientY, zoomLevel * targetZoomFactor);
       }
     },
     [zoomLevel, isDefaultView, resetView, handleZoom],
@@ -397,21 +495,26 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   const handleTap = useContinuousTap(handleSingleTap, handleDoubleClick);
 
   const handleMouseUp = useCallback(() => {
+    // ... (remains the same, uses panRafRef)
     setIsDragging(false);
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
+    if (panRafRef.current) {
+      cancelAnimationFrame(panRafRef.current);
     }
   }, []);
 
   const handleWheel = useCallback(
-    (e: React.WheelEvent) => {
+    (e: ReactWheelEvent) => {
+      // ... (remains the same)
       e.preventDefault();
       handleZoom(e.deltaY < 0, e.clientX, e.clientY);
     },
     [handleZoom],
   );
 
-  const getDistance = useCallback((touches: React.TouchList) => {
+  // Touch handlers (getDistance, getMidpoint, handleTouchStart, handleTouchMove, handleTouchEnd)
+  // remain the same, ensure handleTouchMove uses panRafRef for panning.
+  const getDistance = useCallback((touches: TouchList) => {
+    // ...
     if (touches.length < 2) return 0;
     return Math.hypot(
       touches[0].clientX - touches[1].clientX,
@@ -419,7 +522,8 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     );
   }, []);
 
-  const getMidpoint = useCallback((touches: React.TouchList) => {
+  const getMidpoint = useCallback((touches: TouchList) => {
+    // ...
     if (touches.length < 2) {
       return { x: touches[0]?.clientX || 0, y: touches[0]?.clientY || 0 };
     }
@@ -430,35 +534,33 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   }, []);
 
   const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      if (e.touches.length === 2) {
+    (e: ReactTouchEvent) => {
+      // ...
+      if (e.touches.length >= 2) {
         e.preventDefault();
-      }
-
-      if (e.touches.length === 1) {
+        setTouchDistance(getDistance(e.touches));
+        setIsDragging(false);
+      } else if (e.touches.length === 1) {
         setIsDragging(true);
         setDragStart({
           x: e.touches[0].clientX,
           y: e.touches[0].clientY,
         });
-      } else if (e.touches.length === 2) {
-        setTouchDistance(getDistance(e.touches));
       }
     },
     [getDistance],
   );
 
   const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
+    (e: ReactTouchEvent) => {
+      // ... (uses panRafRef)
       if (e.touches.length >= 2) {
         e.preventDefault();
       }
-
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
+      if (panRafRef.current) {
+        cancelAnimationFrame(panRafRef.current);
       }
-
-      rafRef.current = requestAnimationFrame(() => {
+      panRafRef.current = requestAnimationFrame(() => {
         if (e.touches.length === 1 && isDragging) {
           const deltaX = e.touches[0].clientX - dragStart.x;
           const deltaY = e.touches[0].clientY - dragStart.y;
@@ -472,16 +574,9 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
           if (touchDistance > 0) {
             const scale = currentDistance / touchDistance;
             const midpoint = getMidpoint(e.touches);
-            const zoomIn = scale > 1;
-
             if (Math.abs(scale - 1) > 0.01) {
-              const rawTargetZoom = zoomLevel * scale;
-              const targetZoom = Math.max(
-                zoomLimits.min,
-                Math.min(zoomLimits.max, rawTargetZoom),
-              );
-
-              handleZoom(zoomIn, midpoint.x, midpoint.y, targetZoom);
+              const targetZoom = zoomLevel * scale;
+              handleZoom(scale > 1, midpoint.x, midpoint.y, targetZoom);
             }
           }
           setTouchDistance(currentDistance);
@@ -493,7 +588,6 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
       dragStart,
       touchDistance,
       zoomLevel,
-      zoomLimits,
       updatePosition,
       getDistance,
       getMidpoint,
@@ -502,65 +596,72 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   );
 
   const handleTouchEnd = useCallback(() => {
+    // ... (uses panRafRef)
     setIsDragging(false);
     setTouchDistance(0);
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
+    if (panRafRef.current) {
+      cancelAnimationFrame(panRafRef.current);
     }
   }, []);
 
+  // Cleanup for panRafRef and renderLoopRafRef
   useEffect(() => {
     return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
+      if (panRafRef.current) {
+        cancelAnimationFrame(panRafRef.current);
+      }
+      if (renderLoopRafRef.current) {
+        cancelAnimationFrame(renderLoopRafRef.current);
       }
     };
   }, []);
 
+  // Prevent scroll effect
   useEffect(() => {
-    const preventDefaultForDoubleTouch = (e: TouchEvent) => {
+    // ... (remains the same)
+    const preventDefaultScroll = (e: Event) => {
       if (viewportRef.current?.contains(e.target as Node)) {
         e.preventDefault();
       }
     };
-
-    document.addEventListener("dblclick", preventDefaultForDoubleTouch as any, {
+    const currentViewport = viewportRef.current;
+    currentViewport?.addEventListener("wheel", preventDefaultScroll, {
       passive: false,
     });
-
+    currentViewport?.addEventListener("touchmove", preventDefaultScroll, {
+      passive: false,
+    });
     return () => {
-      document.removeEventListener(
-        "dblclick",
-        preventDefaultForDoubleTouch as any,
-      );
+      currentViewport?.removeEventListener("wheel", preventDefaultScroll);
+      currentViewport?.removeEventListener("touchmove", preventDefaultScroll);
     };
   }, []);
 
-  const ImageContent = useMemo(() => {
+  const CanvasDisplay = useMemo(() => {
+    // ... (remains the same)
     return (
       <div className="absolute inset-0 flex items-center justify-center">
-        <img
-          ref={imageRef}
-          src={imageUrl}
-          alt="Zoomed Preview"
+        <canvas
+          ref={displayCanvasRef}
+          aria-label={altText}
           className="max-w-none pointer-events-none select-none"
           style={{
             transform: `translate(${position.x}px, ${position.y}px) scale(${zoomLevel})`,
             transition: isDragging
               ? "none"
-              : "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+              : "transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
             transformOrigin: "center",
             willChange: "transform",
-            imageRendering: zoomLevel > 3 ? "pixelated" : "auto",
-            opacity: imageLoaded ? 1 : 0,
+            opacity: canvasReady ? 1 : 0,
           }}
-          draggable={false}
+        // Width and height attributes are set in useEffect
         />
       </div>
     );
-  }, [position.x, position.y, zoomLevel, isDragging, imageUrl, imageLoaded]);
+  }, [position.x, position.y, zoomLevel, isDragging, canvasReady, altText]);
 
   const containerStyle = useMemo(() => {
+    // ... (remains the same)
     const heightConstraint = "calc(90vh - 4rem)";
     return {
       height: "calc(90vh - 4rem)",
@@ -572,6 +673,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   }, []);
 
   const ViewportContent = useMemo(() => {
+    // ... (remains the same)
     return (
       <div
         ref={viewportRef}
@@ -591,7 +693,7 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
         onTouchEnd={handleTouchEnd}
         onTouchCancel={handleTouchEnd}
       >
-        {ImageContent}
+        {CanvasDisplay}
       </div>
     );
   }, [
@@ -605,11 +707,12 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
-    ImageContent,
+    CanvasDisplay,
   ]);
 
   const toolbarProps = useMemo(
     () => ({
+      // ... (remains the same)
       zoomLevel,
       zoomLimits,
       resetView,
@@ -620,26 +723,33 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
     [zoomLevel, zoomLimits, resetView, handleZoom, isDefaultView, onClose],
   );
 
+  // Viewport meta tag management
   useEffect(() => {
-    let viewportMeta = document.querySelector('meta[name="viewport"]');
+    // ... (remains the same)
+    const viewportMeta = document.querySelector('meta[name="viewport"]');
     const originalContent = viewportMeta?.getAttribute("content") || "";
+    const newContent =
+      "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no";
 
-    if (!viewportMeta) {
-      viewportMeta = document.createElement("meta");
-      viewportMeta.setAttribute("name", "viewport");
-      document.head.appendChild(viewportMeta);
+    if (viewportMeta) {
+      viewportMeta.setAttribute("content", newContent);
+    } else {
+      const newMeta = document.createElement("meta");
+      newMeta.setAttribute("name", "viewport");
+      newMeta.setAttribute("content", newContent);
+      document.head.appendChild(newMeta);
+      // Store the fact that we added it, so we can remove it.
+      (newMeta as any)._addedByCanvasViewer = true;
     }
 
-    viewportMeta.setAttribute(
-      "content",
-      "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no",
-    );
-
     return () => {
-      if (viewportMeta && originalContent) {
-        viewportMeta.setAttribute("content", originalContent);
-      } else if (viewportMeta) {
-        document.head.removeChild(viewportMeta);
+      const currentMeta = document.querySelector('meta[name="viewport"]');
+      if (currentMeta) {
+        if (originalContent) {
+          currentMeta.setAttribute("content", originalContent);
+        } else if ((currentMeta as any)._addedByCanvasViewer) {
+          currentMeta.remove();
+        }
       }
     };
   }, []);
@@ -656,4 +766,5 @@ const ImageViewer: React.FC<ImageViewerProps> = ({ imageUrl, onClose }) => {
   );
 };
 
-export default ImageViewer;
+CanvasViewer.displayName = "CanvasViewer";
+export default CanvasViewer;

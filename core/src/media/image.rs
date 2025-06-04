@@ -5,7 +5,7 @@ use crate::{
     processing, Filter, Mapping,
 };
 
-use image::{ImageFormat, Rgb, RgbaImage};
+use image::{EncodableLayout, ImageFormat, Rgb, RgbaImage};
 
 use std::path::Path;
 use std::{
@@ -268,5 +268,17 @@ impl Image {
         }
 
         Ok(())
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        self.buffer.as_bytes().to_vec()
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
     }
 }

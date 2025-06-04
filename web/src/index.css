@@ -145,3 +145,12 @@
   -moz-transition: none !important;
   -o-transition: none !important;
 }
+
+.image-rendering-pixelated {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges; /* Firefox */
+  image-rendering: crisp-edges; /* Chrome, Safari, Opera */
+}
+.image-rendering-auto {
+  image-rendering: auto;
+}

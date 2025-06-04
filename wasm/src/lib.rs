@@ -45,6 +45,17 @@ pub fn clear_media() {
 }
 
 #[wasm_bindgen]
+pub fn media_bytes() -> Uint8Array {
+    let guard = MEDIA.lock().unwrap();
+    if let Some(ref media) = *guard {
+        let bytes = media.as_bytes();
+        Uint8Array::from(bytes.as_slice())
+    } else {
+        Uint8Array::new_with_length(0)
+    }
+}
+
+#[wasm_bindgen]
 pub async fn palettify(config: Config) -> StdResult<Uint8Array, JsValue> {
     let media = {
         let guard = MEDIA.lock().unwrap();

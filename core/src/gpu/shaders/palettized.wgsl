@@ -10,20 +10,17 @@ struct Config {
     diff_formula: u32,
     smooth_formula: u32,
     palette_size: u32,
+    palette: array<vec4<u32>, 64>,
     smooth_strength: f32,
     dither_algorithm: u32,
     dither_strength: f32,
-    _pad_config1: u32,
     image_width: u32,
     image_height: u32,
-    _pad_config2: u32,
-    _pad_config3: u32,
 };
 
 @group(0) @binding(0) var<storage, read> input_rgba: array<u32>;
-@group(0) @binding(1) var<storage, read> palette: array<u32>;
-@group(0) @binding(2) var<uniform> config: Config;
-@group(0) @binding(3) var<storage, read_write> output_rgba: array<u32>;
+@group(0) @binding(1) var<uniform> config: Config;
+@group(0) @binding(2) var<storage, read_write> output_rgba: array<u32>;
 
 const WORKGROUP_SIZE_X: u32 = 16u;
 const WORKGROUP_SIZE_Y: u32 = 16u;
@@ -274,14 +271,14 @@ fn main(
                         var min_dist = 1e20;
                         var best_index = 0u;
                         for (var j = 0u; j < config.palette_size; j = j + 1u) {
-                            let pal_lab = rgba_to_lab(palette[j]);
+                            let pal_lab = rgba_to_lab(color_at(j));
                             let d = delta_e(pixel_lab, pal_lab, config.diff_formula);
                             if d < min_dist {
                                 min_dist = d;
                                 best_index = j;
                             }
                         }
-                        let quantized = palette[best_index];
+                        let quantized = color_at(best_index);
                         output_rgba[idx] = quantized;
 
                         var quant_f32 = unpack_rgba_f32(quantized);
@@ -342,7 +339,7 @@ fn main(
         var min_dist = 1e20;
         var best_i = 0u;
         for (var i = 0u; i < config.palette_size; i = i + 1u) {
-            let pal_lab = rgba_to_lab(palette[i]);
+            let pal_lab = rgba_to_lab(color_at(i));
             let d = delta_e(pixel_lab, pal_lab, config.diff_formula);
             if d < min_dist {
                 min_dist = d;
@@ -350,7 +347,7 @@ fn main(
             }
         }
 
-        var q = palette[best_i];
+        var q = color_at(best_i);
         q = (q & 0x00FFFFFFu) | (0xFFu << 24u);
         output_rgba[idx] = q;
     } else { // No dithering
@@ -370,14 +367,14 @@ fn main(
         var min_distance = 1e20;
         var best_index = 0u;
         for (var i = 0u; i < config.palette_size; i = i + 1u) {
-            let palette_lab = rgba_to_lab(palette[i]);
+            let palette_lab = rgba_to_lab(color_at(i));
             let distance = delta_e(pixel_lab, palette_lab, config.diff_formula);
             if distance < min_distance {
                 min_distance = distance;
                 best_index = i;
             }
         }
-        output_rgba[idx] = palette[best_index];
+        output_rgba[idx] = color_at(best_index);
     }
 }
 
@@ -635,4 +632,10 @@ fn rgba_to_lab(rgba: u32) -> Lab {
     let b_star: f32 = 200.0 * (fy - fz);
 
     return Lab(l_star, a_star, b_star, 0.0);
+}
+
+fn color_at(index: u32) -> u32 {
+    let vec_idx = index / 4u;
+    let component_idx = index % 4u;
+    return config.palette[vec_idx][component_idx];
 }

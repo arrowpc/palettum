@@ -37,7 +37,7 @@ import { initializeWorker } from "@/lib/palettumWorker";
 
 if (import.meta.env.MODE === "development") {
   import("react-scan").then(({ scan }) => {
-    scan({ enabled: false });
+    scan({ enabled: true });
   });
 }
 
@@ -260,7 +260,6 @@ function App() {
             filter={filter}
           />
         </div>
-
         <Footer />
       </div>
       <Toaster richColors position="bottom-center" />

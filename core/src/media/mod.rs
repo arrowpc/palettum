@@ -90,6 +90,30 @@ impl Media {
             Media::Image(_) => "png",
         }
     }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        match self {
+            Media::Gif(img) => todo!(),
+            Media::Ico(img) => todo!(),
+            Media::Image(img) => img.as_bytes(),
+        }
+    }
+
+    pub fn width(&self) -> u32 {
+        match self {
+            Media::Gif(img) => todo!(),
+            Media::Ico(img) => todo!(),
+            Media::Image(img) => img.width(),
+        }
+    }
+
+    pub fn height(&self) -> u32 {
+        match self {
+            Media::Gif(img) => todo!(),
+            Media::Ico(img) => todo!(),
+            Media::Image(img) => img.height(),
+        }
+    }
 }
 
 pub fn load_media_from_path(path: &Path) -> Result<Media> {

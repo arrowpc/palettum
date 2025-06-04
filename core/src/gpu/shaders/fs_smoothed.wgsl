@@ -10,7 +10,7 @@ struct Config {
     diff_formula: u32,
     smooth_formula: u32,
     palette_size: u32,
-    palette: array<vec4<u32>, 64>,
+palette: array<vec4<u32>, 64>,
     smooth_strength: f32,
     dither_algorithm: u32,
     dither_strength: f32,
@@ -18,25 +18,27 @@ struct Config {
     image_height: u32,
 };
 
-@group(0) @binding(0) var<storage, read> input_rgba: array<u32>;
-@group(0) @binding(1) var<uniform> config: Config;
-@group(0) @binding(2) var<storage, read_write> output_rgba: array<u32>;
+struct FragmentInput {
+    @location(0) tex_coord: vec2<f32>,
+};
 
-@compute @workgroup_size(16, 16, 1)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let x = global_id.x;
-    let y = global_id.y;
+@group(0) @binding(0) var t_input: texture_2d<f32>;
+@group(0) @binding(1) var s_input: sampler;
+@group(0) @binding(2) var<uniform> config: Config;
 
+@fragment
+fn fs_smoothed(in: FragmentInput) -> @location(0) vec4<f32> {
+    // Compute pixel coordinates
+    let x = u32(clamp(in.tex_coord.x, 0.0, 1.0) * f32(config.image_width));
+    let y = u32(clamp(in.tex_coord.y, 0.0, 1.0) * f32(config.image_height));
     if x >= config.image_width || y >= config.image_height {
-        return;
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
     }
     let index = y * config.image_width + x;
 
-    if index >= arrayLength(&input_rgba) {
-        return;
-    }
-
-    let packed_pixel_rgba = input_rgba[index];
+    // Sample input texture and pack to u32
+    let pixel = textureSample(t_input, s_input, in.tex_coord);
+    let packed_pixel_rgba = pack_rgba8(pixel);
     let alpha_u8 = (packed_pixel_rgba >> 24u) & 0xFFu;
 
     let pixel_lab = rgba_to_lab(packed_pixel_rgba);
@@ -76,12 +78,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let rgb_srgb_normalized = lab_to_rgb(avg_lab);
 
-    let r_final = u32(round(rgb_srgb_normalized.x * 255.0));
-    let g_final = u32(round(rgb_srgb_normalized.y * 255.0));
-    let b_final = u32(round(rgb_srgb_normalized.z * 255.0));
-    let a_final = alpha_u8;
-
-    output_rgba[index] = r_final | (g_final << 8u) | (b_final << 16u) | (a_final << 24u);
+    // Output as normalized color, preserve original alpha
+    return vec4<f32>(rgb_srgb_normalized, pixel.a);
 }
 
 fn compute_weight(distance: f32, formula: u32, strength: f32) -> f32 {
@@ -361,6 +359,14 @@ fn rgba_to_lab(rgba: u32) -> Lab {
     let b_star: f32 = 200.0 * (fy - fz);
 
     return Lab(l_star, a_star, b_star, 0.0);
+}
+
+fn pack_rgba8(rgba: vec4<f32>) -> u32 {
+    let r = u32(round(clamp(rgba.r, 0.0, 1.0) * 255.0));
+    let g = u32(round(clamp(rgba.g, 0.0, 1.0) * 255.0));
+    let b = u32(round(clamp(rgba.b, 0.0, 1.0) * 255.0));
+    let a = u32(round(clamp(rgba.a, 0.0, 1.0) * 255.0));
+    return r | (g << 8u) | (b << 16u) | (a << 24u);
 }
 
 fn color_at(index: u32) -> u32 {

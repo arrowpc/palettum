@@ -29,10 +29,14 @@ include_dir = "0.7"
 env_home = "0.1.0"
 ico = "0.4.0"
 png = "0.17.16"
-wgpu = "25.0.2"
+wgpu = { version = "25.0.2", features = ["webgl"] }
 bytemuck = { version = "1.23.0", features = ["derive"] }
 futures = "0.3.31"
 async-once-cell = "0.5.4"
+js-sys = "0.3.77"
+console_error_panic_hook = "0.1.7"
+wasm-bindgen-futures = "0.4.50"
+web-sys = { version = "0.3.77", features = ["console", "Window", "Document", "HtmlCanvasElement", "HtmlInputElement", "OffscreenCanvas"] }
 
 [features]
 serde = ["dep:serde"]

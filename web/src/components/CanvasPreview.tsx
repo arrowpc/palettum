@@ -252,7 +252,11 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
         <canvas
           ref={displayCanvasRef}
           style={canvasStyle}
-          className={cn(!hasContent && "hidden", canvasClassName)}
+          className={cn(
+            "transition-all duration-200 group-hover:filter group-hover:brightness-[.8]",
+            !hasContent && "hidden",
+            canvasClassName,
+          )}
           aria-label={altText}
         />
         {!hasContent && isInteractive && onUploadPlaceholderClick && (
@@ -290,7 +294,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
               </Button>
             )}
             {isInteractive && enableViewFullSize && (
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors duration-200 flex items-center justify-center pointer-events-none">
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="p-2 bg-black/50 backdrop-blur-sm rounded-md flex items-center gap-1.5 text-white opacity-0 group-hover:opacity-100 scale-90 group-hover:scale-100 transition-all duration-200">
                   <Maximize className="w-4 h-4" />
                   <span className="text-xs font-medium">View Full Size</span>

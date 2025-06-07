@@ -1,15 +1,16 @@
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { MIN_THRESHOLD, MAX_THRESHOLD } from "./adjustments.types";
+import {
+  MIN_THRESHOLD,
+  MAX_THRESHOLD,
+  DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED,
+} from "./adjustments.types";
+import { useShader } from "@/ShaderContext";
 
 interface TransparencyControlProps {
-  currentThreshold: number;
-  onThresholdChange: (value: number[]) => void;
-  transparencyEnabled: boolean;
-  onTransparencySwitchChange: (checked: boolean) => void;
   isControlDisabled: boolean;
   imageSupportsTransparency: boolean;
   isImageUploaded: boolean;
@@ -17,15 +18,46 @@ interface TransparencyControlProps {
 }
 
 export const TransparencyControl: React.FC<TransparencyControlProps> = ({
-  currentThreshold,
-  onThresholdChange,
-  transparencyEnabled,
-  onTransparencySwitchChange,
   isControlDisabled,
   imageSupportsTransparency,
   isImageUploaded,
   usesPalettized,
 }) => {
+  const { shader, setShader } = useShader();
+  const { config } = shader;
+  const [transparencyEnabled, setTransparencyEnabled] = useState(
+    config.transparencyThreshold > 0,
+  );
+
+  useEffect(() => {
+    setTransparencyEnabled(config.transparencyThreshold > 0);
+  }, [config.transparencyThreshold]);
+
+  const onThresholdChange = useCallback(
+    (value: number[]) => {
+      setShader((prev) => ({
+        ...prev,
+        config: { ...prev.config, transparencyThreshold: value[0] },
+      }));
+    },
+    [setShader],
+  );
+
+  const onTransparencySwitchChange = useCallback(
+    (checked: boolean) => {
+      setShader((prev) => ({
+        ...prev,
+        config: {
+          ...prev.config,
+          transparencyThreshold: checked
+            ? Math.max(MIN_THRESHOLD, DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED)
+            : 0,
+        },
+      }));
+    },
+    [setShader],
+  );
+
   return (
     <div
       className={cn(
@@ -67,7 +99,7 @@ export const TransparencyControl: React.FC<TransparencyControlProps> = ({
           min={MIN_THRESHOLD}
           max={MAX_THRESHOLD}
           step={1}
-          value={[currentThreshold]}
+          value={[config.transparencyThreshold]}
           onValueChange={onThresholdChange}
           disabled={isControlDisabled || !transparencyEnabled}
           className={cn(
@@ -83,7 +115,7 @@ export const TransparencyControl: React.FC<TransparencyControlProps> = ({
               : !imageSupportsTransparency
                 ? "Current image has no transparency"
                 : transparencyEnabled
-                  ? `Pixels with alpha < ${currentThreshold} become transparent`
+                  ? `Pixels with alpha < ${config.transparencyThreshold} become transparent`
                   : "Transparency disabled"}
         </div>
       </div>

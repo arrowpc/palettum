@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import ImageUpload from "@/components/ImageUpload";
 import ImageDimensions from "@/components/ImageDimensions";
 import PaletteManager from "@/components/PaletteManager";
-import PalettifyImage from "@/components/PalettifyImage";
 import DarkModeToggle from "@/components/DarkModeToggle";
 import GitHubButton from "@/components/GitHubButton";
 import type { Palette } from "palettum";
@@ -10,18 +9,8 @@ import Footer from "@/components/Footer";
 import AdjustmentsAccordion from "@/components/adjustments/AdjustmentsAccordion";
 import {
   type MappingKey,
-  type FormulaKey,
-  type SmoothingStyleKey,
-  type DitheringKey,
   MAPPING_PALETTIZED,
   MAPPING_SMOOTHED,
-  FORMULA_CIEDE2000,
-  SMOOTHING_STYLE_IDW,
-  DEFAULT_DITHERING_STYLE,
-  DEFAULT_DITHERING_STRENGTH,
-  DEFAULT_QUANT_LEVEL,
-  DEFAULT_FILTER,
-  FilterKey,
 } from "@/components/adjustments/adjustments.types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -34,18 +23,13 @@ import {
 } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import { initializeWorker } from "@/lib/palettumWorker";
+import { useShader, ShaderProvider } from "@/ShaderContext";
 
 if (import.meta.env.MODE === "development") {
   import("react-scan").then(({ scan }) => {
     scan({ enabled: true });
   });
 }
-
-const DEFAULT_MAPPING: MappingKey = MAPPING_SMOOTHED;
-const DEFAULT_FORMULA: FormulaKey = FORMULA_CIEDE2000;
-const DEFAULT_SMOOTHING_STYLE: SmoothingStyleKey = SMOOTHING_STYLE_IDW;
-const DEFAULT_TRANSPARENCY_THRESHOLD = 128;
-const DEFAULT_SMOOTHING_STRENGTH = 0.5;
 
 const MAPPING_OPTIONS: MappingKey[] = [MAPPING_SMOOTHED, MAPPING_PALETTIZED];
 const MAPPING_NAMES: Record<MappingKey, string> = {
@@ -57,7 +41,7 @@ const MAPPING_TOOLTIPS: Record<MappingKey, string> = {
   [MAPPING_PALETTIZED]: "Match each pixel to closest palette color",
 };
 
-function App() {
+function AppContent() {
   useEffect(() => {
     initializeWorker()
       .then(() => {
@@ -74,32 +58,30 @@ function App() {
   }, []);
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  // TODO: 
   const [dimensions, setDimensions] = useState({
     width: null as number | null,
     height: null as number | null,
   });
-  const [selectedPalette, setSelectedPalette] = useState<Palette>();
 
-  const [transparentThreshold, setTransparentThreshold] = useState<number>(
-    DEFAULT_TRANSPARENCY_THRESHOLD,
-  );
-  const [mapping, setMapping] = useState<MappingKey>(DEFAULT_MAPPING);
-  const [formula, setFormula] = useState<FormulaKey>(DEFAULT_FORMULA);
-  const [smoothingStyle, setSmoothingStyle] = useState<SmoothingStyleKey>(
-    DEFAULT_SMOOTHING_STYLE,
-  );
-  const [smoothingStrength, setSmoothingStrength] = useState<number>(
-    DEFAULT_SMOOTHING_STRENGTH,
-  );
-  const [quantLevel, setQuantLevel] = useState<number>(DEFAULT_QUANT_LEVEL);
+  const { shader, setShader } = useShader();
 
-  const [ditheringStyle, setDitheringStyle] = useState<DitheringKey>(
-    DEFAULT_DITHERING_STYLE,
-  );
-  const [ditheringStrength, setDitheringStrength] = useState<number>(
-    DEFAULT_DITHERING_STRENGTH,
-  );
-  const [filter, setFilter] = useState<FilterKey>(DEFAULT_FILTER);
+  useEffect(() => {
+    if (
+      shader.filter &&
+      shader.config.palette &&
+      shader.config.palette.colors.length > 0 &&
+      uploadedFile
+    ) {
+      try {
+        // TODO: set_shader_index should actually be done by set_config as config includes mapping!
+        shader.filter?.set_shader_index(1);
+        shader.filter.set_config(shader.config);
+      } catch (e) {
+        console.error("Error applying filter:", e);
+      }
+    }
+  }, [shader.config, shader.filter, uploadedFile]);
 
   const handleFileSelect = useCallback((file: File | null) => {
     setUploadedFile(file);
@@ -112,48 +94,25 @@ function App() {
     [],
   );
 
-  const handlePaletteSelect = useCallback((palette: Palette) => {
-    setSelectedPalette(palette);
-  }, []);
-
-  const handleThresholdChange = useCallback((newThreshold: number) => {
-    setTransparentThreshold(newThreshold);
-  }, []);
-
-  const handleMappingChange = useCallback((newMapping: MappingKey) => {
-    setMapping(newMapping);
-  }, []);
-
-  const handleFormulaChange = useCallback((newFormula: FormulaKey) => {
-    setFormula(newFormula);
-  }, []);
-
-  const handleSmoothingStyleChange = useCallback(
-    (newStyle: SmoothingStyleKey) => {
-      setSmoothingStyle(newStyle);
+  const handlePaletteSelect = useCallback(
+    (palette: Palette) => {
+      setShader((prev) => ({
+        ...prev,
+        config: { ...prev.config, palette: palette },
+      }));
     },
-    [],
+    [setShader],
   );
 
-  const handleSmoothingStrengthChange = useCallback((s: number) => {
-    setSmoothingStrength(s);
-  }, []);
-
-  const handleDitheringStyleChange = useCallback((newStyle: DitheringKey) => {
-    setDitheringStyle(newStyle);
-  }, []);
-
-  const handleDitheringStrengthChange = useCallback((newStrength: number) => {
-    setDitheringStrength(newStrength);
-  }, []);
-
-  const handleQuantLevelChange = useCallback((newLevel: number) => {
-    setQuantLevel(newLevel);
-  }, []);
-
-  const handleFilterChange = useCallback((newFilter: FilterKey) => {
-    setFilter(newFilter);
-  }, []);
+  const handleMappingChange = useCallback(
+    (newMapping: MappingKey) => {
+      setShader((prev) => ({
+        ...prev,
+        config: { ...prev.config, mapping: newMapping },
+      }));
+    },
+    [setShader],
+  );
 
   const renderColorMappingMethod = () => (
     <div className="space-y-3">
@@ -164,7 +123,9 @@ function App() {
             <Tooltip key={option}>
               <TooltipTrigger asChild>
                 <Button
-                  variant={mapping === option ? "default" : "outline"}
+                  variant={
+                    shader.config.mapping === option ? "default" : "outline"
+                  }
                   size="sm"
                   onClick={() => handleMappingChange(option)}
                   className="flex-1 md:flex-initial"
@@ -223,47 +184,20 @@ function App() {
             </CardContent>
           </Card>
 
-          <AdjustmentsAccordion
-            file={uploadedFile}
-            currentMapping={mapping}
-            currentFormula={formula}
-            currentSmoothingStyle={smoothingStyle}
-            currentThreshold={transparentThreshold}
-            currentSmoothingStrength={smoothingStrength}
-            currentDitheringStyle={ditheringStyle}
-            currentDitheringStrength={ditheringStrength}
-            currentQuantLevel={quantLevel}
-            currentFilter={filter}
-            onMappingChange={handleMappingChange}
-            onFormulaChange={handleFormulaChange}
-            onSmoothingStyleChange={handleSmoothingStyleChange}
-            onThresholdChange={handleThresholdChange}
-            onSmoothingStrengthChange={handleSmoothingStrengthChange}
-            onDitheringStyleChange={handleDitheringStyleChange}
-            onDitheringStrengthChange={handleDitheringStrengthChange}
-            onQuantLevelChange={handleQuantLevelChange}
-            onFilterChange={handleFilterChange}
-          />
-
-          <PalettifyImage
-            file={uploadedFile}
-            dimensions={dimensions}
-            palette={selectedPalette}
-            transparentThreshold={transparentThreshold}
-            mapping={mapping}
-            quantLevel={quantLevel}
-            formula={formula}
-            smoothingStyle={smoothingStyle}
-            smoothingStrength={smoothingStrength}
-            ditheringStyle={ditheringStyle}
-            ditheringStrength={ditheringStrength}
-            filter={filter}
-          />
+          <AdjustmentsAccordion file={uploadedFile} />
         </div>
         <Footer />
       </div>
       <Toaster richColors position="bottom-center" />
     </>
+  );
+}
+
+function App() {
+  return (
+    <ShaderProvider>
+      <AppContent />
+    </ShaderProvider>
   );
 }
 

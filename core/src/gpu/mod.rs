@@ -1,7 +1,7 @@
 use crate::{config::Config, error::Result, palettized::Dithering, Mapping};
 use std::{borrow::Cow, result::Result as StdResult, sync::Arc};
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlVideoElement, OffscreenCanvas};
+use web_sys::{HtmlCanvasElement, HtmlVideoElement};
 use wgpu::util::DeviceExt;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -493,6 +493,7 @@ impl GpuImageProcessor {
 
 #[wasm_bindgen]
 pub struct ImageFilter {
+    adapter: wgpu::Adapter,
     device: wgpu::Device,
     queue: wgpu::Queue,
     surface: wgpu::Surface<'static>,
@@ -505,7 +506,6 @@ pub struct ImageFilter {
     bind_group: Option<wgpu::BindGroup>,
     image_bind_group_layout: wgpu::BindGroupLayout,
 
-    video_texture: Option<wgpu::Texture>,
     video_bind_group: Option<wgpu::BindGroup>,
     video_bind_group_layout: wgpu::BindGroupLayout,
     video_sampler: wgpu::Sampler,
@@ -514,7 +514,7 @@ pub struct ImageFilter {
 #[wasm_bindgen]
 impl ImageFilter {
     #[wasm_bindgen(constructor)]
-    pub async fn new(canvas: OffscreenCanvas) -> StdResult<ImageFilter, JsValue> {
+    pub async fn new(canvas: HtmlCanvasElement) -> StdResult<ImageFilter, JsValue> {
         console_error_panic_hook::set_once();
 
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
@@ -523,7 +523,7 @@ impl ImageFilter {
         });
 
         let surface = instance
-            .create_surface(wgpu::SurfaceTarget::OffscreenCanvas(canvas.clone()))
+            .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
             .map_err(|e| JsValue::from_str(&format!("Surface creation failed: {:?}", e)))?;
 
         let adapter = instance
@@ -602,7 +602,6 @@ impl ImageFilter {
             source: wgpu::ShaderSource::Wgsl(FRAGMENT_VIDEO.into()),
         });
 
-        // Layout for static images
         let image_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Image Bind Group Layout"),
@@ -678,7 +677,6 @@ impl ImageFilter {
             })
             .collect();
 
-        // Layout and sampler for video frames
         let video_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
                 label: Some("Video Bind Group Layout"),
@@ -754,6 +752,7 @@ impl ImageFilter {
         });
 
         Ok(ImageFilter {
+            adapter,
             device,
             queue,
             surface,
@@ -764,23 +763,52 @@ impl ImageFilter {
             texture: None,
             bind_group: None,
             image_bind_group_layout,
-            video_texture: None,
             video_bind_group: None,
             video_bind_group_layout,
             video_sampler,
         })
     }
+
+    #[wasm_bindgen]
+    pub fn resize_canvas(&mut self, width: u32, height: u32) -> StdResult<(), JsValue> {
+        let surface_caps = self.surface.get_capabilities(&self.adapter);
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .unwrap_or(surface_caps.formats[0]);
+
+        self.surface.configure(
+            &self.device,
+            &wgpu::SurfaceConfiguration {
+                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                format: surface_format,
+                width,
+                height,
+                present_mode: wgpu::PresentMode::Fifo,
+                alpha_mode: surface_caps.alpha_modes[0],
+                view_formats: vec![],
+                desired_maximum_frame_latency: 2,
+            },
+        );
+
+        if self.texture.is_some() {
+            self.render()?;
+        }
+        Ok(())
+    }
+
     #[wasm_bindgen]
     pub fn update_from_video_frame(&mut self, video: &HtmlVideoElement) -> StdResult<(), JsValue> {
         let width = video.video_width();
         let height = video.video_height();
 
         if width == 0 || height == 0 {
-            return Ok(()); // Video not ready or has no dimensions
+            return Ok(());
         }
 
-        // Check if the video texture needs to be (re)created
-        let needs_new_texture = self.video_texture.as_ref().map_or(true, |t| {
+        let needs_new_texture = self.texture.as_ref().map_or(true, |t| {
             let size = t.size();
             size.width != width || size.height != height
         });
@@ -823,23 +851,20 @@ impl ImageFilter {
                 ],
             });
 
-            self.video_texture = Some(texture);
+            self.texture = Some(texture);
             self.video_bind_group = Some(bind_group);
         }
 
-        // At this point, video_texture and video_bind_group are guaranteed to be Some
-        let video_texture = self.video_texture.as_ref().unwrap();
+        let texture = self.texture.as_ref().unwrap();
 
-        // 1. Define the source of the copy
         let source = wgpu::CopyExternalImageSourceInfo {
             source: wgpu::ExternalImageSource::HTMLVideoElement(video.clone()),
             origin: wgpu::Origin2d::ZERO,
             flip_y: false,
         };
 
-        // 2. Define the destination of the copy
         let dest = wgpu::CopyExternalImageDestInfo {
-            texture: video_texture,
+            texture,
             mip_level: 0,
             origin: wgpu::Origin3d::ZERO,
             aspect: wgpu::TextureAspect::All,
@@ -853,11 +878,9 @@ impl ImageFilter {
             depth_or_array_layers: 1,
         };
 
-        // 3. Perform the copy
         self.queue
             .copy_external_image_to_texture(&source, dest, extent);
 
-        // 4. Render the frame to the surface
         if let Ok(frame) = self.surface.get_current_texture() {
             let view = frame
                 .texture
@@ -938,15 +961,15 @@ impl ImageFilter {
                 address_mode_u: wgpu::AddressMode::ClampToEdge,
                 address_mode_v: wgpu::AddressMode::ClampToEdge,
                 address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Linear,
-                min_filter: wgpu::FilterMode::Linear,
+                mag_filter: wgpu::FilterMode::Nearest,
+                min_filter: wgpu::FilterMode::Nearest,
                 mipmap_filter: wgpu::FilterMode::Nearest,
                 ..Default::default()
             });
 
             let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Texture Bind Group"),
-                layout: &self.image_bind_group_layout, // Use renamed field
+                layout: &self.image_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -977,13 +1000,13 @@ impl ImageFilter {
         Ok(())
     }
 
-    pub fn apply_filter(&mut self, config: &Config) -> StdResult<(), JsValue> {
+    pub fn set_config(&mut self, config: &Config) -> StdResult<(), JsValue> {
         let (texture_width, texture_height) = if let Some(texture) = &self.texture {
             let size = texture.size();
             (size.width, size.height)
         } else {
             return Err(JsValue::from_str(
-                "Cannot apply filter: No image has been set.",
+                "Cannot apply filter: No media has been set",
             ));
         };
 

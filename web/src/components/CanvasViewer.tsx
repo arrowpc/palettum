@@ -53,7 +53,7 @@ function useContinuousTap(
 }
 
 interface CanvasViewerProps {
-  canvas: OffscreenCanvas | null;
+  canvas: HTMLCanvasElement | null;
   onClose: () => void;
   altText?: string;
 }
@@ -326,7 +326,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
         return;
       }
 
-      ctx.imageSmoothingEnabled = zoomLevel <= 3;
+      ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, displayEl.width, displayEl.height);
       ctx.drawImage(sourceCanvas, 0, 0, displayEl.width, displayEl.height);
 
@@ -581,6 +581,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
             transformOrigin: "center",
             willChange: "transform",
             opacity: canvasReady ? 1 : 0,
+            imageRendering: "pixelated",
           }}
         />
       </div>

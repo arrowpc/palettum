@@ -12,20 +12,27 @@ import {
   FORMULA_OPTIONS,
   FORMULA_TOOLTIPS,
 } from "./adjustments.types";
+import { useShader } from "@/ShaderContext";
 
 interface FormulaSelectorProps {
-  currentFormula: FormulaKey;
-  onFormulaChange: (formula: FormulaKey) => void;
   isActive: boolean;
   isImageUploaded: boolean;
 }
 
 export const FormulaSelector: React.FC<FormulaSelectorProps> = ({
-  currentFormula,
-  onFormulaChange,
   isActive,
   isImageUploaded,
 }) => {
+  const { shader, setShader } = useShader();
+  const { config } = shader;
+
+  const onFormulaChange = (formula: FormulaKey) => {
+    setShader((prev) => ({
+      ...prev,
+      config: { ...prev.config, formula },
+    }));
+  };
+
   return (
     <div
       className={cn(
@@ -41,7 +48,7 @@ export const FormulaSelector: React.FC<FormulaSelectorProps> = ({
           <Tooltip key={option}>
             <TooltipTrigger asChild>
               <Button
-                variant={currentFormula === option ? "default" : "outline"}
+                variant={config.diffFormula === option ? "default" : "outline"}
                 size="sm"
                 onClick={() => onFormulaChange(option)}
                 disabled={!isActive}

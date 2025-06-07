@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 interface CanvasPreviewProps {
-  onCanvasReady: (canvas: OffscreenCanvas) => void;
+  onCanvasReady: (canvas: HTMLCanvasElement) => void;
   hasContent: boolean;
   altText?: string;
   onRemove?: (e: MouseEvent) => void;
@@ -29,6 +29,7 @@ interface CanvasPreviewProps {
   placeholderContentClassName?: string;
   customSpinner?: ReactNode;
   title?: string;
+  sourceDimensions?: { width: number; height: number };
 }
 
 export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
@@ -51,32 +52,75 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
     placeholderContentClassName,
     customSpinner,
     title: customTitle,
+    sourceDimensions,
   }) => {
     const displayCanvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const effectiveUploadIcon = uploadIcon || (
       <DefaultUploadIcon className="mx-auto w-6 h-6 sm:w-8 sm:h-8" />
     );
 
+    const containerStyle = useMemo(() => {
+      if (!sourceDimensions || !containerRef.current) {
+        return {};
+      }
+
+      const container = containerRef.current;
+      const containerRect = container.getBoundingClientRect();
+      const containerWidth = containerRect.width || container.clientWidth;
+      const containerHeight = containerRect.height || container.clientHeight;
+
+      if (containerWidth === 0 || containerHeight === 0) {
+        return {};
+      }
+
+      const { width: sourceWidth, height: sourceHeight } = sourceDimensions;
+      const containerAspect = containerWidth / containerHeight;
+      const sourceAspect = sourceWidth / sourceHeight;
+
+      let displayWidth, displayHeight;
+
+      if (sourceAspect > containerAspect) {
+        displayWidth = containerWidth;
+        displayHeight = containerWidth / sourceAspect;
+      } else {
+        displayHeight = containerHeight;
+        displayWidth = containerHeight * sourceAspect;
+      }
+
+      return {
+        width: `${displayWidth}px`,
+        height: `${displayHeight}px`,
+      };
+    }, [sourceDimensions]);
+
     useEffect(() => {
       const displayElement = displayCanvasRef.current;
       if (displayElement) {
-        const animationFrameId = requestAnimationFrame(() => {
-          const parent = displayElement.parentElement;
-          if (parent && parent.clientWidth > 0 && parent.clientHeight > 0) {
-            displayElement.width = parent.clientWidth;
-            displayElement.height = parent.clientHeight;
-            try {
-              const offscreen = displayElement.transferControlToOffscreen();
-              onCanvasReady(offscreen);
-            } catch (e) {
-              console.error("Failed to transfer canvas control:", e);
-            }
-          }
-        });
-        return () => cancelAnimationFrame(animationFrameId);
+        onCanvasReady(displayElement);
       }
     }, [onCanvasReady]);
+
+    useEffect(() => {
+      const displayElement = displayCanvasRef.current;
+      if (displayElement) {
+        if (sourceDimensions) {
+          if (
+            displayElement.width !== sourceDimensions.width ||
+            displayElement.height !== sourceDimensions.height
+          ) {
+            displayElement.width = sourceDimensions.width;
+            displayElement.height = sourceDimensions.height;
+          }
+        } else {
+          if (displayElement.width !== 1 || displayElement.height !== 1) {
+            displayElement.width = 1;
+            displayElement.height = 1;
+          }
+        }
+      }
+    }, [sourceDimensions]);
 
     const handleMainClick = () => {
       if (!isInteractive || isLoading) return;
@@ -144,6 +188,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
     if (isLoading) {
       return (
         <div
+          ref={containerRef}
           className={cn(
             baseContainerClasses,
             "bg-background/50 border border-dashed border-border",
@@ -159,6 +204,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
 
     return (
       <div
+        ref={containerRef}
         className={cn(
           baseContainerClasses,
           interactiveClasses,
@@ -184,15 +230,23 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
           }
         }}
       >
-        <canvas
-          ref={displayCanvasRef}
-          className={cn(
-            "w-full h-full",
-            canvasClassName,
-            !hasContent && "hidden",
-          )}
-          aria-label={altText}
-        />
+        <div
+          style={hasContent ? containerStyle : {}}
+          className="flex items-center justify-center"
+        >
+          <canvas
+            ref={displayCanvasRef}
+            className={cn(
+              "max-w-full max-h-full",
+              canvasClassName,
+              !hasContent && "hidden",
+            )}
+            style={{
+              imageRendering: "pixelated",
+            }}
+            aria-label={altText}
+          />
+        </div>
         {!hasContent && isInteractive && onUploadPlaceholderClick && (
           <div
             className={cn(

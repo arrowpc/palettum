@@ -6,69 +6,42 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
-  MappingKey,
-  FormulaKey,
-  SmoothingStyleKey,
-  DitheringKey,
   MAPPING_PALETTIZED,
   MAPPING_SMOOTHED,
   MIN_THRESHOLD,
   DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED,
-  FilterKey,
 } from "./adjustments.types";
 import { GeneralSettings } from "./GeneralSettings";
 import { ColorMatchingSettings } from "./ColorMatchingSettings";
 import { ColorBlendingSettings } from "./ColorBlendingSettings";
+import { useShader } from "@/ShaderContext";
 
 interface AdjustmentsAccordionProps {
   file: File | null;
-  currentMapping: MappingKey;
-  currentFormula: FormulaKey;
-  currentSmoothingStyle: SmoothingStyleKey;
-  currentThreshold: number;
-  currentSmoothingStrength: number;
-  currentDitheringStyle: DitheringKey;
-  currentDitheringStrength: number;
-  currentQuantLevel: number;
-  currentFilter: FilterKey;
-  onMappingChange: (mapping: MappingKey) => void;
-  onFormulaChange: (formula: FormulaKey) => void;
-  onSmoothingStyleChange: (style: SmoothingStyleKey) => void;
-  onThresholdChange: (threshold: number) => void;
-  onSmoothingStrengthChange: (strength: number) => void;
-  onDitheringStyleChange: (style: DitheringKey) => void;
-  onDitheringStrengthChange: (strength: number) => void;
-  onQuantLevelChange: (level: number) => void;
-  onFilterChange: (filter: FilterKey) => void;
 }
 
 const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
   file,
-  currentMapping,
-  currentFormula,
-  currentSmoothingStyle,
-  currentThreshold,
-  currentSmoothingStrength,
-  currentDitheringStyle,
-  currentDitheringStrength,
-  currentQuantLevel,
-  currentFilter,
-  onFormulaChange,
-  onSmoothingStyleChange,
-  onThresholdChange,
-  onSmoothingStrengthChange,
-  onDitheringStyleChange,
-  onDitheringStrengthChange,
-  onQuantLevelChange,
-  onFilterChange,
 }) => {
+  const { shader, setShader } = useShader();
+  const { config } = shader;
   const [imageSupportsTransparency, setImageSupportsTransparency] =
     useState(false);
   const [transparencyEnabled, setTransparencyEnabled] = useState(false);
   const isImageUploaded = !!file;
 
-  const usesPalettized = currentMapping === MAPPING_PALETTIZED;
-  const usesSmoothed = currentMapping === MAPPING_SMOOTHED;
+  const usesPalettized = config.mapping === MAPPING_PALETTIZED;
+  const usesSmoothed = config.mapping === MAPPING_SMOOTHED;
+
+  const onThresholdChange = useCallback(
+    (threshold: number) => {
+      setShader((prev) => ({
+        ...prev,
+        config: { ...prev.config, transparencyThreshold: threshold },
+      }));
+    },
+    [setShader],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -123,25 +96,29 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
   }, [file]);
 
   useEffect(() => {
-    setTransparencyEnabled(currentThreshold > 0);
-  }, [currentThreshold]);
+    if (config.transparencyThreshold) {
+      setTransparencyEnabled(config.transparencyThreshold > 0);
+    }
+  }, [config.transparencyThreshold]);
 
   useEffect(() => {
-    if (isImageUploaded && usesPalettized) {
-      if (imageSupportsTransparency) {
-        if (transparencyEnabled && currentThreshold === 0) {
-          onThresholdChange(
-            Math.max(MIN_THRESHOLD, DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED),
-          );
+    if (config.transparencyThreshold) {
+      if (isImageUploaded && usesPalettized) {
+        if (imageSupportsTransparency) {
+          if (transparencyEnabled && config.transparencyThreshold === 0) {
+            onThresholdChange(
+              Math.max(MIN_THRESHOLD, DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED),
+            );
+          }
+        } else {
+          if (config.transparencyThreshold > 0) {
+            onThresholdChange(0);
+          }
         }
       } else {
-        if (currentThreshold > 0) {
+        if (config.transparencyThreshold > 0) {
           onThresholdChange(0);
         }
-      }
-    } else {
-      if (currentThreshold > 0) {
-        onThresholdChange(0);
       }
     }
   }, [
@@ -149,52 +126,12 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
     usesPalettized,
     imageSupportsTransparency,
     transparencyEnabled,
-    currentThreshold,
+    config.transparencyThreshold,
     onThresholdChange,
   ]);
 
   const isPalettizedActive = isImageUploaded && usesPalettized;
   const isSmoothedActive = isImageUploaded && usesSmoothed;
-
-  const handleTransparencySwitchChange = useCallback(
-    (checked: boolean) => {
-      setTransparencyEnabled(checked);
-      onThresholdChange(
-        checked
-          ? Math.max(MIN_THRESHOLD, DEFAULT_TRANSPARENCY_THRESHOLD_ENABLED)
-          : 0,
-      );
-    },
-    [onThresholdChange],
-  );
-
-  const handleThresholdSliderChange = useCallback(
-    (value: number[]) => {
-      onThresholdChange(Math.max(MIN_THRESHOLD, value[0]));
-    },
-    [onThresholdChange],
-  );
-
-  const handleSmoothingStrengthSliderChange = useCallback(
-    (value: number[]) => {
-      onSmoothingStrengthChange(value[0]);
-    },
-    [onSmoothingStrengthChange],
-  );
-
-  const handleDitheringStrengthSliderChange = useCallback(
-    (value: number[]) => {
-      onDitheringStrengthChange(value[0]);
-    },
-    [onDitheringStrengthChange],
-  );
-
-  const handleQuantLevelSliderChange = useCallback(
-    (value: number[]) => {
-      onQuantLevelChange(value[0]);
-    },
-    [onQuantLevelChange],
-  );
 
   return (
     <Accordion type="single" collapsible>
@@ -203,41 +140,17 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
           Advanced Options
         </AccordionTrigger>
         <AccordionContent className="pt-4 space-y-6">
-          <GeneralSettings
-            currentFormula={currentFormula}
-            onFormulaChange={onFormulaChange}
-            currentQuantLevel={currentQuantLevel}
-            onQuantLevelChange={handleQuantLevelSliderChange}
-            isImageUploaded={isImageUploaded}
-            currentFilter={currentFilter}
-            onFilterChange={onFilterChange}
-          />
+          <GeneralSettings isImageUploaded={isImageUploaded} />
           <ColorBlendingSettings
-            currentSmoothingStyle={currentSmoothingStyle}
-            onSmoothingStyleChange={onSmoothingStyleChange}
-            currentSmoothingStrength={currentSmoothingStrength}
-            onSmoothingStrengthSliderChange={
-              handleSmoothingStrengthSliderChange
-            }
             isSmoothedActive={isSmoothedActive}
             isImageUploaded={isImageUploaded}
             usesSmoothed={usesSmoothed}
           />
           <ColorMatchingSettings
-            currentThreshold={currentThreshold}
-            onThresholdSliderChange={handleThresholdSliderChange}
-            transparencyEnabled={transparencyEnabled}
-            onTransparencySwitchChange={handleTransparencySwitchChange}
             isPalettizedActive={isPalettizedActive}
             isImageUploaded={isImageUploaded}
             usesPalettized={usesPalettized}
             imageSupportsTransparency={imageSupportsTransparency}
-            currentDitheringStyle={currentDitheringStyle}
-            onDitheringStyleChange={onDitheringStyleChange}
-            currentDitheringStrength={currentDitheringStrength}
-            onDitheringStrengthSliderChange={
-              handleDitheringStrengthSliderChange
-            }
           />
         </AccordionContent>
       </AccordionItem>

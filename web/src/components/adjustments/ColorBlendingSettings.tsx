@@ -2,26 +2,17 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { SmoothingStyleKey } from "./adjustments.types";
 import { SmoothingStyleSelector } from "./SmoothingStyleSelector";
 import { SmoothingStrengthControl } from "./SmoothingStrengthControl";
 import { DynamicGrid } from "./DynamicGrid";
 
 interface ColorBlendingSettingsProps {
-  currentSmoothingStyle: SmoothingStyleKey;
-  onSmoothingStyleChange: (style: SmoothingStyleKey) => void;
-  currentSmoothingStrength: number;
-  onSmoothingStrengthSliderChange: (value: number[]) => void;
   isSmoothedActive: boolean;
   isImageUploaded: boolean;
   usesSmoothed: boolean;
 }
 
 export const ColorBlendingSettings: React.FC<ColorBlendingSettingsProps> = ({
-  currentSmoothingStyle,
-  onSmoothingStyleChange,
-  currentSmoothingStrength,
-  onSmoothingStrengthSliderChange,
   isSmoothedActive,
   isImageUploaded,
   usesSmoothed,
@@ -46,8 +37,6 @@ export const ColorBlendingSettings: React.FC<ColorBlendingSettingsProps> = ({
         <div className="space-y-4 p-4 border rounded-lg bg-background">
           <TooltipProvider delayDuration={200}>
             <SmoothingStyleSelector
-              currentSmoothingStyle={currentSmoothingStyle}
-              onSmoothingStyleChange={onSmoothingStyleChange}
               isActive={isSmoothedActive}
               isImageUploaded={isImageUploaded}
               usesSmoothed={usesSmoothed}
@@ -57,8 +46,6 @@ export const ColorBlendingSettings: React.FC<ColorBlendingSettingsProps> = ({
 
         <div className="space-y-4 p-4 border rounded-lg bg-background">
           <SmoothingStrengthControl
-            currentSmoothingStrength={currentSmoothingStrength}
-            onSmoothingStrengthChange={onSmoothingStrengthSliderChange}
             isActive={isSmoothedActive}
             isImageUploaded={isImageUploaded}
             usesSmoothed={usesSmoothed}

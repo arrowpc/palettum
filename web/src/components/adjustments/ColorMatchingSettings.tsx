@@ -1,43 +1,31 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { DitheringKey, DITHERING_NONE } from "./adjustments.types";
+import { DITHERING_NONE } from "./adjustments.types";
 import { TransparencyControl } from "./TransparencyControl";
 import { DitheringSelector } from "./DitheringSelector";
 import { DitheringStrengthControl } from "./DitheringStrengthControl";
 import { DynamicGrid } from "./DynamicGrid";
+import { useShader } from "@/ShaderContext";
 
 interface ColorMatchingSettingsProps {
-  currentThreshold: number;
-  onThresholdSliderChange: (value: number[]) => void;
-  transparencyEnabled: boolean;
-  onTransparencySwitchChange: (checked: boolean) => void;
   isPalettizedActive: boolean;
   isImageUploaded: boolean;
   usesPalettized: boolean;
   imageSupportsTransparency: boolean;
-  currentDitheringStyle: DitheringKey;
-  onDitheringStyleChange: (style: DitheringKey) => void;
-  currentDitheringStrength: number;
-  onDitheringStrengthSliderChange: (value: number[]) => void;
 }
 
 export const ColorMatchingSettings: React.FC<ColorMatchingSettingsProps> = ({
-  currentThreshold,
-  onThresholdSliderChange,
-  transparencyEnabled,
-  onTransparencySwitchChange,
   isPalettizedActive,
   isImageUploaded,
   usesPalettized,
   imageSupportsTransparency,
-  currentDitheringStyle,
-  onDitheringStyleChange,
-  currentDitheringStrength,
-  onDitheringStrengthSliderChange,
 }) => {
+  const { shader } = useShader();
+  const { config } = shader;
+
   const isDitheringStrengthControlActive =
-    isPalettizedActive && currentDitheringStyle !== DITHERING_NONE;
+    isPalettizedActive && config.ditheringStyle !== DITHERING_NONE;
 
   return (
     <div
@@ -58,10 +46,6 @@ export const ColorMatchingSettings: React.FC<ColorMatchingSettingsProps> = ({
       <DynamicGrid>
         <div className="space-y-4 p-4 border rounded-lg bg-background">
           <TransparencyControl
-            currentThreshold={currentThreshold}
-            onThresholdChange={onThresholdSliderChange}
-            transparencyEnabled={transparencyEnabled}
-            onTransparencySwitchChange={onTransparencySwitchChange}
             isControlDisabled={
               !isPalettizedActive || !imageSupportsTransparency
             }
@@ -73,16 +57,12 @@ export const ColorMatchingSettings: React.FC<ColorMatchingSettingsProps> = ({
 
         <div className="space-y-4 p-4 border rounded-lg bg-background">
           <DitheringSelector
-            currentDitheringStyle={currentDitheringStyle}
-            onDitheringStyleChange={onDitheringStyleChange}
             isActive={isPalettizedActive}
             isImageUploaded={isImageUploaded}
           />
         </div>
         <div className="space-y-4 p-4 border rounded-lg bg-background">
           <DitheringStrengthControl
-            currentStrength={currentDitheringStrength}
-            onStrengthChange={onDitheringStrengthSliderChange}
             isActive={isDitheringStrengthControlActive}
             isImageUploaded={isImageUploaded}
           />

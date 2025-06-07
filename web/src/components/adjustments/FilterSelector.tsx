@@ -12,20 +12,27 @@ import {
   FILTER_OPTIONS,
   FILTER_TOOLTIPS,
 } from "./adjustments.types";
+import { useShader } from "@/ShaderContext";
 
 interface FilterSelectorProps {
-  currentFilter: FilterKey;
-  onFilterChange: (filter: FilterKey) => void;
   isActive: boolean;
   isImageUploaded: boolean;
 }
 
 export const FilterSelector: React.FC<FilterSelectorProps> = ({
-  currentFilter,
-  onFilterChange,
   isActive,
   isImageUploaded,
 }) => {
+  const { shader, setShader } = useShader();
+  const { config } = shader;
+
+  const onFilterChange = (filter: FilterKey) => {
+    setShader((prev) => ({
+      ...prev,
+      config: { ...prev.config, filter },
+    }));
+  };
+
   return (
     <div
       className={cn(
@@ -41,7 +48,7 @@ export const FilterSelector: React.FC<FilterSelectorProps> = ({
           <Tooltip key={option}>
             <TooltipTrigger asChild>
               <Button
-                variant={currentFilter === option ? "default" : "outline"}
+                variant={config.filter === option ? "default" : "outline"}
                 size="sm"
                 onClick={() => onFilterChange(option)}
                 disabled={!isActive}

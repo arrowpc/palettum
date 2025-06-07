@@ -7,17 +7,25 @@ import {
   MAX_QUANT_LEVEL,
   QUANT_LEVEL_STEP,
 } from "./adjustments.types";
+import { useShader } from "@/ShaderContext";
 
 interface QuantizationLevelControlProps {
-  currentQuantLevel: number;
-  onQuantLevelChange: (value: number[]) => void;
   isImageUploaded: boolean;
 }
 
 export const QuantizationLevelControl: React.FC<
   QuantizationLevelControlProps
-> = ({ currentQuantLevel, onQuantLevelChange, isImageUploaded }) => {
+> = ({ isImageUploaded }) => {
+  const { shader, setShader } = useShader();
+  const { config } = shader;
   const isActive = isImageUploaded;
+
+  const onQuantLevelChange = (value: number[]) => {
+    setShader((prev) => ({
+      ...prev,
+      config: { ...prev.config, quantLevel: value[0] },
+    }));
+  };
 
   return (
     <div className="space-y-4 p-4 border rounded-lg bg-background md:col-span-2">
@@ -33,13 +41,13 @@ export const QuantizationLevelControl: React.FC<
           min={MIN_QUANT_LEVEL}
           max={MAX_QUANT_LEVEL}
           step={QUANT_LEVEL_STEP}
-          value={[currentQuantLevel]}
+          value={[config.quantLevel || 0]}
           onValueChange={onQuantLevelChange}
           disabled={!isActive}
           className="mt-2"
         />
         <div className="text-center text-xs text-secondary-foreground">
-          {isActive ? currentQuantLevel : "-"}
+          {isActive ? config.quantLevel : "-"}
         </div>
         <p className="text-xs text-secondary-foreground text-center">
           {!isImageUploaded

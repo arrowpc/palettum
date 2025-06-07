@@ -17,6 +17,11 @@ import CanvasPreview from "./CanvasPreview";
 import CanvasViewer from "./CanvasViewer";
 import { ImageFilter } from "palettum";
 import { useShader } from "@/ShaderContext";
+import {
+  convertGifToVideo,
+  processImage,
+  processVideo,
+} from "@/lib/mediaProcessor";
 
 interface ImageUploadProps {
   onFileSelect: (file: File | null) => void;
@@ -35,16 +40,10 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const uploadAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { shader, setShader } = useShader();
-  const ffmpegWorkerRef = useRef<Worker | null>(null);
-
-  const videoElementRef = useRef<HTMLVideoElement | null>(null);
-  const animationFrameIdRef = useRef<number | null>(null);
-  const [offscreenCanvas, setOffscreenCanvas] =
-    useState<OffscreenCanvas | null>(null);
+  const mediaCleanupRef = useRef<(() => void) | null>(null);
 
   const handleCanvasReady = useCallback(
-    (canvas: OffscreenCanvas) => {
-      setOffscreenCanvas(canvas);
+    (canvas: HTMLCanvasElement) => {
       setShader((prev) => ({ ...prev, canvas }));
     },
     [setShader],
@@ -68,60 +67,13 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
     .join(", ");
 
   useEffect(() => {
-    ffmpegWorkerRef.current = new Worker(
-      new URL("../lib/ffmpeg.worker.ts", import.meta.url),
-      { type: "module" },
-    );
-
-    const handleWorkerMessage = (
-      event: MessageEvent<{
-        type: string;
-        progress?: number;
-        message?: string;
-        blob?: Blob;
-      }>,
-    ) => {
-      const { type, progress, message, blob } = event.data;
-      switch (type) {
-        case "status":
-          setLoadingMessage(message || "...");
-          break;
-        case "progress":
-          setLoadingMessage(`Converting... ${(progress! * 100).toFixed(0)}%`);
-          break;
-        case "done":
-          if (blob && selectedFile) {
-            processVideo(blob, selectedFile).finally(() => {
-              setIsLoadingMedia(false);
-            });
-          }
-          break;
-        case "error":
-          setError(message || "An unknown conversion error occurred.");
-          setIsLoadingMedia(false);
-          break;
-      }
-    };
-
-    ffmpegWorkerRef.current.addEventListener("message", handleWorkerMessage);
-
-    return () => {
-      ffmpegWorkerRef.current?.removeEventListener(
-        "message",
-        handleWorkerMessage,
-      );
-      ffmpegWorkerRef.current?.terminate();
-    };
-  }, [selectedFile]);
-
-  useEffect(() => {
     let isMounted = true;
 
-    if (offscreenCanvas && !shader.filter) {
+    if (shader.canvas && !shader.filter) {
       setLoadingMessage("Initializing renderer...");
       const initFilter = async () => {
         try {
-          const filter = await new ImageFilter(offscreenCanvas);
+          const filter = await new ImageFilter(shader.canvas!);
           if (isMounted) {
             setShader((prev) => ({
               ...prev,
@@ -143,114 +95,29 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
     return () => {
       isMounted = false;
     };
-    // Add shader.filter to the dependency array.
-  }, [offscreenCanvas, setShader, setError, shader.filter]);
+  }, [shader.canvas, setShader, setError, shader.filter]);
+
+  useEffect(() => {
+    if (shader.canvas && shader.filter && shader.sourceDimensions) {
+      const { width, height } = shader.sourceDimensions;
+      shader.canvas.width = width;
+      shader.canvas.height = height;
+      shader.filter.resize_canvas(width, height);
+    }
+  }, [shader.canvas, shader.filter, shader.sourceDimensions]);
+
   const cleanupPreviousMedia = useCallback(async () => {
     setIsLoadingMedia(false);
-    if (animationFrameIdRef.current) {
-      cancelAnimationFrame(animationFrameIdRef.current);
-      animationFrameIdRef.current = null;
+    if (mediaCleanupRef.current) {
+      mediaCleanupRef.current();
+      mediaCleanupRef.current = null;
     }
-    if (videoElementRef.current) {
-      videoElementRef.current.pause();
-      videoElementRef.current.removeAttribute("src");
-      videoElementRef.current.load();
-      videoElementRef.current = null;
-    }
-    // Do not reset the filter, just the media-specific state
     setShader((prev) => ({
       ...prev,
       sourceMediaType: null,
       sourceDimensions: undefined,
     }));
   }, [setShader]);
-
-  const processVideo = useCallback(
-    async (videoBlob: Blob, originalFile: File) => {
-      if (!shader.filter) {
-        setError("Renderer not ready.");
-        return false;
-      }
-      const video = document.createElement("video");
-      videoElementRef.current = video;
-      video.src = URL.createObjectURL(videoBlob);
-      video.muted = true;
-      video.loop = true;
-      video.playsInline = true;
-
-      return new Promise<boolean>((resolve) => {
-        video.onloadedmetadata = async () => {
-          if (video.videoWidth === 0 || video.videoHeight === 0) {
-            setError("Video has invalid dimensions. Please try another.");
-            URL.revokeObjectURL(video.src);
-            resolve(false);
-            return;
-          }
-          if (
-            video.videoWidth > LIMITS.MAX_DIMENSION ||
-            video.videoHeight > LIMITS.MAX_DIMENSION
-          ) {
-            setError(`Video dimensions may be too large.`);
-          }
-
-          const renderVideoFrame = () => {
-            if (
-              videoElementRef.current &&
-              shader.filter &&
-              !videoElementRef.current.paused &&
-              videoElementRef.current.readyState >= video.HAVE_CURRENT_DATA
-            ) {
-              try {
-                shader.filter.update_from_video_frame(videoElementRef.current);
-              } catch (e) {
-                console.error("Error updating video frame:", e);
-                if (animationFrameIdRef.current)
-                  cancelAnimationFrame(animationFrameIdRef.current);
-                animationFrameIdRef.current = null;
-                return;
-              }
-            }
-            if (videoElementRef.current) {
-              animationFrameIdRef.current =
-                requestAnimationFrame(renderVideoFrame);
-            }
-          };
-
-          video
-            .play()
-            .then(() => {
-              if (animationFrameIdRef.current)
-                cancelAnimationFrame(animationFrameIdRef.current);
-              renderVideoFrame();
-              setShader((prev) => ({
-                ...prev,
-                sourceMediaType: "video",
-                sourceDimensions: {
-                  width: video.videoWidth,
-                  height: video.videoHeight,
-                },
-              }));
-              setSelectedFile(originalFile);
-              onFileSelect(originalFile);
-              setError(null);
-              resolve(true);
-            })
-            .catch((playError) => {
-              console.error("Video play error:", playError);
-              setError("Could not play video automatically.");
-              resolve(false);
-            });
-        };
-        video.onerror = () => {
-          URL.revokeObjectURL(video.src);
-          setError("Failed to load video. Please try another file.");
-          if (videoElementRef.current) videoElementRef.current = null;
-          resolve(false);
-        };
-      });
-    },
-    [onFileSelect, setShader, shader.filter],
-  );
 
   const validateFile = useCallback(
     async (file: File | null) => {
@@ -291,71 +158,63 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
       const fileCategory = file.type.split("/")[0];
       const isGif = file.type === "image/gif";
 
-      if (isGif) {
-        setLoadingMessage("Preparing to convert GIF...");
+      try {
+        if (isGif) {
+          setLoadingMessage("Preparing to convert GIF...");
+          const videoBlob = await convertGifToVideo(
+            file,
+            (progress) =>
+              setLoadingMessage(
+                `Converting... ${(progress * 100).toFixed(0)}%`,
+              ),
+            (status) => setLoadingMessage(status),
+          );
+          const result = await processVideo(videoBlob, shader.filter);
+          mediaCleanupRef.current = result.cleanup;
+          setShader((prev) => ({
+            ...prev,
+            sourceMediaType: result.sourceMediaType,
+            sourceDimensions: result.sourceDimensions,
+          }));
+          result.play();
+        } else if (fileCategory === "image") {
+          const result = await processImage(file, shader.filter);
+          mediaCleanupRef.current = null;
+          setShader((prev) => ({
+            ...prev,
+            sourceMediaType: result.sourceMediaType,
+            sourceDimensions: result.sourceDimensions,
+          }));
+        } else if (fileCategory === "video") {
+          const result = await processVideo(file, shader.filter);
+          mediaCleanupRef.current = result.cleanup;
+          setShader((prev) => ({
+            ...prev,
+            sourceMediaType: result.sourceMediaType,
+            sourceDimensions: result.sourceDimensions,
+          }));
+          result.play();
+        } else {
+          throw new Error(`Unsupported file type: ${file.type}`);
+        }
+
         setSelectedFile(file);
         onFileSelect(file);
-        ffmpegWorkerRef.current?.postMessage({ file });
-      } else if (fileCategory === "image") {
-        const img = new window.Image();
-        const url = URL.createObjectURL(file);
-        img.onload = async () => {
-          URL.revokeObjectURL(url);
-          if (
-            img.width > LIMITS.MAX_DIMENSION ||
-            img.height > LIMITS.MAX_DIMENSION
-          ) {
-            setError(`Image dimensions exceed ${LIMITS.MAX_DIMENSION}px.`);
-            setIsLoadingMedia(false);
-            return;
-          }
-
-          const decodeCanvas = new OffscreenCanvas(img.width, img.height);
-          const decodeCtx = decodeCanvas.getContext("2d");
-          decodeCtx?.drawImage(img, 0, 0);
-          const imageData = decodeCtx?.getImageData(
-            0,
-            0,
-            img.width,
-            img.height,
-          );
-          const pixelData = new Uint8Array(imageData!.data.buffer);
-
-          try {
-            shader.filter!.set_image_data(img.width, img.height, pixelData);
-            setShader((prev) => ({
-              ...prev,
-              sourceMediaType: "image",
-              sourceDimensions: { width: img.width, height: img.height },
-            }));
-            setSelectedFile(file);
-            onFileSelect(file);
-            setError(null);
-          } catch (filterError) {
-            console.error("ImageFilter error for image:", filterError);
-            setError("Failed to process image.");
-          } finally {
-            setIsLoadingMedia(false);
-          }
-        };
-        img.onerror = () => {
-          URL.revokeObjectURL(url);
-          setError("Failed to load image.");
-          setIsLoadingMedia(false);
-        };
-        img.src = url;
-      } else if (fileCategory === "video") {
-        await processVideo(file, file);
-        setIsLoadingMedia(false);
-      } else {
-        setError(`Unsupported file type: ${file.type}`);
+        setError(null);
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "An unknown error occurred.";
+        setError(message);
+        await cleanupPreviousMedia();
+        setSelectedFile(null);
+        onFileSelect(null);
+      } finally {
         setIsLoadingMedia(false);
       }
     },
     [
       cleanupPreviousMedia,
       onFileSelect,
-      processVideo,
       setShader,
       shader.filter,
       validTypes,
@@ -485,7 +344,15 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         }
       }
     },
-    [validateFile, selectedFile, isLoadingMedia, shader.filter],
+    [
+      validateFile,
+      selectedFile,
+      isLoadingMedia,
+      shader.filter,
+      isActive,
+      validTypes,
+      validTypesString,
+    ],
   );
 
   useEffect(() => {
@@ -528,6 +395,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           isLoading={false}
           onUploadPlaceholderClick={triggerFileInput}
           isInteractive={!isBusy}
+          sourceDimensions={shader.sourceDimensions}
         />
         {isBusy && (
           <div className="flex flex-col items-center justify-center text-center">

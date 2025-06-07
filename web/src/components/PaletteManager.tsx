@@ -589,7 +589,6 @@ function PaletteManager({ onPaletteSelect }: PaletteManagerProps) {
       setMobileActionPaletteId(null);
     }, MOBILE_MENU_TRANSITION_DURATION);
   };
-
   return (
     <TooltipProvider>
       <div ref={dropdownRef} className="relative">

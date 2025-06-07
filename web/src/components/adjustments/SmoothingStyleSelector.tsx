@@ -13,22 +13,29 @@ import {
   SMOOTHING_STYLE_NAMES,
   SMOOTHING_STYLE_TOOLTIPS,
 } from "./adjustments.types";
+import { useShader } from "@/ShaderContext";
 
 interface SmoothingStyleSelectorProps {
-  currentSmoothingStyle: SmoothingStyleKey;
-  onSmoothingStyleChange: (style: SmoothingStyleKey) => void;
   isActive: boolean;
   isImageUploaded: boolean;
   usesSmoothed: boolean;
 }
 
 export const SmoothingStyleSelector: React.FC<SmoothingStyleSelectorProps> = ({
-  currentSmoothingStyle,
-  onSmoothingStyleChange,
   isActive,
   isImageUploaded,
   usesSmoothed,
 }) => {
+  const { shader, setShader } = useShader();
+  const { config } = shader;
+
+  const onSmoothingStyleChange = (style: SmoothingStyleKey) => {
+    setShader((prev) => ({
+      ...prev,
+      config: { ...prev.config, smoothingStyle: style },
+    }));
+  };
+
   return (
     <div className="space-y-3">
       <Label
@@ -45,7 +52,7 @@ export const SmoothingStyleSelector: React.FC<SmoothingStyleSelectorProps> = ({
             <TooltipTrigger asChild>
               <Button
                 variant={
-                  currentSmoothingStyle === option ? "default" : "outline"
+                  config.smoothFormula === option ? "default" : "outline"
                 }
                 size="sm"
                 onClick={() => onSmoothingStyleChange(option)}

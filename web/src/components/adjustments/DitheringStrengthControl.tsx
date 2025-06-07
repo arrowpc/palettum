@@ -7,17 +7,26 @@ import {
   MAX_DITHERING_STRENGTH,
   DITHERING_STRENGTH_STEP,
 } from "./adjustments.types";
+import { useShader } from "@/ShaderContext";
 
 interface DitheringStrengthControlProps {
-  currentStrength: number;
-  onStrengthChange: (value: number[]) => void;
-  isActive: boolean; // True if a dithering method (not 'None') is selected AND palettized mode is active
+  isActive: boolean;
   isImageUploaded: boolean;
 }
 
 export const DitheringStrengthControl: React.FC<
   DitheringStrengthControlProps
-> = ({ currentStrength, onStrengthChange, isActive, isImageUploaded }) => {
+> = ({ isActive, isImageUploaded }) => {
+  const { shader, setShader } = useShader();
+  const { config } = shader;
+
+  const onStrengthChange = (value: number[]) => {
+    setShader((prev) => ({
+      ...prev,
+      config: { ...prev.config, ditheringStrength: value[0] },
+    }));
+  };
+
   return (
     <div
       className={cn(
@@ -39,7 +48,7 @@ export const DitheringStrengthControl: React.FC<
         min={MIN_DITHERING_STRENGTH}
         max={MAX_DITHERING_STRENGTH}
         step={DITHERING_STRENGTH_STEP}
-        value={[currentStrength]}
+        value={[config.ditherStrength || 0]}
         onValueChange={onStrengthChange}
         disabled={!isActive}
         className={cn("mt-2", !isActive && "cursor-not-allowed")}
@@ -50,7 +59,7 @@ export const DitheringStrengthControl: React.FC<
           !isActive && "cursor-not-allowed",
         )}
       >
-        {isActive ? currentStrength.toFixed(2) : "-"}
+        {isActive ? config.ditherStrength?.toFixed(2) : "-"}
       </div>
       <p
         className={cn(

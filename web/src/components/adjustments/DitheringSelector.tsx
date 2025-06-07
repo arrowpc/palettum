@@ -14,20 +14,27 @@ import {
   DITHERING_NAMES,
   DITHERING_TOOLTIPS,
 } from "./adjustments.types";
+import { useShader } from "@/ShaderContext";
 
 interface DitheringSelectorProps {
-  currentDitheringStyle: DitheringKey;
-  onDitheringStyleChange: (style: DitheringKey) => void;
   isActive: boolean;
   isImageUploaded: boolean;
 }
 
 export const DitheringSelector: React.FC<DitheringSelectorProps> = ({
-  currentDitheringStyle,
-  onDitheringStyleChange,
   isActive,
   isImageUploaded,
 }) => {
+  const { shader, setShader } = useShader();
+  const { config } = shader;
+
+  const onDitheringStyleChange = (style: DitheringKey) => {
+    setShader((prev) => ({
+      ...prev,
+      config: { ...prev.config, ditheringStyle: style },
+    }));
+  };
+
   return (
     <div
       className={cn(
@@ -45,7 +52,7 @@ export const DitheringSelector: React.FC<DitheringSelectorProps> = ({
               <TooltipTrigger asChild>
                 <Button
                   variant={
-                    currentDitheringStyle === option ? "default" : "outline"
+                    config.ditherAlgorithm === option ? "default" : "outline"
                   }
                   size="sm"
                   onClick={() => onDitheringStyleChange(option)}

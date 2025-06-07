@@ -11,7 +11,7 @@ import type { ImageFilter } from "palettum";
 export interface ShaderState {
   filter: ImageFilter | null;
   canvas: OffscreenCanvas | null;
-  sourceMediaType: "image" | "video" | null;
+  sourceMediaType: "image" | "video" | "gif" | null;
   sourceDimensions?: { width: number; height: number };
 }
 

@@ -495,6 +495,7 @@ impl GpuImageProcessor {
 pub struct ImageFilter {
     device: wgpu::Device,
     queue: wgpu::Queue,
+    canvas: OffscreenCanvas,
     surface: wgpu::Surface<'static>,
     pipelines: Vec<wgpu::RenderPipeline>,
     current_shader_index: usize,
@@ -675,6 +676,7 @@ impl ImageFilter {
         Ok(ImageFilter {
             device,
             queue,
+            canvas,
             surface,
             pipelines,
             current_shader_index: 0,
@@ -683,6 +685,10 @@ impl ImageFilter {
             bind_group_layout,
             config_buffer,
         })
+    }
+
+    pub fn get_canvas(&self) -> OffscreenCanvas {
+        self.canvas.clone()
     }
 
     pub fn set_image_data(

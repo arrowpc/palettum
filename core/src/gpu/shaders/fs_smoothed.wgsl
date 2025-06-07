@@ -10,7 +10,7 @@ struct Config {
     diff_formula: u32,
     smooth_formula: u32,
     palette_size: u32,
-palette: array<vec4<u32>, 64>,
+    palette: array<vec4<u32>, 64>,
     smooth_strength: f32,
     dither_algorithm: u32,
     dither_strength: f32,

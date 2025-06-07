@@ -498,17 +498,12 @@ pub struct ImageFilter {
     queue: wgpu::Queue,
     surface: wgpu::Surface<'static>,
     pipelines: Vec<wgpu::RenderPipeline>,
-    video_pipeline: wgpu::RenderPipeline,
     current_shader_index: usize,
     config_buffer: wgpu::Buffer,
-
     texture: Option<wgpu::Texture>,
     bind_group: Option<wgpu::BindGroup>,
-    image_bind_group_layout: wgpu::BindGroupLayout,
-
-    video_bind_group: Option<wgpu::BindGroup>,
-    video_bind_group_layout: wgpu::BindGroupLayout,
-    video_sampler: wgpu::Sampler,
+    bind_group_layout: wgpu::BindGroupLayout,
+    sampler: wgpu::Sampler,
 }
 
 #[wasm_bindgen]
@@ -581,7 +576,6 @@ impl ImageFilter {
         const VERTEX_SHADER: &str = include_str!("shaders/vertex.wgsl");
         const FRAGMENT_ORIGINAL: &str = include_str!("shaders/fs_original.wgsl");
         const FRAGMENT_SMOOTHED: &str = include_str!("shaders/fs_smoothed.wgsl");
-        const FRAGMENT_VIDEO: &str = include_str!("shaders/fs_smoothed.wgsl");
 
         let vs_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Vertex Shader"),
@@ -597,52 +591,46 @@ impl ImageFilter {
                 source: wgpu::ShaderSource::Wgsl(FRAGMENT_SMOOTHED.into()),
             }),
         ];
-        let fs_video_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Video Shader"),
-            source: wgpu::ShaderSource::Wgsl(FRAGMENT_VIDEO.into()),
+
+        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("Media Bind Group Layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(
+                            std::mem::size_of::<GpuConfig>() as u64
+                        ),
+                    },
+                    count: None,
+                },
+            ],
         });
 
-        let image_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Image Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(
-                                std::mem::size_of::<GpuConfig>() as u64,
-                            ),
-                        },
-                        count: None,
-                    },
-                ],
-            });
-
-        let image_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Image Render Pipeline Layout"),
-                bind_group_layouts: &[&image_bind_group_layout],
-                push_constant_ranges: &[],
-            });
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Render Pipeline Layout"),
+            bind_group_layouts: &[&bind_group_layout],
+            push_constant_ranges: &[],
+        });
 
         let fragment_entry_points = ["fs_original", "fs_smoothed"];
         let pipelines = fs_modules
@@ -651,7 +639,7 @@ impl ImageFilter {
             .map(|(i, fs_module)| {
                 device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("Render Pipeline"),
-                    layout: Some(&image_pipeline_layout),
+                    layout: Some(&pipeline_layout),
                     vertex: wgpu::VertexState {
                         module: &vs_module,
                         entry_point: Some("vs_main"),
@@ -677,78 +665,12 @@ impl ImageFilter {
             })
             .collect();
 
-        let video_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("Video Bind Group Layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(
-                                std::mem::size_of::<GpuConfig>() as u64,
-                            ),
-                        },
-                        count: None,
-                    },
-                ],
-            });
-
-        let video_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
             ..Default::default()
-        });
-
-        let video_pipeline_layout =
-            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("Video Pipeline Layout"),
-                bind_group_layouts: &[&video_bind_group_layout],
-                push_constant_ranges: &[],
-            });
-
-        let video_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("Video Render Pipeline"),
-            layout: Some(&video_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &vs_module,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &fs_video_module,
-                entry_point: Some("fs_smoothed"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview: None,
-            cache: None,
         });
 
         Ok(ImageFilter {
@@ -757,15 +679,12 @@ impl ImageFilter {
             queue,
             surface,
             pipelines,
-            video_pipeline,
             current_shader_index: 0,
             config_buffer,
             texture: None,
             bind_group: None,
-            image_bind_group_layout,
-            video_bind_group: None,
-            video_bind_group_layout,
-            video_sampler,
+            bind_group_layout,
+            sampler,
         })
     }
 
@@ -815,7 +734,7 @@ impl ImageFilter {
 
         if needs_new_texture {
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Video Texture"),
+                label: Some("Media Texture"),
                 size: wgpu::Extent3d {
                     width,
                     height,
@@ -833,8 +752,8 @@ impl ImageFilter {
 
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Video Bind Group"),
-                layout: &self.video_bind_group_layout,
+                label: Some("Media Bind Group"),
+                layout: &self.bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -842,7 +761,7 @@ impl ImageFilter {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&self.video_sampler),
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -852,7 +771,7 @@ impl ImageFilter {
             });
 
             self.texture = Some(texture);
-            self.video_bind_group = Some(bind_group);
+            self.bind_group = Some(bind_group);
         }
 
         let texture = self.texture.as_ref().unwrap();
@@ -881,36 +800,7 @@ impl ImageFilter {
         self.queue
             .copy_external_image_to_texture(&source, dest, extent);
 
-        if let Ok(frame) = self.surface.get_current_texture() {
-            let view = frame
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
-            let mut encoder = self
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
-            {
-                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("Video Render Pass"),
-                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                            store: wgpu::StoreOp::Store,
-                        },
-                    })],
-                    depth_stencil_attachment: None,
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                });
-                render_pass.set_pipeline(&self.video_pipeline);
-                render_pass.set_bind_group(0, self.video_bind_group.as_ref().unwrap(), &[]);
-                render_pass.draw(0..3, 0..1);
-            }
-            self.queue.submit(Some(encoder.finish()));
-            frame.present();
-        }
-
+        self.render()?;
         Ok(())
     }
 
@@ -929,7 +819,7 @@ impl ImageFilter {
 
         if needs_new_texture {
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Image Texture"),
+                label: Some("Media Texture"),
                 size: wgpu::Extent3d {
                     width,
                     height,
@@ -946,17 +836,10 @@ impl ImageFilter {
             });
 
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Nearest,
-                min_filter: wgpu::FilterMode::Nearest,
-                ..Default::default()
-            });
 
             let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Image Bind Group"),
-                layout: &self.image_bind_group_layout,
+                label: Some("Media Bind Group"),
+                layout: &self.bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -964,7 +847,7 @@ impl ImageFilter {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&sampler),
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -1013,7 +896,6 @@ impl ImageFilter {
         };
 
         match config.mapping {
-            // Placeholder for now
             Mapping::Palettized => self.current_shader_index = 0,
             Mapping::Smoothed => self.current_shader_index = 1,
         }

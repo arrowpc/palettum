@@ -101,32 +101,8 @@ export async function processImage(
 
     filter.update_from_image_bitmap(bitmap);
 
-    let animationFrameId: number | null = null;
-
-    const play = () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
-
-      const renderLoop = () => {
-        try {
-          filter.render();
-        } catch (e) {
-          console.error("Error in image render loop:", e);
-          if (animationFrameId) cancelAnimationFrame(animationFrameId);
-          return;
-        }
-        animationFrameId = requestAnimationFrame(renderLoop);
-      };
-      renderLoop();
-    };
-
-    const cleanup = () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
-      }
-    };
+    const play = () => { };
+    const cleanup = () => { };
 
     const result: ProcessedMediaResult = {
       sourceMediaType: "image",

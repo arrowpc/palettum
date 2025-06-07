@@ -459,7 +459,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   const handleWheel = useCallback(
     (e: ReactWheelEvent) => {
-      e.preventDefault();
       handleZoom(e.deltaY < 0, e.clientX, e.clientY);
     },
     [handleZoom],

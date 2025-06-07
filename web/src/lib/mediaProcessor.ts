@@ -6,16 +6,11 @@ interface MediaDimensions {
   height: number;
 }
 
-interface ProcessedVideoResult {
-  sourceMediaType: "video";
+interface ProcessedMediaResult {
+  sourceMediaType: "image" | "video";
   sourceDimensions: MediaDimensions;
   play: () => void;
   cleanup: () => void;
-}
-
-interface ProcessedImageResult {
-  sourceMediaType: "image";
-  sourceDimensions: MediaDimensions;
 }
 
 export function convertGifToVideo(
@@ -70,59 +65,71 @@ export function convertGifToVideo(
   });
 }
 
-export function processImage(
+export async function processImage(
   file: File,
   filter: ImageFilter,
-): Promise<ProcessedImageResult> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    const url = URL.createObjectURL(file);
+): Promise<ProcessedMediaResult> {
+  try {
+    const bitmap = await createImageBitmap(file);
 
-    img.onload = async () => {
-      URL.revokeObjectURL(url);
-      if (
-        img.width > LIMITS.MAX_DIMENSION ||
-        img.height > LIMITS.MAX_DIMENSION
-      ) {
-        return reject(
-          new Error(`Image dimensions exceed ${LIMITS.MAX_DIMENSION}px.`),
-        );
+    if (
+      bitmap.width > LIMITS.MAX_DIMENSION ||
+      bitmap.height > LIMITS.MAX_DIMENSION
+    ) {
+      bitmap.close();
+      throw new Error(`Image dimensions exceed ${LIMITS.MAX_DIMENSION}px.`);
+    }
+
+    filter.update_from_image_bitmap(bitmap);
+
+    let animationFrameId: number | null = null;
+
+    const play = () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
       }
 
-      const decodeCanvas = new OffscreenCanvas(img.width, img.height);
-      const decodeCtx = decodeCanvas.getContext("2d");
-      if (!decodeCtx) {
-        return reject(new Error("Could not get OffscreenCanvas context."));
-      }
-      decodeCtx.drawImage(img, 0, 0);
-      const imageData = decodeCtx.getImageData(0, 0, img.width, img.height);
-      const pixelData = new Uint8Array(imageData.data.buffer);
+      const renderLoop = () => {
+        try {
+          filter.render();
+        } catch (e) {
+          console.error("Error in image render loop:", e);
+          if (animationFrameId) cancelAnimationFrame(animationFrameId);
+          return;
+        }
+        animationFrameId = requestAnimationFrame(renderLoop);
+      };
+      renderLoop();
+    };
 
-      try {
-        filter.set_image_data(img.width, img.height, pixelData);
-        resolve({
-          sourceMediaType: "image",
-          sourceDimensions: { width: img.width, height: img.height },
-        });
-      } catch (filterError) {
-        console.error("ImageFilter error for image:", filterError);
-        reject(new Error("Failed to process image with renderer."));
+    const cleanup = () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
       }
     };
 
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Failed to load image."));
+    const result: ProcessedMediaResult = {
+      sourceMediaType: "image",
+      sourceDimensions: { width: bitmap.width, height: bitmap.height },
+      play,
+      cleanup,
     };
 
-    img.src = url;
-  });
+    bitmap.close();
+    return result;
+  } catch (err) {
+    console.error("Failed to process image:", err);
+    const message =
+      err instanceof Error ? err.message : "An unknown error occurred.";
+    throw new Error(`Failed to load image: ${message}`);
+  }
 }
 
 export function processVideo(
   videoBlob: Blob,
   filter: ImageFilter,
-): Promise<ProcessedVideoResult> {
+): Promise<ProcessedMediaResult> {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video");
     const videoUrl = URL.createObjectURL(videoBlob);

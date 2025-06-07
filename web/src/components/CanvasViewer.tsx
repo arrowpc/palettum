@@ -160,7 +160,7 @@ Toolbar.displayName = "Toolbar";
 const StableDialogContent = memo(
   ({ children }: { children: React.ReactNode }) => {
     return (
-      <DialogContent className="max-w-5xl w-full p-0 overflow-hidden border-none shadow-2xl bg-transparent">
+      <DialogContent className="max-w-5xl w-full p-0 overflow-hidden border-none shadow-2xl">
         {children}
       </DialogContent>
     );
@@ -364,8 +364,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
       const zoomPointY =
         clientY ?? (viewportRect.top + viewportRect.bottom) / 2;
 
-      const currentCanvasCenterX = viewportRect.width / 2 - position.x;
-      const currentCanvasCenterY = viewportRect.height / 2 - position.y;
+      const currentCanvasCenterX = viewportRect.width / 2 + position.x;
+      const currentCanvasCenterY = viewportRect.height / 2 + position.y;
       const offsetX = zoomPointX - viewportRect.left - currentCanvasCenterX;
       const offsetY = zoomPointY - viewportRect.top - currentCanvasCenterY;
 
@@ -577,11 +577,11 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
             transform: `translate(${position.x}px, ${position.y}px) scale(${zoomLevel})`,
             transition: isDragging
               ? "none"
-              : "transform 0.15s cubic-bezier(0.4, 0, 0.2, 1)",
+              : "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
             transformOrigin: "center",
             willChange: "transform",
             opacity: canvasReady ? 1 : 0,
-            imageRendering: "pixelated",
+            imageRendering: zoomLevel > 3 ? "pixelated" : "auto",
           }}
         />
       </div>

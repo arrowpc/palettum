@@ -1,7 +1,7 @@
 use crate::{config::Config, error::Result, palettized::Dithering, Mapping};
 use std::{borrow::Cow, result::Result as StdResult, sync::Arc};
 use wasm_bindgen::prelude::*;
-use web_sys::{HtmlCanvasElement, HtmlVideoElement};
+use web_sys::{HtmlCanvasElement, HtmlVideoElement, ImageBitmap};
 use wgpu::util::DeviceExt;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -914,12 +914,14 @@ impl ImageFilter {
         Ok(())
     }
 
-    pub fn set_image_data(
-        &mut self,
-        width: u32,
-        height: u32,
-        data: &[u8],
-    ) -> StdResult<(), JsValue> {
+    pub fn update_from_image_bitmap(&mut self, bitmap: &ImageBitmap) -> StdResult<(), JsValue> {
+        let width = bitmap.width();
+        let height = bitmap.height();
+
+        if width == 0 || height == 0 {
+            return Ok(());
+        }
+
         let needs_new_texture = self.texture.as_ref().map_or(true, |t| {
             let size = t.size();
             size.width != width || size.height != height
@@ -937,38 +939,23 @@ impl ImageFilter {
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_DST
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
                 view_formats: &[],
             });
-
-            self.queue.write_texture(
-                texture.as_image_copy(),
-                data,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * width),
-                    rows_per_image: Some(height),
-                },
-                wgpu::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-            );
 
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
                 address_mode_u: wgpu::AddressMode::ClampToEdge,
                 address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
                 mag_filter: wgpu::FilterMode::Nearest,
                 min_filter: wgpu::FilterMode::Nearest,
-                mipmap_filter: wgpu::FilterMode::Nearest,
                 ..Default::default()
             });
 
             let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Texture Bind Group"),
+                label: Some("Image Bind Group"),
                 layout: &self.image_bind_group_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
@@ -988,13 +975,28 @@ impl ImageFilter {
 
             self.texture = Some(texture);
             self.bind_group = Some(bind_group);
-        } else {
-            self.update_texture_data(data)?;
         }
 
-        let config = GpuConfig::from_config(&Config::default(), width, height);
-        self.queue
-            .write_buffer(&self.config_buffer, 0, bytemuck::bytes_of(&config));
+        self.queue.copy_external_image_to_texture(
+            &wgpu::ImageCopyExternalImage {
+                source: wgpu::ExternalImageSource::ImageBitmap(bitmap.clone()),
+                origin: wgpu::Origin2d::ZERO,
+                flip_y: false,
+            },
+            wgpu::ImageCopyTextureTagged {
+                texture: self.texture.as_ref().unwrap(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+                color_space: wgpu::PredefinedColorSpace::Srgb,
+                premultiplied_alpha: false,
+            },
+            wgpu::Extent3d {
+                width,
+                height,
+                depth_or_array_layers: 1,
+            },
+        );
 
         self.render()?;
         Ok(())
@@ -1027,7 +1029,7 @@ impl ImageFilter {
         Ok(())
     }
 
-    fn render(&self) -> StdResult<(), JsValue> {
+    pub fn render(&self) -> StdResult<(), JsValue> {
         let frame = self
             .surface
             .get_current_texture()

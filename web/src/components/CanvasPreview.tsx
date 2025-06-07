@@ -5,6 +5,7 @@ import React, {
   MouseEvent,
   ReactNode,
   KeyboardEvent,
+  useState,
 } from "react";
 import { X, Maximize, ImageIcon as DefaultUploadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -56,28 +57,30 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
   }) => {
     const displayCanvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const [containerSize, setContainerSize] = useState({
+      width: 0,
+      height: 0,
+    });
 
     const effectiveUploadIcon = uploadIcon || (
       <DefaultUploadIcon className="mx-auto w-6 h-6 sm:w-8 sm:h-8" />
     );
 
-    const containerStyle = useMemo(() => {
-      if (!sourceDimensions || !containerRef.current) {
-        return {};
-      }
-
-      const container = containerRef.current;
-      const containerRect = container.getBoundingClientRect();
-      const containerWidth = containerRect.width || container.clientWidth;
-      const containerHeight = containerRect.height || container.clientHeight;
-
-      if (containerWidth === 0 || containerHeight === 0) {
+    const canvasStyle = useMemo(() => {
+      if (
+        !sourceDimensions ||
+        !containerRef.current ||
+        containerSize.width === 0 ||
+        containerSize.height === 0
+      ) {
         return {};
       }
 
       const { width: sourceWidth, height: sourceHeight } = sourceDimensions;
-      const containerAspect = containerWidth / containerHeight;
+      const { width: containerWidth, height: containerHeight } = containerSize;
+
       const sourceAspect = sourceWidth / sourceHeight;
+      const containerAspect = containerWidth / containerHeight;
 
       let displayWidth, displayHeight;
 
@@ -92,8 +95,9 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
       return {
         width: `${displayWidth}px`,
         height: `${displayHeight}px`,
+        imageRendering: "pixelated" as const,
       };
-    }, [sourceDimensions]);
+    }, [sourceDimensions, containerSize]);
 
     useEffect(() => {
       const displayElement = displayCanvasRef.current;
@@ -121,6 +125,21 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
         }
       }
     }, [sourceDimensions]);
+
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+          setContainerSize({ width, height });
+        }
+      });
+
+      resizeObserver.observe(container);
+      return () => resizeObserver.disconnect();
+    }, []);
 
     const handleMainClick = () => {
       if (!isInteractive || isLoading) return;
@@ -179,7 +198,7 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
     );
 
     const baseContainerClasses =
-      "relative group flex items-center justify-center overflow-hidden transition-all duration-200";
+      "relative group w-full h-full flex items-center justify-center overflow-hidden transition-all duration-200";
     const interactiveClasses =
       isInteractive && !isLoading && (hasContent || onUploadPlaceholderClick)
         ? "cursor-pointer"
@@ -230,23 +249,12 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
           }
         }}
       >
-        <div
-          style={hasContent ? containerStyle : {}}
-          className="flex items-center justify-center"
-        >
-          <canvas
-            ref={displayCanvasRef}
-            className={cn(
-              "max-w-full max-h-full",
-              canvasClassName,
-              !hasContent && "hidden",
-            )}
-            style={{
-              imageRendering: "pixelated",
-            }}
-            aria-label={altText}
-          />
-        </div>
+        <canvas
+          ref={displayCanvasRef}
+          style={canvasStyle}
+          className={cn(!hasContent && "hidden", canvasClassName)}
+          aria-label={altText}
+        />
         {!hasContent && isInteractive && onUploadPlaceholderClick && (
           <div
             className={cn(

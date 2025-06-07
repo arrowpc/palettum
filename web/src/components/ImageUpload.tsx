@@ -155,11 +155,10 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         return;
       }
 
-      const fileCategory = file.type.split("/")[0];
-      const isGif = file.type === "image/gif";
-
       try {
-        if (isGif) {
+        let result;
+
+        if (file.type === "image/gif") {
           setLoadingMessage("Preparing to convert GIF...");
           const videoBlob = await convertGifToVideo(
             file,
@@ -169,45 +168,27 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
               ),
             (status) => setLoadingMessage(status),
           );
-          const result = await processVideo(videoBlob, shader.filter);
-          mediaCleanupRef.current = result.cleanup;
-          setShader((prev) => ({
-            ...prev,
-            sourceMediaType: result.sourceMediaType,
-            sourceDimensions: result.sourceDimensions,
-          }));
-          result.play();
-        } else if (fileCategory === "image") {
-          const result = await processImage(file, shader.filter);
-          mediaCleanupRef.current = null;
-          setShader((prev) => ({
-            ...prev,
-            sourceMediaType: result.sourceMediaType,
-            sourceDimensions: result.sourceDimensions,
-          }));
-        } else if (fileCategory === "video") {
-          const result = await processVideo(file, shader.filter);
-          mediaCleanupRef.current = result.cleanup;
-          setShader((prev) => ({
-            ...prev,
-            sourceMediaType: result.sourceMediaType,
-            sourceDimensions: result.sourceDimensions,
-          }));
-          result.play();
+          result = await processVideo(videoBlob, shader.filter!);
+        } else if (file.type.split("/")[0] === "image") {
+          result = await processImage(file, shader.filter!);
+        } else if (file.type.split("/")[0] === "video") {
+          result = await processVideo(file, shader.filter!);
         } else {
           throw new Error(`Unsupported file type: ${file.type}`);
         }
+
+        mediaCleanupRef.current = result.cleanup;
+        setShader((prev) => ({
+          ...prev,
+          sourceMediaType: result.sourceMediaType,
+          sourceDimensions: result.sourceDimensions,
+        }));
+        result.play();
 
         setSelectedFile(file);
         onFileSelect(file);
         setError(null);
       } catch (err) {
-        const message =
-          err instanceof Error ? err.message : "An unknown error occurred.";
-        setError(message);
-        await cleanupPreviousMedia();
-        setSelectedFile(null);
-        onFileSelect(null);
       } finally {
         setIsLoadingMedia(false);
       }
@@ -221,7 +202,6 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
       validTypesString,
     ],
   );
-
   const handleFileChange = useCallback(
     async (event: ReactChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];

@@ -94,10 +94,12 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
         displayWidth = containerHeight * sourceAspect;
       }
 
+      const shouldPixelate = sourceWidth < 300 || sourceHeight < 300;
+
       return {
         width: `${displayWidth}px`,
         height: `${displayHeight}px`,
-        imageRendering: "pixelated" as const,
+        ...(shouldPixelate ? { imageRendering: "pixelated" as const } : {}),
       };
     }, [sourceDimensions, containerSize]);
 

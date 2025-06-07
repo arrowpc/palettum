@@ -14,10 +14,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { LIMITS } from "@/lib/palettes";
 import CanvasPreview from "./CanvasPreview";
+import CanvasViewer from "./CanvasViewer";
 import { ImageFilter } from "palettum";
 import { useShader } from "@/ShaderContext";
-import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { fetchFile, toBlobURL } from "@ffmpeg/util";
 
 interface ImageUploadProps {
   onFileSelect: (file: File | null) => void;
@@ -30,19 +29,26 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const [error, setError] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(false);
   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
-  const [ffmpegReady, setFfmpegReady] = useState(false);
-  const [ffmpegMessage, setFfmpegMessage] = useState("Loading converter...");
+  const [loadingMessage, setLoadingMessage] = useState("Processing...");
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
 
   const uploadAreaRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { shader, setShader } = useShader();
-  const ffmpegRef = useRef(new FFmpeg());
+  const ffmpegWorkerRef = useRef<Worker | null>(null);
 
   const videoElementRef = useRef<HTMLVideoElement | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
-  const decodeCanvasRef = useRef<OffscreenCanvas | null>(null);
-  const decodeCtxRef = useRef<OffscreenCanvasRenderingContext2D | null>(null);
-  const [previewVersion, setPreviewVersion] = useState(0);
+  const [offscreenCanvas, setOffscreenCanvas] =
+    useState<OffscreenCanvas | null>(null);
+
+  const handleCanvasReady = useCallback(
+    (canvas: OffscreenCanvas) => {
+      setOffscreenCanvas(canvas);
+      setShader((prev) => ({ ...prev, canvas }));
+    },
+    [setShader],
+  );
 
   const validImageTypes = [
     "image/jpeg",
@@ -55,48 +61,90 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
 
   const validTypesString = validTypes
     .map((type) => {
-      const [cat, subType] = type.split("/");
+      const [_cat, subType] = type.split("/");
       return subType.toUpperCase();
     })
     .filter((value, index, self) => self.indexOf(value) === index)
     .join(", ");
 
-  const loadFfmpeg = useCallback(async () => {
-    const ffmpeg = ffmpegRef.current;
-    ffmpeg.on("log", ({ message }) => {
-      console.log(message);
-    });
-    ffmpeg.on("progress", ({ progress }) => {
-      setFfmpegMessage(`Converting... ${(progress * 100).toFixed(0)}%`);
-    });
+  useEffect(() => {
+    ffmpegWorkerRef.current = new Worker(
+      new URL("../lib/ffmpeg.worker.ts", import.meta.url),
+      { type: "module" },
+    );
 
-    const baseURL = "https://unpkg.com/@ffmpeg/core-mt@0.12.6/dist/esm";
-    try {
-      await ffmpeg.load({
-        coreURL: await toBlobURL(
-          `${baseURL}/ffmpeg-core.js`,
-          "text/javascript",
-        ),
-        wasmURL: await toBlobURL(
-          `${baseURL}/ffmpeg-core.wasm`,
-          "application/wasm",
-        ),
-        workerURL: await toBlobURL(
-          `${baseURL}/ffmpeg-core.worker.js`,
-          "text/javascript",
-        ),
-      });
-      setFfmpegReady(true);
-    } catch (err) {
-      console.error("Failed to load ffmpeg:", err);
-      setError("Failed to load the media converter. Please refresh the page.");
-    }
-  }, []);
+    const handleWorkerMessage = (
+      event: MessageEvent<{
+        type: string;
+        progress?: number;
+        message?: string;
+        blob?: Blob;
+      }>,
+    ) => {
+      const { type, progress, message, blob } = event.data;
+      switch (type) {
+        case "status":
+          setLoadingMessage(message || "...");
+          break;
+        case "progress":
+          setLoadingMessage(`Converting... ${(progress! * 100).toFixed(0)}%`);
+          break;
+        case "done":
+          if (blob && selectedFile) {
+            processVideo(blob, selectedFile).finally(() => {
+              setIsLoadingMedia(false);
+            });
+          }
+          break;
+        case "error":
+          setError(message || "An unknown conversion error occurred.");
+          setIsLoadingMedia(false);
+          break;
+      }
+    };
+
+    ffmpegWorkerRef.current.addEventListener("message", handleWorkerMessage);
+
+    return () => {
+      ffmpegWorkerRef.current?.removeEventListener(
+        "message",
+        handleWorkerMessage,
+      );
+      ffmpegWorkerRef.current?.terminate();
+    };
+  }, [selectedFile]);
 
   useEffect(() => {
-    loadFfmpeg();
-  }, [loadFfmpeg]);
+    let isMounted = true;
 
+    if (offscreenCanvas && !shader.filter) {
+      setLoadingMessage("Initializing renderer...");
+      const initFilter = async () => {
+        try {
+          const filter = await new ImageFilter(offscreenCanvas);
+          if (isMounted) {
+            setShader((prev) => ({
+              ...prev,
+              filter,
+            }));
+          }
+        } catch (err) {
+          console.error("Failed to initialize WebAssembly renderer:", err);
+          if (isMounted) {
+            setError(
+              "Failed to initialize the graphics renderer. Please try refreshing the page.",
+            );
+          }
+        }
+      };
+      initFilter();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+    // Add shader.filter to the dependency array.
+  }, [offscreenCanvas, setShader, setError, shader.filter]);
   const cleanupPreviousMedia = useCallback(async () => {
     setIsLoadingMedia(false);
     if (animationFrameIdRef.current) {
@@ -109,13 +157,9 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
       videoElementRef.current.load();
       videoElementRef.current = null;
     }
-    decodeCanvasRef.current = null;
-    decodeCtxRef.current = null;
-
+    // Do not reset the filter, just the media-specific state
     setShader((prev) => ({
       ...prev,
-      filter: null,
-      canvas: null,
       sourceMediaType: null,
       sourceDimensions: undefined,
     }));
@@ -123,6 +167,10 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
 
   const processVideo = useCallback(
     async (videoBlob: Blob, originalFile: File) => {
+      if (!shader.filter) {
+        setError("Renderer not ready.");
+        return false;
+      }
       const video = document.createElement("video");
       videoElementRef.current = video;
       video.src = URL.createObjectURL(videoBlob);
@@ -133,9 +181,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
       return new Promise<boolean>((resolve) => {
         video.onloadedmetadata = async () => {
           if (video.videoWidth === 0 || video.videoHeight === 0) {
-            setError(
-              "Video has invalid dimensions (0x0). Please try another video.",
-            );
+            setError("Video has invalid dimensions. Please try another.");
             URL.revokeObjectURL(video.src);
             resolve(false);
             return;
@@ -144,139 +190,56 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
             video.videoWidth > LIMITS.MAX_DIMENSION ||
             video.videoHeight > LIMITS.MAX_DIMENSION
           ) {
-            setError(
-              `Video dimensions may be too large (max ${LIMITS.MAX_DIMENSION}px). Performance might suffer.`,
-            );
+            setError(`Video dimensions may be too large.`);
           }
 
-          const tempDecodeCanvas = new OffscreenCanvas(
-            video.videoWidth,
-            video.videoHeight,
-          );
-          const tempDecodeCtx = tempDecodeCanvas.getContext("2d", {
-            willReadFrequently: true,
-          });
-
-          if (!tempDecodeCtx) {
-            setError("Failed to get 2D context for video decoding.");
-            URL.revokeObjectURL(video.src);
-            resolve(false);
-            return;
-          }
-          decodeCanvasRef.current = tempDecodeCanvas;
-          decodeCtxRef.current = tempDecodeCtx;
-
-          tempDecodeCtx.drawImage(
-            video,
-            0,
-            0,
-            video.videoWidth,
-            video.videoHeight,
-          );
-          const imageData = tempDecodeCtx.getImageData(
-            0,
-            0,
-            video.videoWidth,
-            video.videoHeight,
-          );
-          const pixelData = new Uint8Array(imageData.data.buffer);
-          const wgpuTargetCanvas = new OffscreenCanvas(
-            video.videoWidth,
-            video.videoHeight,
-          );
-
-          try {
-            const newFilter = await new ImageFilter(wgpuTargetCanvas);
-            newFilter.set_image_data(
-              video.videoWidth,
-              video.videoHeight,
-              pixelData,
-            );
-
-            const shaderRefWorkaround = { current: { filter: newFilter } };
-
-            setShader({
-              filter: newFilter,
-              canvas: wgpuTargetCanvas,
-              sourceMediaType: "video",
-              sourceDimensions: {
-                width: video.videoWidth,
-                height: video.videoHeight,
-              },
-            });
-            setSelectedFile(originalFile);
-            onFileSelect(originalFile);
-            setError(null);
-
-            const renderVideoFrame = () => {
-              if (
-                videoElementRef.current &&
-                decodeCtxRef.current &&
-                shaderRefWorkaround.current?.filter &&
-                !videoElementRef.current.paused &&
-                videoElementRef.current.readyState >=
-                videoElementRef.current.HAVE_CURRENT_DATA
-              ) {
-                decodeCtxRef.current.drawImage(
-                  videoElementRef.current,
-                  0,
-                  0,
-                  videoElementRef.current.videoWidth,
-                  videoElementRef.current.videoHeight,
-                );
-                const currentImageData = decodeCtxRef.current.getImageData(
-                  0,
-                  0,
-                  videoElementRef.current.videoWidth,
-                  videoElementRef.current.videoHeight,
-                );
-                const currentPixelData = new Uint8Array(
-                  currentImageData.data.buffer,
-                );
-                try {
-                  shaderRefWorkaround.current.filter.update_texture_data(
-                    currentPixelData,
-                  );
-                  setPreviewVersion((v) => v + 1);
-                } catch (e) {
-                  console.error("Error updating video texture data:", e);
-                  if (animationFrameIdRef.current)
-                    cancelAnimationFrame(animationFrameIdRef.current);
-                  animationFrameIdRef.current = null;
-                  return;
-                }
-              }
-              if (videoElementRef.current) {
-                animationFrameIdRef.current =
-                  requestAnimationFrame(renderVideoFrame);
-              } else {
+          const renderVideoFrame = () => {
+            if (
+              videoElementRef.current &&
+              shader.filter &&
+              !videoElementRef.current.paused &&
+              videoElementRef.current.readyState >= video.HAVE_CURRENT_DATA
+            ) {
+              try {
+                shader.filter.update_from_video_frame(videoElementRef.current);
+              } catch (e) {
+                console.error("Error updating video frame:", e);
                 if (animationFrameIdRef.current)
                   cancelAnimationFrame(animationFrameIdRef.current);
                 animationFrameIdRef.current = null;
+                return;
               }
-            };
+            }
+            if (videoElementRef.current) {
+              animationFrameIdRef.current =
+                requestAnimationFrame(renderVideoFrame);
+            }
+          };
 
-            video
-              .play()
-              .then(() => {
-                if (animationFrameIdRef.current)
-                  cancelAnimationFrame(animationFrameIdRef.current);
-                renderVideoFrame();
-              })
-              .catch((playError) => {
-                console.error("Video play error:", playError);
-                setError(
-                  "Could not play video automatically. " +
-                  (playError.message || ""),
-                );
-              });
-            resolve(true);
-          } catch (filterError) {
-            console.error("ImageFilter init error for video:", filterError);
-            setError("Failed to initialize video processor.");
-            URL.revokeObjectURL(video.src);
-            resolve(false);
-          }
+          video
+            .play()
+            .then(() => {
+              if (animationFrameIdRef.current)
+                cancelAnimationFrame(animationFrameIdRef.current);
+              renderVideoFrame();
+              setShader((prev) => ({
+                ...prev,
+                sourceMediaType: "video",
+                sourceDimensions: {
+                  width: video.videoWidth,
+                  height: video.videoHeight,
+                },
+              }));
+              setSelectedFile(originalFile);
+              onFileSelect(originalFile);
+              setError(null);
+              resolve(true);
+            })
+            .catch((playError) => {
+              console.error("Video play error:", playError);
+              setError("Could not play video automatically.");
+              resolve(false);
+            });
         };
         video.onerror = () => {
           URL.revokeObjectURL(video.src);
@@ -286,7 +249,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         };
       });
     },
-    [onFileSelect, setShader],
+    [onFileSelect, setShader, shader.filter],
   );
 
   const validateFile = useCallback(
@@ -297,143 +260,106 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         setSelectedFile(null);
         onFileSelect(null);
         setError(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = "";
-        }
-        return true;
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+
+      if (!shader.filter) {
+        setError("Renderer is not ready yet, please wait a moment.");
+        return;
       }
 
       setIsLoadingMedia(true);
+      setLoadingMessage("Processing...");
 
       if (!validTypes.includes(file.type)) {
         setShake(true);
         setError(`Invalid file type. Please upload a ${validTypesString}.`);
         setTimeout(() => setShake(false), 300);
-        if (fileInputRef.current) fileInputRef.current.value = "";
         setIsLoadingMedia(false);
-        return false;
+        return;
       }
 
       if (file.size > LIMITS.MAX_FILE_SIZE) {
         setShake(true);
         setError(`File size exceeds ${LIMITS.MAX_FILE_SIZE / 1024 / 1024} MB.`);
         setTimeout(() => setShake(false), 300);
-        if (fileInputRef.current) fileInputRef.current.value = "";
         setIsLoadingMedia(false);
-        return false;
+        return;
       }
 
       const fileCategory = file.type.split("/")[0];
       const isGif = file.type === "image/gif";
 
       if (isGif) {
-        try {
-          const ffmpeg = ffmpegRef.current;
-          setFfmpegMessage("Starting conversion...");
-          await ffmpeg.writeFile("input.gif", await fetchFile(file));
-          await ffmpeg.exec([
-            "-i",
-            "input.gif",
-            "-movflags",
-            "faststart",
-            "-pix_fmt",
-            "yuv420p",
-            "-vf",
-            "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-            "output.mp4",
-          ]);
-          const data = await ffmpeg.readFile("output.mp4");
-          const videoBlob = new Blob([data.buffer], { type: "video/mp4" });
-          const success = await processVideo(videoBlob, file);
-          setIsLoadingMedia(false);
-          return success;
-        } catch (e) {
-          console.error("FFmpeg conversion error:", e);
-          setError("Failed to convert GIF to video. It may be corrupted.");
-          setIsLoadingMedia(false);
-          return false;
-        }
+        setLoadingMessage("Preparing to convert GIF...");
+        setSelectedFile(file);
+        onFileSelect(file);
+        ffmpegWorkerRef.current?.postMessage({ file });
       } else if (fileCategory === "image") {
         const img = new window.Image();
         const url = URL.createObjectURL(file);
-
-        return new Promise<boolean>((resolve) => {
-          img.onload = async () => {
-            URL.revokeObjectURL(url);
-            if (
-              img.width > LIMITS.MAX_DIMENSION ||
-              img.height > LIMITS.MAX_DIMENSION
-            ) {
-              setError(`Image dimensions exceed ${LIMITS.MAX_DIMENSION}px.`);
-              setIsLoadingMedia(false);
-              resolve(false);
-              return;
-            }
-
-            const decodeCanvas = new OffscreenCanvas(img.width, img.height);
-            const decodeCtx = decodeCanvas.getContext("2d");
-            if (!decodeCtx) {
-              setError("Failed to get 2D context for image decoding.");
-              setIsLoadingMedia(false);
-              resolve(false);
-              return;
-            }
-            decodeCtx.drawImage(img, 0, 0, img.width, img.height);
-            const imageData = decodeCtx.getImageData(
-              0,
-              0,
-              img.width,
-              img.height,
-            );
-            const pixelData = new Uint8Array(imageData.data.buffer);
-            const wgpuTargetCanvas = new OffscreenCanvas(img.width, img.height);
-
-            try {
-              const newFilter = await new ImageFilter(wgpuTargetCanvas);
-              newFilter.set_image_data(img.width, img.height, pixelData);
-              setShader({
-                filter: newFilter,
-                canvas: wgpuTargetCanvas,
-                sourceMediaType: "image",
-                sourceDimensions: { width: img.width, height: img.height },
-              });
-              setSelectedFile(file);
-              onFileSelect(file);
-              setError(null);
-              resolve(true);
-            } catch (filterError) {
-              console.error("ImageFilter init error for image:", filterError);
-              setError("Failed to initialize image processor.");
-              resolve(false);
-            } finally {
-              setIsLoadingMedia(false);
-            }
-          };
-          img.onerror = () => {
-            URL.revokeObjectURL(url);
-            setError("Failed to load image.");
+        img.onload = async () => {
+          URL.revokeObjectURL(url);
+          if (
+            img.width > LIMITS.MAX_DIMENSION ||
+            img.height > LIMITS.MAX_DIMENSION
+          ) {
+            setError(`Image dimensions exceed ${LIMITS.MAX_DIMENSION}px.`);
             setIsLoadingMedia(false);
-            resolve(false);
-          };
-          img.src = url;
-        });
+            return;
+          }
+
+          const decodeCanvas = new OffscreenCanvas(img.width, img.height);
+          const decodeCtx = decodeCanvas.getContext("2d");
+          decodeCtx?.drawImage(img, 0, 0);
+          const imageData = decodeCtx?.getImageData(
+            0,
+            0,
+            img.width,
+            img.height,
+          );
+          const pixelData = new Uint8Array(imageData!.data.buffer);
+
+          try {
+            shader.filter!.set_image_data(img.width, img.height, pixelData);
+            setShader((prev) => ({
+              ...prev,
+              sourceMediaType: "image",
+              sourceDimensions: { width: img.width, height: img.height },
+            }));
+            setSelectedFile(file);
+            onFileSelect(file);
+            setError(null);
+          } catch (filterError) {
+            console.error("ImageFilter error for image:", filterError);
+            setError("Failed to process image.");
+          } finally {
+            setIsLoadingMedia(false);
+          }
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          setError("Failed to load image.");
+          setIsLoadingMedia(false);
+        };
+        img.src = url;
       } else if (fileCategory === "video") {
-        const success = await processVideo(file, file);
+        await processVideo(file, file);
         setIsLoadingMedia(false);
-        return success;
       } else {
         setError(`Unsupported file type: ${file.type}`);
         setIsLoadingMedia(false);
-        return false;
       }
     },
     [
-      onFileSelect,
-      validTypesString,
-      setShader,
       cleanupPreviousMedia,
-      validTypes,
+      onFileSelect,
       processVideo,
+      setShader,
+      shader.filter,
+      validTypes,
+      validTypesString,
     ],
   );
 
@@ -448,27 +374,30 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const handleRemoveImage = useCallback(
     async (e?: ReactMouseEvent) => {
       e?.stopPropagation();
-      await validateFile(null);
+      await cleanupPreviousMedia();
+      setSelectedFile(null);
+      onFileSelect(null);
+      setError(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     },
-    [validateFile],
+    [cleanupPreviousMedia, onFileSelect],
   );
 
   const handleDragEvents = useCallback(
     (event: ReactDragEvent<HTMLDivElement>, isEntering: boolean) => {
       event.preventDefault();
       event.stopPropagation();
-      if (selectedFile || isLoadingMedia || !ffmpegReady) return;
+      if (selectedFile || isLoadingMedia || !shader.filter) return;
       setIsDragging(isEntering);
     },
-    [selectedFile, isLoadingMedia, ffmpegReady],
+    [selectedFile, isLoadingMedia, shader.filter],
   );
 
   const handleDrop = useCallback(
     async (event: ReactDragEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      if (selectedFile || isLoadingMedia || !ffmpegReady) return;
-
+      if (selectedFile || isLoadingMedia || !shader.filter) return;
       setIsDragging(false);
       const files = event.dataTransfer.files;
       if (files.length > 1) {
@@ -479,13 +408,13 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
       }
       await validateFile(files[0] || null);
     },
-    [validateFile, selectedFile, isLoadingMedia, ffmpegReady],
+    [validateFile, selectedFile, isLoadingMedia, shader.filter],
   );
 
   const triggerFileInput = useCallback(() => {
-    if (isLoadingMedia || !ffmpegReady) return;
+    if (isLoadingMedia || !shader.filter) return;
     fileInputRef.current?.click();
-  }, [isLoadingMedia, ffmpegReady]);
+  }, [isLoadingMedia, shader.filter]);
 
   const handleButtonClick = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -497,7 +426,7 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
 
   const handlePaste = useCallback(
     async (event: ClipboardEvent) => {
-      if (selectedFile || isLoadingMedia || !ffmpegReady) return;
+      if (selectedFile || isLoadingMedia) return;
 
       const activeElement = document.activeElement;
       const isInputActive =
@@ -525,8 +454,6 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
           if (items[i].kind === "file") {
             const file = items[i].getAsFile();
             if (file && validTypes.includes(file.type)) {
-              const valid = await validateFile(file);
-              if (valid) event.preventDefault();
               fileFound = true;
               break;
             } else if (file) {
@@ -558,122 +485,52 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         }
       }
     },
-    [
-      validateFile,
-      isActive,
-      validTypesString,
-      selectedFile,
-      isLoadingMedia,
-      validTypes,
-      ffmpegReady,
-    ],
+    [validateFile, selectedFile, isLoadingMedia, shader.filter],
   );
 
   useEffect(() => {
     const handler = (e: ClipboardEvent) => {
-      handlePaste(e).catch((err) => {
-        console.error("Paste handler error:", err);
-      });
+      handlePaste(e).catch((err) => console.error("Paste handler error:", err));
     };
     document.addEventListener("paste", handler);
     return () => document.removeEventListener("paste", handler);
   }, [handlePaste]);
 
-  useEffect(() => {
-    return () => {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-      }
-      if (videoElementRef.current) {
-        videoElementRef.current.pause();
-      }
-    };
-  }, []);
-
-  const isBusy = isLoadingMedia || !ffmpegReady;
-  const busyMessage = !ffmpegReady
-    ? ffmpegMessage
-    : isLoadingMedia
-      ? "Processing..."
-      : "";
+  const isBusy = isLoadingMedia;
+  const busyMessage = !shader.filter ? "Initializing..." : loadingMessage;
 
   return (
     <div className="space-y-2">
-      {shader?.canvas && selectedFile ? (
-        <div className="space-y-2">
-          <CanvasPreview
-            canvas={shader.canvas}
-            altText={selectedFile.name}
-            onRemove={handleRemoveImage}
-            showRemoveButton={true}
-            enableViewFullSize={true}
-            className="w-full h-64 sm:h-80 rounded-lg border border-border"
-            previewVersion={previewVersion}
-            isLoading={isLoadingMedia}
-          />
-          <div className="flex items-center justify-between">
-            <div className="flex items-center min-w-0">
-              <p className="text-sm text-foreground-secondary truncate">
-                {selectedFile.name}
-              </p>
-              <button
-                type="button"
-                onClick={handleRemoveImage}
-                aria-label={`Remove ${shader.sourceMediaType || "media"}`}
-                className={cn(
-                  "ml-1 rounded-full p-1",
-                  "text-icon-inactive hover:text-icon-active focus:text-icon-active",
-                  "focus:outline-none transition-colors",
-                )}
-                tabIndex={0}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <Button
-              onClick={handleButtonClick}
-              variant="outline"
-              size="sm"
-              disabled={isBusy}
-            >
-              Change
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div
-          ref={uploadAreaRef}
-          className={cn(
-            "flex flex-col items-center justify-center w-full h-64 sm:h-80",
-            "border-2 border-dashed rounded-lg",
-            "transition-all duration-300",
-            "p-4 text-center",
-            "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-            isDragging
-              ? "border-primary bg-primary/5"
-              : "border-border bg-background-secondary hover:border-primary/50",
-            isBusy ? "cursor-default" : "cursor-pointer",
-            shake && "animate-shake",
-            isActive && !isDragging && "ring-2 ring-primary ring-offset-2",
-          )}
-          onDragEnter={(e) => handleDragEvents(e, true)}
-          onDragOver={(e) => handleDragEvents(e, true)}
-          onDragLeave={(e) => handleDragEvents(e, false)}
-          onDrop={handleDrop}
-          onClick={isBusy ? undefined : triggerFileInput}
-          onKeyDown={(e: ReactKeyboardEvent<HTMLDivElement>) => {
-            if (!isBusy && (e.key === "Enter" || e.key === " ")) {
-              e.preventDefault();
-              triggerFileInput();
-            }
-          }}
-          onFocus={() => setIsActive(true)}
-          onBlur={() => setIsActive(false)}
-          tabIndex={isBusy || selectedFile ? -1 : 0}
-          role="button"
-          aria-label="Image or video upload area"
-        >
-          {isBusy ? (
+      {isViewerOpen && (
+        <CanvasViewer
+          canvas={shader.canvas}
+          onClose={() => setIsViewerOpen(false)}
+          altText={selectedFile?.name}
+        />
+      )}
+
+      <div
+        className={cn(
+          "relative w-full h-64 sm:h-80",
+          "rounded-lg border border-border",
+          isBusy && "flex items-center justify-center",
+        )}
+      >
+        <CanvasPreview
+          onCanvasReady={handleCanvasReady}
+          hasContent={!!selectedFile}
+          altText={selectedFile?.name || "Upload area"}
+          onRemove={handleRemoveImage}
+          onViewFullSize={() => setIsViewerOpen(true)}
+          showRemoveButton={!!selectedFile && !isBusy}
+          enableViewFullSize={!!selectedFile && !isBusy}
+          className={cn("w-full h-full", isBusy && "hidden")}
+          isLoading={false}
+          onUploadPlaceholderClick={triggerFileInput}
+          isInteractive={!isBusy}
+        />
+        {isBusy && (
+          <div className="flex flex-col items-center justify-center text-center">
             <svg
               className="animate-spin h-12 w-12 text-primary mb-4"
               xmlns="http://www.w3.org/2000/svg"
@@ -694,57 +551,107 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
               ></path>
             </svg>
-          ) : (
+            <p className="text-lg font-medium mb-1">{busyMessage}</p>
+          </div>
+        )}
+        {!selectedFile && !isBusy && (
+          <div
+            ref={uploadAreaRef}
+            className={cn(
+              "absolute inset-0 flex flex-col items-center justify-center",
+              "border-2 border-dashed rounded-lg transition-all duration-300 p-4 text-center",
+              "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+              isDragging
+                ? "border-primary bg-primary/5"
+                : "border-transparent bg-transparent hover:border-primary/50",
+              "cursor-pointer",
+              shake && "animate-shake",
+              isActive && !isDragging && "ring-2 ring-primary ring-offset-2",
+            )}
+            onDragEnter={(e) => handleDragEvents(e, true)}
+            onDragOver={(e) => handleDragEvents(e, true)}
+            onDragLeave={(e) => handleDragEvents(e, false)}
+            onDrop={handleDrop}
+            onClick={triggerFileInput}
+            onKeyDown={(e: ReactKeyboardEvent<HTMLDivElement>) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                triggerFileInput();
+              }
+            }}
+            onFocus={() => setIsActive(true)}
+            onBlur={() => setIsActive(false)}
+            tabIndex={0}
+            role="button"
+            aria-label="Image or video upload area"
+          >
             <ImageIcon
               className={cn(
-                "w-16 h-16 mb-4 pointer-events-none",
-                "transition-all duration-300",
+                "w-16 h-16 mb-4 pointer-events-none transition-all duration-300",
                 isDragging
                   ? "icon-active scale-110 text-primary"
                   : "text-foreground-secondary",
               )}
               aria-hidden="true"
             />
-          )}
-          <div
-            className={`flex flex-col items-center transition-all duration-200 pointer-events-none ${isDragging || isBusy ? "opacity-50" : ""}`}
-          >
-            <p className="text-lg font-medium mb-1">
-              {isBusy ? busyMessage : "Upload Image or Video"}
-            </p>
-            {!isBusy && (
-              <>
-                <div className="hidden sm:flex items-center gap-3 mb-3">
-                  <p className="text-sm text-foreground-secondary">Drag</p>
-                  <div className="h-px w-10 bg-border"></div>
-                  <p className="text-sm text-foreground-secondary">Paste</p>
-                </div>
-                <div className="hidden sm:flex items-center gap-3 mb-3">
-                  <div className="h-px w-16 bg-border"></div>
-                  <p className="text-sm text-foreground-secondary">or</p>
-                  <div className="h-px w-16 bg-border"></div>
-                </div>
-                <Button
-                  onClick={handleButtonClick}
-                  disabled={isDragging || isBusy}
-                  className={cn(
-                    "bg-primary hover:bg-primary-hover text-primary-foreground",
-                    "transition-all duration-200",
-                    "px-6 py-3 text-base pointer-events-auto",
-                    (isDragging || isBusy) && "opacity-50 cursor-not-allowed",
-                  )}
-                  aria-label="Choose image or video from device"
-                  type="button"
-                >
-                  Choose file
-                </Button>
-                <p className="text-xs text-foreground-muted mt-2">
-                  Max image: {LIMITS.MAX_FILE_SIZE / 1024 / 1024}MB. Max video:{" "}
-                  {LIMITS.MAX_FILE_SIZE / 1024 / 1024}MB.
-                </p>
-              </>
-            )}
+            <div
+              className={`flex flex-col items-center transition-all duration-200 pointer-events-none ${isDragging ? "opacity-50" : ""}`}
+            >
+              <p className="text-lg font-medium mb-1">Upload Image or Video</p>
+              <div className="hidden sm:flex items-center gap-3 mb-3">
+                <p className="text-sm text-foreground-secondary">Drag</p>
+                <div className="h-px w-10 bg-border"></div>
+                <p className="text-sm text-foreground-secondary">Paste</p>
+              </div>
+              <div className="hidden sm:flex items-center gap-3 mb-3">
+                <div className="h-px w-16 bg-border"></div>
+                <p className="text-sm text-foreground-secondary">or</p>
+                <div className="h-px w-16 bg-border"></div>
+              </div>
+              <Button
+                onClick={handleButtonClick}
+                disabled={isDragging}
+                className={cn(
+                  "bg-primary hover:bg-primary-hover text-primary-foreground",
+                  "transition-all duration-200 px-6 py-3 text-base pointer-events-auto",
+                  isDragging && "opacity-50 cursor-not-allowed",
+                )}
+                aria-label="Choose image or video from device"
+                type="button"
+              >
+                Choose file
+              </Button>
+              <p className="text-xs text-foreground-muted mt-2">
+                Max image: {LIMITS.MAX_FILE_SIZE / 1024 / 1024}MB. Max video:{" "}
+                {LIMITS.MAX_FILE_SIZE / 1024 / 1024}MB.
+              </p>
+            </div>
           </div>
+        )}
+      </div>
+      {selectedFile && !isBusy && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center min-w-0">
+            <p className="text-sm text-foreground-secondary truncate">
+              {selectedFile.name}
+            </p>
+            <button
+              type="button"
+              onClick={handleRemoveImage}
+              aria-label={`Remove ${shader.sourceMediaType || "media"}`}
+              className={cn(
+                "ml-1 rounded-full p-1",
+                "text-icon-inactive hover:text-icon-active focus:text-icon-active",
+                "focus:outline-none transition-colors",
+              )}
+              tabIndex={0}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <Button onClick={handleButtonClick} variant="outline" size="sm">
+            Change
+          </Button>
         </div>
       )}
       <input

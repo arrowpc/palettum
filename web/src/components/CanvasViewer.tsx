@@ -23,8 +23,6 @@ import {
   DialogOverlay,
 } from "@/components/ui/dialog";
 
-// useContinuousTap hook remains the same
-
 function useContinuousTap(
   singleTap: (e: ReactMouseEvent | ReactTouchEvent) => void,
   doubleTap: (e: ReactMouseEvent | ReactTouchEvent) => void,
@@ -58,18 +56,14 @@ interface CanvasViewerProps {
   canvas: OffscreenCanvas | null;
   onClose: () => void;
   altText?: string;
-  // You might need to pass sourceMediaType if specific logic depends on it,
-  // but the continuous render loop will work for both image/video OffscreenCanvas.
-  // sourceMediaType?: "image" | "video" | null;
 }
 
 const ViewerBackground = memo(() => {
-  return <DialogOverlay className="bg-overlay-background" />; // Ensure this CSS class provides desired background
+  return <DialogOverlay className="bg-overlay-background" />;
 });
 ViewerBackground.displayName = "ViewerBackground";
 
 const ViewerDialogHeader = memo(() => {
-  // ... (remains the same)
   return (
     <DialogHeader className="sr-only">
       <DialogTitle>Canvas Preview</DialogTitle>
@@ -82,7 +76,6 @@ const ViewerDialogHeader = memo(() => {
 ViewerDialogHeader.displayName = "ViewerDialogHeader";
 
 interface ToolbarProps {
-  // ... (remains the same)
   zoomLevel: number;
   zoomLimits: { min: number; max: number };
   resetView: () => void;
@@ -105,7 +98,6 @@ const Toolbar: React.FC<ToolbarProps> = memo(
     isDefaultView,
     onClose,
   }) => {
-    // ... (remains the same)
     const isMinZoom = Math.abs(zoomLevel - zoomLimits.min) < 0.001;
     const isMaxZoom = Math.abs(zoomLevel - zoomLimits.max) < 0.001;
 
@@ -167,9 +159,8 @@ Toolbar.displayName = "Toolbar";
 
 const StableDialogContent = memo(
   ({ children }: { children: React.ReactNode }) => {
-    // ... (remains the same)
     return (
-      <DialogContent className="max-w-5xl w-full p-0 overflow-hidden">
+      <DialogContent className="max-w-5xl w-full p-0 overflow-hidden border-none shadow-2xl bg-transparent">
         {children}
       </DialogContent>
     );
@@ -191,15 +182,14 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const [canvasReady, setCanvasReady] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
   const displayCanvasRef = useRef<HTMLCanvasElement>(null);
-  const panRafRef = useRef<number>(); // Renamed from rafRef for clarity
-  const renderLoopRafRef = useRef<number>(); // For the continuous render loop
+  const panRafRef = useRef<number>();
+  const renderLoopRafRef = useRef<number>();
   const defaultZoomRef = useRef<number>(1);
 
   const ZOOM_STEP = 1.2;
   const TARGET_MAX_PIXEL_SIZE = 256;
 
   const calculateZoomLimits = useCallback(() => {
-    // ... (remains the same)
     if (!viewportRef.current || !canvasProp) return { min: 0.1, max: 10 };
     const sourceCanvas = canvasProp;
     const pixelOneToOne = window.devicePixelRatio || 1;
@@ -214,7 +204,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   }, [canvasProp]);
 
   const calculateBoundaries = useCallback(() => {
-    // ... (remains the same)
     if (!viewportRef.current || !canvasProp)
       return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
     const viewport = viewportRef.current;
@@ -238,7 +227,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   }, [zoomLevel, canvasProp]);
 
   const calculateFitToViewZoom = useCallback(() => {
-    // ... (remains the same)
     if (
       !viewportRef.current ||
       !canvasProp ||
@@ -256,7 +244,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   }, [canvasProp]);
 
   const isDefaultView = useMemo(() => {
-    // ... (remains the same)
     const zoomDiff = Math.abs(zoomLevel - defaultZoomRef.current) < 0.001;
     const positionAtOrigin =
       Math.abs(position.x) < 1 && Math.abs(position.y) < 1;
@@ -264,7 +251,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   }, [zoomLevel, position]);
 
   const resetView = useCallback(() => {
-    // ... (remains the same)
     if (!canvasProp || !viewportRef.current) return;
     const newZoom = calculateFitToViewZoom();
     defaultZoomRef.current = newZoom;
@@ -273,7 +259,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   }, [calculateFitToViewZoom, canvasProp]);
 
   const adjustPositionToBounds = useCallback(() => {
-    // ... (remains the same)
     const boundaries = calculateBoundaries();
     setPosition((prevPos) => ({
       x: Math.max(boundaries.minX, Math.min(boundaries.maxX, prevPos.x)),
@@ -281,21 +266,15 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
     }));
   }, [calculateBoundaries]);
 
-  // Effect to initialize canvas dimensions, zoom, and position
   useEffect(() => {
     const initialize = () => {
       if (
         !canvasProp ||
         canvasProp.width === 0 ||
         canvasProp.height === 0 ||
-        !viewportRef.current // Needed for zoom calculations
+        !viewportRef.current
       ) {
         setCanvasReady(false);
-        const displayEl = displayCanvasRef.current;
-        if (displayEl) {
-          const ctx = displayEl.getContext("2d");
-          if (ctx) ctx.clearRect(0, 0, displayEl.width, displayEl.height);
-        }
         return;
       }
 
@@ -318,17 +297,14 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
       setCanvasReady(true);
     };
 
-    // Use rAF for initialization to ensure DOM elements are measured correctly
     const frameId = requestAnimationFrame(initialize);
     return () => cancelAnimationFrame(frameId);
   }, [canvasProp, calculateFitToViewZoom, calculateZoomLimits]);
 
-  // Effect for continuous rendering onto the displayCanvasRef
   useEffect(() => {
     if (!canvasReady || !canvasProp || !displayCanvasRef.current) {
-      if (renderLoopRafRef.current) {
+      if (renderLoopRafRef.current)
         cancelAnimationFrame(renderLoopRafRef.current);
-      }
       return;
     }
 
@@ -337,31 +313,20 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
     const ctx = displayEl.getContext("2d");
 
     if (!ctx) {
-      if (renderLoopRafRef.current) {
+      if (renderLoopRafRef.current)
         cancelAnimationFrame(renderLoopRafRef.current);
-      }
-      console.error("CanvasViewer: Failed to get 2D context for rendering");
       return;
-    }
-
-    // Ensure display canvas intrinsic size is correct (might be set by init effect too)
-    if (displayEl.width !== sourceCanvas.width) {
-      displayEl.width = sourceCanvas.width;
-    }
-    if (displayEl.height !== sourceCanvas.height) {
-      displayEl.height = sourceCanvas.height;
     }
 
     let isActive = true;
     const renderLoop = () => {
       if (!isActive || !sourceCanvas || !displayEl.isConnected) {
-        if (renderLoopRafRef.current) {
+        if (renderLoopRafRef.current)
           cancelAnimationFrame(renderLoopRafRef.current);
-        }
         return;
       }
 
-      ctx.imageSmoothingEnabled = !(zoomLevel > 3);
+      ctx.imageSmoothingEnabled = zoomLevel <= 3;
       ctx.clearRect(0, 0, displayEl.width, displayEl.height);
       ctx.drawImage(sourceCanvas, 0, 0, displayEl.width, displayEl.height);
 
@@ -376,9 +341,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
         cancelAnimationFrame(renderLoopRafRef.current);
       }
     };
-  }, [canvasReady, canvasProp, zoomLevel]); // zoomLevel for imageSmoothingEnabled
+  }, [canvasReady, canvasProp, zoomLevel]);
 
-  // Effect to adjust position when zoom changes (after canvas is ready)
   useEffect(() => {
     if (canvasReady) {
       adjustPositionToBounds();
@@ -392,7 +356,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
       clientY?: number,
       targetZoom?: number,
     ) => {
-      // ... (remains the same)
       if (!viewportRef.current || !canvasProp) return;
       const viewport = viewportRef.current;
       const viewportRect = viewport.getBoundingClientRect();
@@ -401,8 +364,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
       const zoomPointY =
         clientY ?? (viewportRect.top + viewportRect.bottom) / 2;
 
-      const currentCanvasCenterX = viewportRect.width / 2 + position.x;
-      const currentCanvasCenterY = viewportRect.height / 2 + position.y;
+      const currentCanvasCenterX = viewportRect.width / 2 - position.x;
+      const currentCanvasCenterY = viewportRect.height / 2 - position.y;
       const offsetX = zoomPointX - viewportRect.left - currentCanvasCenterX;
       const offsetY = zoomPointY - viewportRect.top - currentCanvasCenterY;
 
@@ -428,15 +391,14 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   );
 
   const handleMouseDown = useCallback((e: ReactMouseEvent) => {
-    // ... (remains the same)
     if (e.button !== 0) return;
+    e.preventDefault();
     setIsDragging(true);
     setDragStart({ x: e.clientX, y: e.clientY });
   }, []);
 
   const updatePosition = useCallback(
     (deltaX: number, deltaY: number) => {
-      // ... (remains the same)
       const boundaries = calculateBoundaries();
       setPosition((prev) => ({
         x: Math.max(
@@ -454,11 +416,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   const handleMouseMove = useCallback(
     (e: ReactMouseEvent) => {
-      // ... (remains the same, uses panRafRef)
       if (!isDragging) return;
-      if (panRafRef.current) {
-        cancelAnimationFrame(panRafRef.current);
-      }
+      if (panRafRef.current) cancelAnimationFrame(panRafRef.current);
       panRafRef.current = requestAnimationFrame(() => {
         const deltaX = e.clientX - dragStart.x;
         const deltaY = e.clientY - dragStart.y;
@@ -471,7 +430,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   const handleDoubleClick = useCallback(
     (e: ReactMouseEvent | ReactTouchEvent) => {
-      // ... (remains the same)
       e.preventDefault();
       if (!isDefaultView) {
         resetView();
@@ -495,26 +453,19 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   const handleTap = useContinuousTap(handleSingleTap, handleDoubleClick);
 
   const handleMouseUp = useCallback(() => {
-    // ... (remains the same, uses panRafRef)
     setIsDragging(false);
-    if (panRafRef.current) {
-      cancelAnimationFrame(panRafRef.current);
-    }
+    if (panRafRef.current) cancelAnimationFrame(panRafRef.current);
   }, []);
 
   const handleWheel = useCallback(
     (e: ReactWheelEvent) => {
-      // ... (remains the same)
       e.preventDefault();
       handleZoom(e.deltaY < 0, e.clientX, e.clientY);
     },
     [handleZoom],
   );
 
-  // Touch handlers (getDistance, getMidpoint, handleTouchStart, handleTouchMove, handleTouchEnd)
-  // remain the same, ensure handleTouchMove uses panRafRef for panning.
   const getDistance = useCallback((touches: TouchList) => {
-    // ...
     if (touches.length < 2) return 0;
     return Math.hypot(
       touches[0].clientX - touches[1].clientX,
@@ -523,10 +474,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   }, []);
 
   const getMidpoint = useCallback((touches: TouchList) => {
-    // ...
-    if (touches.length < 2) {
+    if (touches.length < 2)
       return { x: touches[0]?.clientX || 0, y: touches[0]?.clientY || 0 };
-    }
     return {
       x: (touches[0].clientX + touches[1].clientX) / 2,
       y: (touches[0].clientY + touches[1].clientY) / 2,
@@ -535,7 +484,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   const handleTouchStart = useCallback(
     (e: ReactTouchEvent) => {
-      // ...
       if (e.touches.length >= 2) {
         e.preventDefault();
         setTouchDistance(getDistance(e.touches));
@@ -553,13 +501,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
 
   const handleTouchMove = useCallback(
     (e: ReactTouchEvent) => {
-      // ... (uses panRafRef)
-      if (e.touches.length >= 2) {
-        e.preventDefault();
-      }
-      if (panRafRef.current) {
-        cancelAnimationFrame(panRafRef.current);
-      }
+      if (e.touches.length >= 2) e.preventDefault();
+      if (panRafRef.current) cancelAnimationFrame(panRafRef.current);
       panRafRef.current = requestAnimationFrame(() => {
         if (e.touches.length === 1 && isDragging) {
           const deltaX = e.touches[0].clientX - dragStart.x;
@@ -575,8 +518,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
             const scale = currentDistance / touchDistance;
             const midpoint = getMidpoint(e.touches);
             if (Math.abs(scale - 1) > 0.01) {
-              const targetZoom = zoomLevel * scale;
-              handleZoom(scale > 1, midpoint.x, midpoint.y, targetZoom);
+              handleZoom(scale > 1, midpoint.x, midpoint.y, zoomLevel * scale);
             }
           }
           setTouchDistance(currentDistance);
@@ -596,34 +538,21 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
   );
 
   const handleTouchEnd = useCallback(() => {
-    // ... (uses panRafRef)
     setIsDragging(false);
     setTouchDistance(0);
-    if (panRafRef.current) {
-      cancelAnimationFrame(panRafRef.current);
-    }
+    if (panRafRef.current) cancelAnimationFrame(panRafRef.current);
   }, []);
 
-  // Cleanup for panRafRef and renderLoopRafRef
   useEffect(() => {
     return () => {
-      if (panRafRef.current) {
-        cancelAnimationFrame(panRafRef.current);
-      }
-      if (renderLoopRafRef.current) {
+      if (panRafRef.current) cancelAnimationFrame(panRafRef.current);
+      if (renderLoopRafRef.current)
         cancelAnimationFrame(renderLoopRafRef.current);
-      }
     };
   }, []);
 
-  // Prevent scroll effect
   useEffect(() => {
-    // ... (remains the same)
-    const preventDefaultScroll = (e: Event) => {
-      if (viewportRef.current?.contains(e.target as Node)) {
-        e.preventDefault();
-      }
-    };
+    const preventDefaultScroll = (e: Event) => e.preventDefault();
     const currentViewport = viewportRef.current;
     currentViewport?.addEventListener("wheel", preventDefaultScroll, {
       passive: false,
@@ -637,9 +566,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
     };
   }, []);
 
-  const CanvasDisplay = useMemo(() => {
-    // ... (remains the same)
-    return (
+  const CanvasDisplay = useMemo(
+    () => (
       <div className="absolute inset-0 flex items-center justify-center">
         <canvas
           ref={displayCanvasRef}
@@ -654,27 +582,25 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
             willChange: "transform",
             opacity: canvasReady ? 1 : 0,
           }}
-        // Width and height attributes are set in useEffect
         />
       </div>
-    );
-  }, [position.x, position.y, zoomLevel, isDragging, canvasReady, altText]);
+    ),
+    [position.x, position.y, zoomLevel, isDragging, canvasReady, altText],
+  );
 
-  const containerStyle = useMemo(() => {
-    // ... (remains the same)
-    const heightConstraint = "calc(90vh - 4rem)";
-    return {
+  const containerStyle = useMemo(
+    () => ({
       height: "calc(90vh - 4rem)",
       minHeight: "400px",
-      maxHeight: heightConstraint,
+      maxHeight: "calc(90vh - 4rem)",
       maxWidth: "100%",
       touchAction: "none",
-    };
-  }, []);
+    }),
+    [],
+  );
 
-  const ViewportContent = useMemo(() => {
-    // ... (remains the same)
-    return (
+  const ViewportContent = useMemo(
+    () => (
       <div
         ref={viewportRef}
         className={cn(
@@ -695,24 +621,24 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
       >
         {CanvasDisplay}
       </div>
-    );
-  }, [
-    isDragging,
-    containerStyle,
-    handleMouseDown,
-    handleMouseMove,
-    handleMouseUp,
-    handleWheel,
-    handleTap,
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd,
-    CanvasDisplay,
-  ]);
+    ),
+    [
+      isDragging,
+      containerStyle,
+      handleMouseDown,
+      handleMouseMove,
+      handleMouseUp,
+      handleWheel,
+      handleTap,
+      handleTouchStart,
+      handleTouchMove,
+      handleTouchEnd,
+      CanvasDisplay,
+    ],
+  );
 
   const toolbarProps = useMemo(
     () => ({
-      // ... (remains the same)
       zoomLevel,
       zoomLimits,
       resetView,
@@ -723,9 +649,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
     [zoomLevel, zoomLimits, resetView, handleZoom, isDefaultView, onClose],
   );
 
-  // Viewport meta tag management
   useEffect(() => {
-    // ... (remains the same)
     const viewportMeta = document.querySelector('meta[name="viewport"]');
     const originalContent = viewportMeta?.getAttribute("content") || "";
     const newContent =
@@ -738,7 +662,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
       newMeta.setAttribute("name", "viewport");
       newMeta.setAttribute("content", newContent);
       document.head.appendChild(newMeta);
-      // Store the fact that we added it, so we can remove it.
       (newMeta as any)._addedByCanvasViewer = true;
     }
 

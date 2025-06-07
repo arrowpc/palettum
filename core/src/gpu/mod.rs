@@ -581,7 +581,7 @@ impl ImageFilter {
         const VERTEX_SHADER: &str = include_str!("shaders/vertex.wgsl");
         const FRAGMENT_ORIGINAL: &str = include_str!("shaders/fs_original.wgsl");
         const FRAGMENT_SMOOTHED: &str = include_str!("shaders/fs_smoothed.wgsl");
-        const FRAGMENT_VIDEO: &str = include_str!("shaders/fs_video.wgsl");
+        const FRAGMENT_VIDEO: &str = include_str!("shaders/fs_smoothed.wgsl");
 
         let vs_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Vertex Shader"),
@@ -736,7 +736,7 @@ impl ImageFilter {
             },
             fragment: Some(wgpu::FragmentState {
                 module: &fs_video_module,
-                entry_point: Some("main"),
+                entry_point: Some("fs_smoothed"),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,
                     blend: Some(wgpu::BlendState::REPLACE),
@@ -983,7 +983,7 @@ impl ImageFilter {
                 origin: wgpu::Origin2d::ZERO,
                 flip_y: false,
             },
-            wgpu::ImageCopyTextureTagged {
+            wgpu::CopyExternalImageDestInfo {
                 texture: self.texture.as_ref().unwrap(),
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
@@ -1012,15 +1012,10 @@ impl ImageFilter {
             ));
         };
 
-        if let mapping = &config.mapping {
-            match mapping {
-                // Placeholder for now
-                Mapping::Palettized => self.current_shader_index = 0,
-                Mapping::Smoothed => self.current_shader_index = 1,
-                _ => {
-                    todo!()
-                }
-            }
+        match config.mapping {
+            // Placeholder for now
+            Mapping::Palettized => self.current_shader_index = 0,
+            Mapping::Smoothed => self.current_shader_index = 1,
         }
 
         let gpu_config = GpuConfig::from_config(config, texture_width, texture_height);

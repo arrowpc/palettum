@@ -29,7 +29,7 @@ export const FormulaSelector: React.FC<FormulaSelectorProps> = ({
   const onFormulaChange = (formula: FormulaKey) => {
     setShader((prev) => ({
       ...prev,
-      config: { ...prev.config, formula },
+      config: { ...prev.config, diffFormula: formula },
     }));
   };
 

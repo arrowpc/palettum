@@ -96,13 +96,13 @@ const AdjustmentsAccordion: React.FC<AdjustmentsAccordionProps> = ({
   }, [file]);
 
   useEffect(() => {
-    if (config.transparencyThreshold) {
+    if (config.transparencyThreshold !== undefined) {
       setTransparencyEnabled(config.transparencyThreshold > 0);
     }
   }, [config.transparencyThreshold]);
 
   useEffect(() => {
-    if (config.transparencyThreshold) {
+    if (config.transparencyThreshold !== undefined) {
       if (isImageUploaded && usesPalettized) {
         if (imageSupportsTransparency) {
           if (transparencyEnabled && config.transparencyThreshold === 0) {

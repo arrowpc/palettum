@@ -26,11 +26,11 @@ export const TransparencyControl: React.FC<TransparencyControlProps> = ({
   const { shader, setShader } = useShader();
   const { config } = shader;
   const [transparencyEnabled, setTransparencyEnabled] = useState(
-    config.transparencyThreshold > 0,
+    (config.transparencyThreshold ?? 0) > 0,
   );
 
   useEffect(() => {
-    setTransparencyEnabled(config.transparencyThreshold > 0);
+    setTransparencyEnabled((config.transparencyThreshold ?? 0) > 0);
   }, [config.transparencyThreshold]);
 
   const onThresholdChange = useCallback(
@@ -99,7 +99,7 @@ export const TransparencyControl: React.FC<TransparencyControlProps> = ({
           min={MIN_THRESHOLD}
           max={MAX_THRESHOLD}
           step={1}
-          value={[config.transparencyThreshold]}
+          value={[config.transparencyThreshold ?? 0]}
           onValueChange={onThresholdChange}
           disabled={isControlDisabled || !transparencyEnabled}
           className={cn(

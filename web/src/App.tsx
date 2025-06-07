@@ -58,8 +58,8 @@ function AppContent() {
   }, []);
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  // TODO: 
-  const [dimensions, setDimensions] = useState({
+  // TODO:
+  const [_dimensions, setDimensions] = useState({
     width: null as number | null,
     height: null as number | null,
   });
@@ -74,8 +74,6 @@ function AppContent() {
       uploadedFile
     ) {
       try {
-        // TODO: set_shader_index should actually be done by set_config as config includes mapping!
-        shader.filter?.set_shader_index(1);
         shader.filter.set_config(shader.config);
       } catch (e) {
         console.error("Error applying filter:", e);

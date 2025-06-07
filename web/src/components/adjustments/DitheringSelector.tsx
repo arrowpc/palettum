@@ -31,7 +31,7 @@ export const DitheringSelector: React.FC<DitheringSelectorProps> = ({
   const onDitheringStyleChange = (style: DitheringKey) => {
     setShader((prev) => ({
       ...prev,
-      config: { ...prev.config, ditheringStyle: style },
+      config: { ...prev.config, ditherAlgorithm: style },
     }));
   };
 

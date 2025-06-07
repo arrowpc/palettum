@@ -1012,6 +1012,17 @@ impl ImageFilter {
             ));
         };
 
+        if let mapping = &config.mapping {
+            match mapping {
+                // Placeholder for now
+                Mapping::Palettized => self.current_shader_index = 0,
+                Mapping::Smoothed => self.current_shader_index = 1,
+                _ => {
+                    todo!()
+                }
+            }
+        }
+
         let gpu_config = GpuConfig::from_config(config, texture_width, texture_height);
         self.queue
             .write_buffer(&self.config_buffer, 0, bytemuck::bytes_of(&gpu_config));

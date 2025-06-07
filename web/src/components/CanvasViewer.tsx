@@ -485,7 +485,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
     (e: ReactTouchEvent) => {
       if (e.touches.length >= 2) {
         e.preventDefault();
-        setTouchDistance(getDistance(e.touches));
+        setTouchDistance(getDistance(e.nativeEvent.touches));
         setIsDragging(false);
       } else if (e.touches.length === 1) {
         setIsDragging(true);
@@ -512,10 +512,10 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
             y: e.touches[0].clientY,
           });
         } else if (e.touches.length === 2) {
-          const currentDistance = getDistance(e.touches);
+          const currentDistance = getDistance(e.nativeEvent.touches);
           if (touchDistance > 0) {
             const scale = currentDistance / touchDistance;
-            const midpoint = getMidpoint(e.touches);
+            const midpoint = getMidpoint(e.nativeEvent.touches);
             if (Math.abs(scale - 1) > 0.01) {
               handleZoom(scale > 1, midpoint.x, midpoint.y, zoomLevel * scale);
             }

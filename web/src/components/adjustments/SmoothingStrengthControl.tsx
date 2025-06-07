@@ -24,7 +24,7 @@ export const SmoothingStrengthControl: React.FC<
   const onSmoothingStrengthChange = (value: number[]) => {
     setShader((prev) => ({
       ...prev,
-      config: { ...prev.config, smoothingStrength: value[0] },
+      config: { ...prev.config, smoothStrength: value[0] },
     }));
   };
 
@@ -42,7 +42,7 @@ export const SmoothingStrengthControl: React.FC<
           min={MIN_SMOOTHING_STRENGTH}
           max={MAX_SMOOTHING_STRENGTH}
           step={SMOOTHING_STRENGTH_STEP}
-          value={[config.smoothStrength]}
+          value={[config.smoothStrength ?? 0]}
           onValueChange={onSmoothingStrengthChange}
           disabled={!isActive}
           className="mt-2"

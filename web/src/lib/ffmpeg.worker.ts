@@ -50,7 +50,7 @@ self.onmessage = async (event: MessageEvent<{ file: File }>) => {
       "output.mp4",
     ]);
     const data = await ffmpeg.readFile("output.mp4");
-    const videoBlob = new Blob([data.buffer], { type: "video/mp4" });
+    const videoBlob = new Blob([data], { type: "video/mp4" });
 
     self.postMessage({ type: "done", blob: videoBlob });
   } catch (error) {

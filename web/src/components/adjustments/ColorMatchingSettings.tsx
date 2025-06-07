@@ -25,7 +25,7 @@ export const ColorMatchingSettings: React.FC<ColorMatchingSettingsProps> = ({
   const { config } = shader;
 
   const isDitheringStrengthControlActive =
-    isPalettizedActive && config.ditheringStyle !== DITHERING_NONE;
+    isPalettizedActive && config.ditherAlgorithm !== DITHERING_NONE;
 
   return (
     <div

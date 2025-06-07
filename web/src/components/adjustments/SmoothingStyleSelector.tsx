@@ -32,7 +32,7 @@ export const SmoothingStyleSelector: React.FC<SmoothingStyleSelectorProps> = ({
   const onSmoothingStyleChange = (style: SmoothingStyleKey) => {
     setShader((prev) => ({
       ...prev,
-      config: { ...prev.config, smoothingStyle: style },
+      config: { ...prev.config, smoothFormula: style },
     }));
   };
 

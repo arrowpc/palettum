@@ -576,6 +576,7 @@ impl ImageFilter {
         const VERTEX_SHADER: &str = include_str!("shaders/vertex.wgsl");
         const FRAGMENT_ORIGINAL: &str = include_str!("shaders/fs_original.wgsl");
         const FRAGMENT_SMOOTHED: &str = include_str!("shaders/fs_smoothed.wgsl");
+        const FRAGMENT_PALETTIZED: &str = include_str!("shaders/fs_palettized.wgsl");
 
         let vs_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Vertex Shader"),
@@ -589,6 +590,10 @@ impl ImageFilter {
             device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("Smoothed Shader"),
                 source: wgpu::ShaderSource::Wgsl(FRAGMENT_SMOOTHED.into()),
+            }),
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Palettized Shader"),
+                source: wgpu::ShaderSource::Wgsl(FRAGMENT_PALETTIZED.into()),
             }),
         ];
 
@@ -632,13 +637,13 @@ impl ImageFilter {
             push_constant_ranges: &[],
         });
 
-        let fragment_entry_points = ["fs_original", "fs_smoothed"];
+        let fragment_entry_points = ["fs_original", "fs_smoothed", "fs_palettized"];
         let pipelines = fs_modules
             .iter()
             .enumerate()
             .map(|(i, fs_module)| {
                 device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some("Render Pipeline"),
+                    label: Some(&format!("Render Pipeline {}", fragment_entry_points[i])),
                     layout: Some(&pipeline_layout),
                     vertex: wgpu::VertexState {
                         module: &vs_module,
@@ -896,8 +901,8 @@ impl ImageFilter {
         };
 
         match config.mapping {
-            Mapping::Palettized => self.current_shader_index = 0,
             Mapping::Smoothed => self.current_shader_index = 1,
+            Mapping::Palettized => self.current_shader_index = 2,
         }
 
         let gpu_config = GpuConfig::from_config(config, texture_width, texture_height);

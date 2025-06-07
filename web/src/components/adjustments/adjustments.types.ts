@@ -57,8 +57,8 @@ export const MAX_SMOOTHING_STRENGTH = 1.0;
 export const SMOOTHING_STRENGTH_STEP = 0.01;
 
 export const DITHERING_NONE = "None";
-export const DITHERING_FLOYD_STEINBERG = "FloydSteinberg";
-export const DITHERING_BLUE_NOISE = "BlueNoise";
+export const DITHERING_FLOYD_STEINBERG = "Fs";
+export const DITHERING_BLUE_NOISE = "Bn";
 export type DitheringKey =
   | typeof DITHERING_NONE
   | typeof DITHERING_FLOYD_STEINBERG

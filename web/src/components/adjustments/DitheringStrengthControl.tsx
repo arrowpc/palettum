@@ -23,7 +23,7 @@ export const DitheringStrengthControl: React.FC<
   const onStrengthChange = (value: number[]) => {
     setShader((prev) => ({
       ...prev,
-      config: { ...prev.config, ditheringStrength: value[0] },
+      config: { ...prev.config, ditherStrength: value[0] },
     }));
   };
 

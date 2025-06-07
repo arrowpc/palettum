@@ -42,13 +42,6 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   const { shader, setShader } = useShader();
   const mediaCleanupRef = useRef<(() => void) | null>(null);
 
-  const handleCanvasReady = useCallback(
-    (canvas: HTMLCanvasElement) => {
-      setShader((prev) => ({ ...prev, canvas }));
-    },
-    [setShader],
-  );
-
   const validImageTypes = [
     "image/jpeg",
     "image/png",
@@ -69,7 +62,12 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
   useEffect(() => {
     let isMounted = true;
 
-    if (shader.canvas && !shader.filter) {
+    if (!shader.canvas) {
+      setShader((prev) => ({
+        ...prev,
+        canvas: document.createElement("canvas"),
+      }));
+    } else if (shader.canvas && !shader.filter) {
       setLoadingMessage("Initializing renderer...");
       const initFilter = async () => {
         try {
@@ -374,7 +372,8 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
         )}
       >
         <CanvasPreview
-          onCanvasReady={handleCanvasReady}
+          sourceCanvas={shader.canvas}
+          isPaused={isViewerOpen}
           hasContent={!!selectedFile}
           altText={selectedFile?.name || "Upload area"}
           onRemove={handleRemoveImage}

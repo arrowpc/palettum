@@ -12,7 +12,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 interface CanvasPreviewProps {
-  onCanvasReady: (canvas: HTMLCanvasElement) => void;
+  sourceCanvas: HTMLCanvasElement | null;
+  isPaused?: boolean;
   hasContent: boolean;
   altText?: string;
   onRemove?: (e: MouseEvent) => void;
@@ -35,7 +36,8 @@ interface CanvasPreviewProps {
 
 export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
   ({
-    onCanvasReady,
+    sourceCanvas,
+    isPaused = false,
     hasContent,
     altText = "Preview",
     onRemove,
@@ -101,30 +103,41 @@ export const CanvasPreview: React.FC<CanvasPreviewProps> = React.memo(
 
     useEffect(() => {
       const displayElement = displayCanvasRef.current;
-      if (displayElement) {
-        onCanvasReady(displayElement);
-      }
-    }, [onCanvasReady]);
-
-    useEffect(() => {
-      const displayElement = displayCanvasRef.current;
-      if (displayElement) {
-        if (sourceDimensions) {
-          if (
-            displayElement.width !== sourceDimensions.width ||
-            displayElement.height !== sourceDimensions.height
-          ) {
-            displayElement.width = sourceDimensions.width;
-            displayElement.height = sourceDimensions.height;
-          }
-        } else {
-          if (displayElement.width !== 1 || displayElement.height !== 1) {
-            displayElement.width = 1;
-            displayElement.height = 1;
-          }
+      if (displayElement && sourceDimensions) {
+        if (
+          displayElement.width !== sourceDimensions.width ||
+          displayElement.height !== sourceDimensions.height
+        ) {
+          displayElement.width = sourceDimensions.width;
+          displayElement.height = sourceDimensions.height;
         }
       }
     }, [sourceDimensions]);
+
+    useEffect(() => {
+      const displayEl = displayCanvasRef.current;
+      if (isPaused || !sourceCanvas || !displayEl) {
+        return;
+      }
+
+      const ctx = displayEl.getContext("2d");
+      if (!ctx) return;
+
+      let animationFrameId: number;
+      const renderLoop = () => {
+        if (displayEl.isConnected) {
+          ctx.clearRect(0, 0, displayEl.width, displayEl.height);
+          ctx.drawImage(sourceCanvas, 0, 0);
+          animationFrameId = requestAnimationFrame(renderLoop);
+        }
+      };
+
+      renderLoop();
+
+      return () => {
+        cancelAnimationFrame(animationFrameId);
+      };
+    }, [sourceCanvas, isPaused]);
 
     useEffect(() => {
       const container = containerRef.current;

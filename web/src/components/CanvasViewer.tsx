@@ -341,7 +341,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({
         cancelAnimationFrame(renderLoopRafRef.current);
       }
     };
-  }, [canvasReady, canvasProp, zoomLevel]);
+  }, [canvasReady, canvasProp]);
 
   useEffect(() => {
     if (canvasReady) {

@@ -1,7 +1,7 @@
 use crate::{config::Config, error::Result, palettized::Dithering, Mapping};
 use std::{borrow::Cow, result::Result as StdResult, sync::Arc};
 use wasm_bindgen::prelude::*;
-use web_sys::OffscreenCanvas;
+use web_sys::{HtmlVideoElement, OffscreenCanvas};
 use wgpu::util::DeviceExt;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -495,14 +495,20 @@ impl GpuImageProcessor {
 pub struct ImageFilter {
     device: wgpu::Device,
     queue: wgpu::Queue,
-    canvas: OffscreenCanvas,
     surface: wgpu::Surface<'static>,
     pipelines: Vec<wgpu::RenderPipeline>,
+    video_pipeline: wgpu::RenderPipeline,
     current_shader_index: usize,
+    config_buffer: wgpu::Buffer,
+
     texture: Option<wgpu::Texture>,
     bind_group: Option<wgpu::BindGroup>,
-    bind_group_layout: wgpu::BindGroupLayout,
-    config_buffer: wgpu::Buffer,
+    image_bind_group_layout: wgpu::BindGroupLayout,
+
+    video_texture: Option<wgpu::Texture>,
+    video_bind_group: Option<wgpu::BindGroup>,
+    video_bind_group_layout: wgpu::BindGroupLayout,
+    video_sampler: wgpu::Sampler,
 }
 
 #[wasm_bindgen]
@@ -511,11 +517,6 @@ impl ImageFilter {
     pub async fn new(canvas: OffscreenCanvas) -> StdResult<ImageFilter, JsValue> {
         console_error_panic_hook::set_once();
 
-        // Get the canvas
-        let window = web_sys::window().ok_or("No window")?;
-        let document = window.document().ok_or("No document")?;
-
-        // Initialize WGPU
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::GL,
             ..Default::default()
@@ -545,30 +546,26 @@ impl ImageFilter {
             .await
             .map_err(|e| JsValue::from_str(&format!("Device request failed: {:?}", e)))?;
 
-        // Configure surface
-        let width = canvas.width() as u32;
-        let height = canvas.height() as u32;
-        let surface_capabilities = surface.get_capabilities(&adapter);
-        let supported_formats = surface_capabilities.formats;
-
-        let format = if supported_formats.contains(&wgpu::TextureFormat::Bgra8Unorm) {
-            wgpu::TextureFormat::Bgra8Unorm
-        } else if supported_formats.contains(&wgpu::TextureFormat::Rgba8UnormSrgb) {
-            wgpu::TextureFormat::Rgba8UnormSrgb
-        } else {
-            return Err(JsValue::from_str("No supported texture format found"));
-        };
+        let width = canvas.width();
+        let height = canvas.height();
+        let surface_caps = surface.get_capabilities(&adapter);
+        let surface_format = surface_caps
+            .formats
+            .iter()
+            .copied()
+            .find(|f| f.is_srgb())
+            .unwrap_or(surface_caps.formats[0]);
 
         surface.configure(
             &device,
             &wgpu::SurfaceConfiguration {
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format,
+                format: surface_format,
                 width,
                 height,
                 present_mode: wgpu::PresentMode::Fifo,
-                alpha_mode: wgpu::CompositeAlphaMode::Auto,
-                view_formats: vec![wgpu::TextureFormat::Rgba8UnormSrgb],
+                alpha_mode: surface_caps.alpha_modes[0],
+                view_formats: vec![],
                 desired_maximum_frame_latency: 2,
             },
         );
@@ -576,75 +573,86 @@ impl ImageFilter {
         let dummy_config = Config::default();
         let config = GpuConfig::from_config(&dummy_config, width, height);
         let config_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some(&format!("Config Buffer")),
+            label: Some("Config Buffer"),
             contents: bytemuck::bytes_of(&config),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
-        // Shaders
         const VERTEX_SHADER: &str = include_str!("shaders/vertex.wgsl");
+        const FRAGMENT_ORIGINAL: &str = include_str!("shaders/fs_original.wgsl");
         const FRAGMENT_SMOOTHED: &str = include_str!("shaders/fs_smoothed.wgsl");
+        const FRAGMENT_VIDEO: &str = include_str!("shaders/fs_video.wgsl");
 
         let vs_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Vertex Shader"),
             source: wgpu::ShaderSource::Wgsl(VERTEX_SHADER.into()),
         });
-        let fs_modules = [device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Smoothed Shader"),
-            source: wgpu::ShaderSource::Wgsl(FRAGMENT_SMOOTHED.into()),
-        })];
-
-        // Bind group layout
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Texture Bind Group Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<GpuConfig>() as u64
-                        ),
-                    },
-                    count: None,
-                },
-            ],
+        let fs_modules = [
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Original Shader"),
+                source: wgpu::ShaderSource::Wgsl(FRAGMENT_ORIGINAL.into()),
+            }),
+            device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Smoothed Shader"),
+                source: wgpu::ShaderSource::Wgsl(FRAGMENT_SMOOTHED.into()),
+            }),
+        ];
+        let fs_video_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Video Shader"),
+            source: wgpu::ShaderSource::Wgsl(FRAGMENT_VIDEO.into()),
         });
 
-        // Pipeline layout
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
+        // Layout for static images
+        let image_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Image Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(
+                                std::mem::size_of::<GpuConfig>() as u64,
+                            ),
+                        },
+                        count: None,
+                    },
+                ],
+            });
 
-        // Render pipelines
-        let fragment_entry_points = ["fs_smoothed"];
+        let image_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Image Render Pipeline Layout"),
+                bind_group_layouts: &[&image_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let fragment_entry_points = ["fs_original", "fs_smoothed"];
         let pipelines = fs_modules
             .iter()
             .enumerate()
             .map(|(i, fs_module)| {
                 device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                     label: Some("Render Pipeline"),
-                    layout: Some(&pipeline_layout),
+                    layout: Some(&image_pipeline_layout),
                     vertex: wgpu::VertexState {
                         module: &vs_module,
                         entry_point: Some("vs_main"),
@@ -655,16 +663,13 @@ impl ImageFilter {
                         module: fs_module,
                         entry_point: Some(fragment_entry_points[i]),
                         targets: &[Some(wgpu::ColorTargetState {
-                            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                            format: surface_format,
                             blend: Some(wgpu::BlendState::REPLACE),
                             write_mask: wgpu::ColorWrites::ALL,
                         })],
                         compilation_options: Default::default(),
                     }),
-                    primitive: wgpu::PrimitiveState {
-                        topology: wgpu::PrimitiveTopology::TriangleList,
-                        ..Default::default()
-                    },
+                    primitive: wgpu::PrimitiveState::default(),
                     depth_stencil: None,
                     multisample: wgpu::MultisampleState::default(),
                     multiview: None,
@@ -673,22 +678,217 @@ impl ImageFilter {
             })
             .collect();
 
+        // Layout and sampler for video frames
+        let video_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Video Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 2,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Buffer {
+                            ty: wgpu::BufferBindingType::Uniform,
+                            has_dynamic_offset: false,
+                            min_binding_size: wgpu::BufferSize::new(
+                                std::mem::size_of::<GpuConfig>() as u64,
+                            ),
+                        },
+                        count: None,
+                    },
+                ],
+            });
+
+        let video_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Linear,
+            ..Default::default()
+        });
+
+        let video_pipeline_layout =
+            device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Video Pipeline Layout"),
+                bind_group_layouts: &[&video_bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+        let video_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Video Render Pipeline"),
+            layout: Some(&video_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &vs_module,
+                entry_point: Some("vs_main"),
+                buffers: &[],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &fs_video_module,
+                entry_point: Some("main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: surface_format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview: None,
+            cache: None,
+        });
+
         Ok(ImageFilter {
             device,
             queue,
-            canvas,
             surface,
             pipelines,
+            video_pipeline,
             current_shader_index: 0,
+            config_buffer,
             texture: None,
             bind_group: None,
-            bind_group_layout,
-            config_buffer,
+            image_bind_group_layout,
+            video_texture: None,
+            video_bind_group: None,
+            video_bind_group_layout,
+            video_sampler,
         })
     }
+    #[wasm_bindgen]
+    pub fn update_from_video_frame(&mut self, video: &HtmlVideoElement) -> StdResult<(), JsValue> {
+        let width = video.video_width();
+        let height = video.video_height();
 
-    pub fn get_canvas(&self) -> OffscreenCanvas {
-        self.canvas.clone()
+        if width == 0 || height == 0 {
+            return Ok(()); // Video not ready or has no dimensions
+        }
+
+        // Check if the video texture needs to be (re)created
+        let needs_new_texture = self.video_texture.as_ref().map_or(true, |t| {
+            let size = t.size();
+            size.width != width || size.height != height
+        });
+
+        if needs_new_texture {
+            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                label: Some("Video Texture"),
+                size: wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_DST
+                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+            let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Video Bind Group"),
+                layout: &self.video_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&self.video_sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: self.config_buffer.as_entire_binding(),
+                    },
+                ],
+            });
+
+            self.video_texture = Some(texture);
+            self.video_bind_group = Some(bind_group);
+        }
+
+        // At this point, video_texture and video_bind_group are guaranteed to be Some
+        let video_texture = self.video_texture.as_ref().unwrap();
+
+        // 1. Define the source of the copy
+        let source = wgpu::CopyExternalImageSourceInfo {
+            source: wgpu::ExternalImageSource::HTMLVideoElement(video.clone()),
+            origin: wgpu::Origin2d::ZERO,
+            flip_y: false,
+        };
+
+        // 2. Define the destination of the copy
+        let dest = wgpu::CopyExternalImageDestInfo {
+            texture: video_texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+            color_space: wgpu::PredefinedColorSpace::Srgb,
+            premultiplied_alpha: false,
+        };
+
+        let extent = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+
+        // 3. Perform the copy
+        self.queue
+            .copy_external_image_to_texture(&source, dest, extent);
+
+        // 4. Render the frame to the surface
+        if let Ok(frame) = self.surface.get_current_texture() {
+            let view = frame
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+            {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Video Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+                render_pass.set_pipeline(&self.video_pipeline);
+                render_pass.set_bind_group(0, self.video_bind_group.as_ref().unwrap(), &[]);
+                render_pass.draw(0..3, 0..1);
+            }
+            self.queue.submit(Some(encoder.finish()));
+            frame.present();
+        }
+
+        Ok(())
     }
 
     pub fn set_image_data(
@@ -697,18 +897,12 @@ impl ImageFilter {
         height: u32,
         data: &[u8],
     ) -> StdResult<(), JsValue> {
-        // Only recreate texture if dimensions changed
-        let needs_new_texture = self
-            .texture
-            .as_ref()
-            .map(|t| {
-                let size = t.size();
-                size.width != width || size.height != height
-            })
-            .unwrap_or(true);
+        let needs_new_texture = self.texture.as_ref().map_or(true, |t| {
+            let size = t.size();
+            size.width != width || size.height != height
+        });
 
         if needs_new_texture {
-            // Create new texture and bind group (existing code)
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("Image Texture"),
                 size: wgpu::Extent3d {
@@ -721,17 +915,11 @@ impl ImageFilter {
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8UnormSrgb,
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
+                view_formats: &[],
             });
 
-            // Write image data
             self.queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture: &texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
+                texture.as_image_copy(),
                 data,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
@@ -745,7 +933,6 @@ impl ImageFilter {
                 },
             );
 
-            // Create texture view and sampler
             let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             let sampler = self.device.create_sampler(&wgpu::SamplerDescriptor {
                 address_mode_u: wgpu::AddressMode::ClampToEdge,
@@ -757,10 +944,9 @@ impl ImageFilter {
                 ..Default::default()
             });
 
-            // Create bind group
             let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Texture Bind Group"),
-                layout: &self.bind_group_layout,
+                layout: &self.image_bind_group_layout, // Use renamed field
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -780,9 +966,7 @@ impl ImageFilter {
             self.texture = Some(texture);
             self.bind_group = Some(bind_group);
         } else {
-            // Just update the texture data
             self.update_texture_data(data)?;
-            return Ok(());
         }
 
         let config = GpuConfig::from_config(&Config::default(), width, height);
@@ -825,12 +1009,9 @@ impl ImageFilter {
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("Failed to get current texture: {:?}", e)))?;
-
-        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
-            format: Some(wgpu::TextureFormat::Rgba8UnormSrgb),
-            ..Default::default()
-        });
-
+        let view = frame
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -867,16 +1048,9 @@ impl ImageFilter {
 
     pub fn update_texture_data(&mut self, data: &[u8]) -> StdResult<(), JsValue> {
         if let Some(texture) = &self.texture {
-            // Get texture size
             let size = texture.size();
-
             self.queue.write_texture(
-                wgpu::TexelCopyTextureInfo {
-                    texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                },
+                texture.as_image_copy(),
                 data,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
@@ -885,17 +1059,10 @@ impl ImageFilter {
                 },
                 size,
             );
-
             self.render()?;
             Ok(())
         } else {
             Err(JsValue::from_str("No texture initialized"))
         }
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-mod shaders {
-    pub const VERTEX: &str = "./shaders/vertex.wgsl";
-    pub const SMOOTHED: &str = "./shaders/fs_smoothed.wgsl";
 }

@@ -70,14 +70,33 @@ export async function processImage(
   filter: ImageFilter,
 ): Promise<ProcessedMediaResult> {
   try {
-    const bitmap = await createImageBitmap(file);
+    let bitmap = await createImageBitmap(file);
+    let sourceWidth = bitmap.width;
+    let sourceHeight = bitmap.height;
 
     if (
       bitmap.width > LIMITS.MAX_DIMENSION ||
       bitmap.height > LIMITS.MAX_DIMENSION
     ) {
+      const ratio = Math.min(
+        LIMITS.MAX_DIMENSION / bitmap.width,
+        LIMITS.MAX_DIMENSION / bitmap.height,
+      );
+      const newWidth = Math.floor(bitmap.width * ratio);
+      const newHeight = Math.floor(bitmap.height * ratio);
+
+      const offscreenCanvas = new OffscreenCanvas(newWidth, newHeight);
+      const ctx = offscreenCanvas.getContext("2d");
+      if (!ctx) {
+        bitmap.close();
+        throw new Error("Could not create offscreen canvas context.");
+      }
+      ctx.drawImage(bitmap, 0, 0, newWidth, newHeight);
+
       bitmap.close();
-      throw new Error(`Image dimensions exceed ${LIMITS.MAX_DIMENSION}px.`);
+      bitmap = await createImageBitmap(offscreenCanvas);
+      sourceWidth = bitmap.width;
+      sourceHeight = bitmap.height;
     }
 
     filter.update_from_image_bitmap(bitmap);
@@ -111,7 +130,7 @@ export async function processImage(
 
     const result: ProcessedMediaResult = {
       sourceMediaType: "image",
-      sourceDimensions: { width: bitmap.width, height: bitmap.height },
+      sourceDimensions: { width: sourceWidth, height: sourceHeight },
       play,
       cleanup,
     };
@@ -134,6 +153,9 @@ export function processVideo(
     const video = document.createElement("video");
     const videoUrl = URL.createObjectURL(videoBlob);
     let animationFrameId: number | null = null;
+    let offscreenCanvas: OffscreenCanvas | null = null;
+    let displayWidth: number;
+    let displayHeight: number;
 
     video.src = videoUrl;
     video.muted = true;
@@ -157,19 +179,48 @@ export function processVideo(
         return reject(new Error("Video has invalid dimensions."));
       }
 
-      const renderVideoFrame = () => {
+      displayWidth = video.videoWidth;
+      displayHeight = video.videoHeight;
+
+      if (
+        video.videoWidth > LIMITS.MAX_DIMENSION ||
+        video.videoHeight > LIMITS.MAX_DIMENSION
+      ) {
+        const ratio = Math.min(
+          LIMITS.MAX_DIMENSION / video.videoWidth,
+          LIMITS.MAX_DIMENSION / video.videoHeight,
+        );
+        displayWidth = Math.floor(video.videoWidth * ratio);
+        displayHeight = Math.floor(video.videoHeight * ratio);
+        offscreenCanvas = new OffscreenCanvas(displayWidth, displayHeight);
+      }
+
+      const renderVideoFrame = async () => {
         if (video.paused || video.readyState < video.HAVE_CURRENT_DATA) {
-          animationFrameId = requestAnimationFrame(renderVideoFrame);
+          animationFrameId = requestAnimationFrame(
+            renderVideoFrame as FrameRequestCallback,
+          );
           return;
         }
         try {
-          filter.update_from_video_frame(video);
+          if (offscreenCanvas) {
+            const ctx = offscreenCanvas.getContext("2d");
+            if (!ctx) throw new Error("Failed to get canvas context.");
+            ctx.drawImage(video, 0, 0, displayWidth, displayHeight);
+            const bitmap = await createImageBitmap(offscreenCanvas);
+            filter.update_from_image_bitmap(bitmap);
+            bitmap.close();
+          } else {
+            filter.update_from_video_frame(video);
+          }
         } catch (e) {
           console.error("Error updating video frame:", e);
           cleanup();
           return;
         }
-        animationFrameId = requestAnimationFrame(renderVideoFrame);
+        animationFrameId = requestAnimationFrame(
+          renderVideoFrame as FrameRequestCallback,
+        );
       };
 
       const play = () => {
@@ -183,8 +234,8 @@ export function processVideo(
       resolve({
         sourceMediaType: "video",
         sourceDimensions: {
-          width: video.videoWidth,
-          height: video.videoHeight,
+          width: displayWidth,
+          height: displayHeight,
         },
         play,
         cleanup,

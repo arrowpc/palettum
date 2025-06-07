@@ -99,7 +99,17 @@ function ImageUpload({ onFileSelect }: ImageUploadProps) {
 
   useEffect(() => {
     if (shader.canvas && shader.filter && shader.sourceDimensions) {
-      const { width, height } = shader.sourceDimensions;
+      let { width, height } = shader.sourceDimensions;
+
+      if (width > LIMITS.MAX_DIMENSION || height > LIMITS.MAX_DIMENSION) {
+        const ratio = Math.min(
+          LIMITS.MAX_DIMENSION / width,
+          LIMITS.MAX_DIMENSION / height,
+        );
+        width = Math.floor(width * ratio);
+        height = Math.floor(height * ratio);
+      }
+
       shader.canvas.width = width;
       shader.canvas.height = height;
       shader.filter.resize_canvas(width, height);

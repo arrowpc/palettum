@@ -5,13 +5,18 @@ use env_logger::Builder;
 use indicatif::MultiProgress;
 use indicatif_log_bridge::LogWrapper;
 use log::{Level, LevelFilter};
+use palettum::ffmpeg_next;
 use std::env;
 use std::io::Write;
+
+use crate::logger::ffmpeg_next::log::set_level;
 
 const LOGGER_ENV: &str = "RUST_LOG";
 
 // TODO: Fix flickering on high volume of logs
 pub fn init(multi: MultiProgress) -> Result<LevelFilter> {
+    set_level(palettum::ffmpeg_next::log::Level::Error);
+
     let mut builder = Builder::new();
 
     builder.format(|buf, record| {

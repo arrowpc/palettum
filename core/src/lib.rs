@@ -56,3 +56,5 @@ impl From<Filter> for ::image::imageops::FilterType {
         }
     }
 }
+
+pub use ffmpeg_next;

@@ -20,7 +20,7 @@ use tabled::Table;
 use walkdir::WalkDir;
 
 use anyhow::{bail, Context, Result};
-const VALID_EXTS: [&str; 6] = ["gif", "png", "jpg", "jpeg", "webp", "ico"];
+const VALID_EXTS: [&str; 7] = ["gif", "png", "jpg", "jpeg", "webp", "ico", "mp4"];
 
 pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
     let s = style::theme();

@@ -16,6 +16,9 @@ pub enum Error {
     #[error("FFmpeg error: {0}")]
     FFmpegError(#[from] ffmpeg_next::Error),
 
+    #[error("Video error: {0}")]
+    Video(String),
+
     #[error("Video stream not found")]
     StreamNotFound,
 

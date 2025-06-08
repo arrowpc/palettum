@@ -101,6 +101,10 @@ impl Media {
 }
 
 pub fn load_media_from_path(path: &Path) -> Result<Media> {
+    if path.extension().unwrap().to_str().unwrap() == "mp4" {
+        return Ok(Media::Video(Video::from_file(path)?));
+    }
+
     let format = ImageFormat::from_path(path)?;
     match format {
         ImageFormat::Gif => Ok(Media::Gif(Gif::from_file(path)?)),

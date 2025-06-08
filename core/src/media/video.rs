@@ -2,30 +2,21 @@ use crate::{
     color::{ConvertToLab, Lab},
     config::Config,
     error::{Error, Result},
-    processing, Filter, Mapping,
+    processing, Filter,
 };
 
 use ffmpeg_next as ffmpeg;
-use image::{EncodableLayout, ImageFormat, Rgb, RgbaImage};
 
-use std::fs::{File, OpenOptions};
+use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
-use std::{
-    collections::HashMap,
-    io::{BufReader, BufWriter, Cursor},
-};
-
-use png::{BitDepth, ColorType, Encoder};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, Debug)]
-pub struct Packet {
-    pub data: Vec<u8>,
-    pub pts: Option<i64>,
-}
+use ffmpeg::format::Pixel;
+use ffmpeg::software::scaling::flag::Flags;
+use ffmpeg::software::scaling::Context as ScalerContext;
+use ffmpeg::Packet;
 
-#[derive(Clone)]
 pub struct Video {
     pub width: u32,
     pub height: u32,
@@ -35,7 +26,21 @@ pub struct Video {
 
     // For decoding
     codec_params: ffmpeg::codec::Parameters,
-    packets: Vec<Packet>,
+    packets: Vec<ffmpeg::codec::packet::Packet>,
+}
+
+impl Clone for Video {
+    fn clone(&self) -> Self {
+        Video {
+            width: self.width,
+            height: self.height,
+            framerate: self.framerate,
+            time_base: self.time_base,
+            duration_ts: self.duration_ts,
+            codec_params: self.codec_params.clone(),
+            packets: self.packets.to_vec(),
+        }
+    }
 }
 
 impl Video {
@@ -47,12 +52,16 @@ impl Video {
             .as_nanos();
         path.push(format!("ffmpeg_temp_{}.tmp", nanos));
 
-        // Write the bytes to the file
         let mut file = File::create(&path)?;
         file.write_all(bytes)?;
         file.flush()?;
         file.seek(SeekFrom::Start(0))?;
-        Self::from_file(path)
+
+        let video = Self::from_file(&path);
+
+        std::fs::remove_file(&path).ok();
+
+        video
     }
 
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
@@ -63,9 +72,13 @@ impl Video {
             .best(ffmpeg::media::Type::Video)
             .ok_or(Error::StreamNotFound)?;
         let stream_idx = stream.index();
+
         let codec_params = stream.parameters();
-        let ctx = ffmpeg::codec::Context::from_parameters(codec_params.clone())?;
-        let (width, height) = if let Ok(decoder) = ctx.decoder().video() {
+        let (width, height) = if let Ok(decoder) =
+            ffmpeg::codec::Context::from_parameters(codec_params.clone())?
+                .decoder()
+                .video()
+        {
             (decoder.width(), decoder.height())
         } else {
             (0, 0)
@@ -74,17 +87,21 @@ impl Video {
         let framerate = stream.rate();
         let time_base = stream.time_base();
         let duration_ts = stream.duration();
-        let codec_params = codec_params.clone();
 
-        let mut packets = Vec::new();
-        for (s, packet) in ictx.packets() {
-            if s.index() == stream_idx {
-                packets.push(Packet {
-                    data: packet.data().unwrap_or(&[]).to_vec(),
-                    pts: packet.pts(),
-                });
-            }
-        }
+        let num = time_base.numerator();
+        let den = time_base.denominator();
+        let duration_secs = (duration_ts as f64) * (num as f64) / (den as f64);
+
+        let packets = ictx
+            .packets()
+            .filter_map(|(s, p)| {
+                if s.index() == stream_idx {
+                    Some(p)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
 
         Ok(Video {
             width,
@@ -98,15 +115,147 @@ impl Video {
     }
 
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        todo!()
+        ffmpeg::init()?;
+
+        let mut octx = ffmpeg::format::output(&path)?;
+
+        let stream_mapping = [0];
+        let ist_time_bases = [self.time_base];
+
+        let mut ost = octx.add_stream(
+            ffmpeg::encoder::find(self.codec_params.id()).ok_or(Error::StreamNotFound)?,
+        )?;
+        ost.set_parameters(self.codec_params.clone());
+        unsafe {
+            (*ost.parameters().as_mut_ptr()).codec_tag = 0;
+        }
+
+        octx.write_header()?;
+
+        for packet in &self.packets {
+            let mut packet = packet.clone();
+            let ist_index = 0;
+            let ost_index = stream_mapping[ist_index];
+            let ost = octx.stream(ost_index as _).unwrap();
+            packet.rescale_ts(ist_time_bases[ist_index], ost.time_base());
+            packet.set_position(-1);
+            packet.set_stream(ost_index as _);
+            packet.write_interleaved(&mut octx)?;
+        }
+
+        octx.write_trailer()?;
+        Ok(())
     }
 
     pub fn write_to_memory(&self) -> Result<Vec<u8>> {
-        todo!()
+        let mut temp_path = std::env::temp_dir();
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        temp_path.push(format!("ffmpeg_output_{}.mp4", nanos));
+
+        self.write_to_file(&temp_path)?;
+
+        let buffer = std::fs::read(&temp_path)?;
+        std::fs::remove_file(&temp_path).ok();
+
+        Ok(buffer)
     }
 
-    fn write_to_writer<W: std::io::Write + std::io::Seek>(&self, mut writer: W) -> Result<()> {
-        todo!()
+    pub async fn palettify(&mut self, config: &Config) -> Result<()> {
+        config.validate()?;
+        ffmpeg::init()?;
+
+        let lab_colors = config
+            .palette
+            .colors
+            .iter()
+            .map(|rgb| rgb.to_lab())
+            .collect::<Vec<Lab>>();
+
+        let decoder_ctx = ffmpeg::codec::Context::from_parameters(self.codec_params.clone())?;
+        let mut decoder = decoder_ctx.decoder().video()?;
+
+        let encoder_codec = ffmpeg::encoder::find_by_name("libx264rgb").unwrap();
+
+        let encoder_ctx = ffmpeg::codec::Context::new_with_codec(encoder_codec);
+        let mut encoder = encoder_ctx.encoder().video()?;
+
+        encoder.set_width(self.width);
+        encoder.set_height(self.height);
+
+        let output_pix_fmt = ffmpeg::format::Pixel::RGB24;
+        encoder.set_format(output_pix_fmt);
+        encoder.set_time_base(self.time_base);
+        encoder.set_frame_rate(Some(self.framerate));
+        encoder.set_colorspace(ffmpeg::color::Space::RGB);
+
+        let opts = ffmpeg::Dictionary::from_iter([("crf", "0")]);
+        let mut encoder = encoder.open_as_with(encoder_codec, opts)?;
+
+        let mut to_rgba_scaler = ffmpeg::software::scaling::context::Context::get(
+            decoder.format(),
+            decoder.width(),
+            decoder.height(),
+            ffmpeg::format::Pixel::RGBA,
+            self.width,
+            self.height,
+            ffmpeg::software::scaling::flag::Flags::POINT,
+        )?;
+
+        let mut to_encoder_scaler = ffmpeg::software::scaling::context::Context::get(
+            ffmpeg::format::Pixel::RGBA,
+            self.width,
+            self.height,
+            output_pix_fmt,
+            self.width,
+            self.height,
+            ffmpeg::software::scaling::flag::Flags::POINT,
+        )?;
+
+        let mut new_packets = Vec::new();
+        for packet in &self.packets {
+            decoder.send_packet(packet)?;
+
+            let mut decoded_frame = ffmpeg::util::frame::video::Video::empty();
+            while decoder.receive_frame(&mut decoded_frame).is_ok() {
+                let mut rgba_frame = ffmpeg::util::frame::video::Video::new(
+                    ffmpeg::format::Pixel::RGBA,
+                    self.width,
+                    self.height,
+                );
+                to_rgba_scaler.run(&decoded_frame, &mut rgba_frame)?;
+
+                let mut img_buf = Self::frame_to_img_buf(&rgba_frame)?;
+                processing::process_pixels(&mut img_buf, config, &lab_colors).await?;
+                let processed_rgba_frame = Self::img_buf_to_frame(&img_buf)?;
+
+                let mut output_frame =
+                    ffmpeg::util::frame::video::Video::new(output_pix_fmt, self.width, self.height);
+                to_encoder_scaler.run(&processed_rgba_frame, &mut output_frame)?;
+                output_frame.set_pts(decoded_frame.pts());
+
+                encoder.send_frame(&output_frame)?;
+                let mut encoded_packet = ffmpeg::codec::packet::Packet::empty();
+                while encoder.receive_packet(&mut encoded_packet).is_ok() {
+                    new_packets.push(encoded_packet.clone());
+                }
+            }
+        }
+
+        encoder.send_eof()?;
+        let mut encoded_packet = ffmpeg::codec::packet::Packet::empty();
+        while encoder.receive_packet(&mut encoded_packet).is_ok() {
+            new_packets.push(encoded_packet.clone());
+        }
+
+        self.packets = new_packets;
+        self.codec_params = ffmpeg::codec::Parameters::from(&encoder);
+        self.time_base = encoder.time_base();
+
+        log::debug!("Video processing and re-encoding complete");
+        Ok(())
     }
 
     pub fn resize(
@@ -172,10 +321,6 @@ impl Video {
             (base_width, base_height)
         };
 
-        // Ensure final dimensions are not zero if they were calculated to be zero
-        // (e.g. very small scale on small image)
-        // This is now handled when calculating final_width/final_height and base_width/base_height
-
         // Only resize if dimensions actually change
         if final_width != self.width || final_height != self.height {
             log::debug!(
@@ -187,9 +332,9 @@ impl Video {
                 filter
             );
 
-            todo!();
             self.width = final_width;
             self.height = final_height;
+            todo!();
         } else {
             log::debug!("Skipping resize: Target dimensions match original.");
         }
@@ -197,16 +342,50 @@ impl Video {
         Ok(())
     }
 
-    pub async fn palettify(&mut self, config: &Config) -> Result<()> {
-        config.validate()?;
+    /// Helper to convert an FFmpeg video frame to an `image::RgbaImage`.
+    fn frame_to_img_buf(frame: &ffmpeg::util::frame::video::Video) -> Result<image::RgbaImage> {
+        let width = frame.width();
+        let height = frame.height();
+        let data = frame.data(0);
+        let stride = frame.stride(0);
+        let mut buf = Vec::with_capacity((width * height * 4) as usize);
 
-        let lab_colors = config
-            .palette
-            .colors
-            .iter()
-            .map(|rgb| rgb.to_lab())
-            .collect::<Vec<Lab>>();
+        for y in 0..height {
+            let start = y as usize * stride;
+            let end = start + (width as usize * 4);
+            buf.extend_from_slice(&data[start..end]);
+        }
 
-        todo!()
+        image::RgbaImage::from_raw(width, height, buf)
+            .ok_or_else(|| Error::Video("Failed to create RgbaImage from raw buffer".into()))
+    }
+
+    fn img_buf_to_frame(rgba: &image::RgbaImage) -> Result<ffmpeg::util::frame::video::Video> {
+        let width = rgba.width();
+        let height = rgba.height();
+        let mut frame =
+            ffmpeg::util::frame::video::Video::new(ffmpeg::format::Pixel::RGBA, width, height);
+
+        let stride = frame.stride(0);
+        let data = frame.data_mut(0);
+        let raw = rgba.as_raw();
+
+        for y in 0..height as usize {
+            let src_start = y * (width as usize * 4);
+            let src_end = src_start + (width as usize * 4);
+            let dst_start = y * stride;
+            let dst_end = dst_start + (width as usize * 4);
+
+            if let (Some(dst_slice), Some(src_slice)) = (
+                data.get_mut(dst_start..dst_end),
+                raw.get(src_start..src_end),
+            ) {
+                dst_slice.copy_from_slice(src_slice);
+            } else {
+                return Err(Error::Video("Buffer slice bounds error".into()));
+            }
+        }
+
+        Ok(frame)
     }
 }

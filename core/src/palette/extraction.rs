@@ -13,6 +13,7 @@ impl Palette {
             Media::Gif(gif) => Palette::from_gif(gif, k_colors),
             Media::Ico(ico) => Palette::from_ico(ico, k_colors),
             Media::Image(img) => Palette::from_image(img, k_colors),
+            &Media::Video(_) => todo!(),
         }
     }
 

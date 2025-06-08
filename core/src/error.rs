@@ -13,6 +13,12 @@ pub enum Error {
     #[error("PNG encoding or I/O error: {0}")]
     PngEncodingError(#[from] png::EncodingError),
 
+    #[error("FFmpeg error: {0}")]
+    FFmpegError(#[from] ffmpeg_next::Error),
+
+    #[error("Video stream not found")]
+    StreamNotFound,
+
     #[error("Media format not supported")]
     UnsupportedFormat,
 

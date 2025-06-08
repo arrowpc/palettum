@@ -1,10 +1,12 @@
 mod gif;
 mod ico;
 mod image;
+mod video;
 use ::image::{guess_format, ImageFormat};
 pub use gif::Gif;
 pub use ico::Ico;
 pub use image::Image;
+pub use video::Video;
 
 use crate::{
     config::Config,
@@ -18,6 +20,7 @@ pub enum Media {
     Gif(Gif),
     Ico(Ico),
     Image(Image),
+    Video(Video),
 }
 
 impl Media {
@@ -50,6 +53,7 @@ impl Media {
             Media::Gif(gif) => gif.write_to_file(path),
             Media::Ico(ico) => ico.write_to_file(path),
             Media::Image(img) => img.write_to_file(path),
+            Media::Video(vid) => vid.write_to_file(path),
         }
     }
 
@@ -58,6 +62,7 @@ impl Media {
             Media::Gif(gif) => gif.write_to_memory(),
             Media::Ico(ico) => ico.write_to_memory(),
             Media::Image(img) => img.write_to_memory(),
+            Media::Video(vid) => vid.write_to_memory(),
         }
     }
 
@@ -72,6 +77,7 @@ impl Media {
             Media::Gif(gif) => gif.resize(target_width, target_height, scale, filter),
             Media::Ico(ico) => ico.resize(target_width, target_height, scale, filter),
             Media::Image(img) => img.resize(target_width, target_height, scale, filter),
+            Media::Video(vid) => vid.resize(target_width, target_height, scale, filter),
         }
     }
 
@@ -80,6 +86,7 @@ impl Media {
             Media::Gif(gif) => gif.palettify(config).await,
             Media::Ico(ico) => ico.palettify(config).await,
             Media::Image(img) => img.palettify(config).await,
+            Media::Video(vid) => vid.palettify(config).await,
         }
     }
 
@@ -88,30 +95,7 @@ impl Media {
             Media::Gif(_) => "gif",
             Media::Ico(_) => "ico",
             Media::Image(_) => "png",
-        }
-    }
-
-    pub fn as_bytes(&self) -> Vec<u8> {
-        match self {
-            Media::Gif(img) => todo!(),
-            Media::Ico(img) => todo!(),
-            Media::Image(img) => img.as_bytes(),
-        }
-    }
-
-    pub fn width(&self) -> u32 {
-        match self {
-            Media::Gif(img) => todo!(),
-            Media::Ico(img) => todo!(),
-            Media::Image(img) => img.width(),
-        }
-    }
-
-    pub fn height(&self) -> u32 {
-        match self {
-            Media::Gif(img) => todo!(),
-            Media::Ico(img) => todo!(),
-            Media::Image(img) => img.height(),
+            Media::Video(_) => "mp4",
         }
     }
 }

@@ -1,7 +1,5 @@
 use crate::{config::Config, error::Result, palettized::Dithering, Mapping};
-use std::{borrow::Cow, result::Result as StdResult, sync::Arc};
-use wasm_bindgen::prelude::*;
-use web_sys::{HtmlCanvasElement, HtmlVideoElement, ImageBitmap};
+use std::{borrow::Cow, sync::Arc};
 use wgpu::util::DeviceExt;
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -491,496 +489,512 @@ impl GpuImageProcessor {
 }
 //GOHERE
 
-#[wasm_bindgen]
-pub struct ImageFilter {
-    adapter: wgpu::Adapter,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    surface: wgpu::Surface<'static>,
-    pipelines: Vec<wgpu::RenderPipeline>,
-    current_shader_index: usize,
-    config_buffer: wgpu::Buffer,
-    texture: Option<wgpu::Texture>,
-    bind_group: Option<wgpu::BindGroup>,
-    bind_group_layout: wgpu::BindGroupLayout,
-    sampler: wgpu::Sampler,
-}
+#[cfg(target_arch = "wasm32")]
+mod wasm {
+    use super::GpuConfig;
+    use crate::{config::Config, Mapping};
+    use std::result::Result as StdResult;
+    use wasm_bindgen::prelude::*;
+    use web_sys::{HtmlCanvasElement, HtmlVideoElement, ImageBitmap};
+    use wgpu::util::DeviceExt;
 
-#[wasm_bindgen]
-impl ImageFilter {
-    #[wasm_bindgen(constructor)]
-    pub async fn new(canvas: HtmlCanvasElement) -> StdResult<ImageFilter, JsValue> {
-        console_error_panic_hook::set_once();
+    #[wasm_bindgen]
+    pub struct ImageFilter {
+        adapter: wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        surface: wgpu::Surface<'static>,
+        pipelines: Vec<wgpu::RenderPipeline>,
+        current_shader_index: usize,
+        config_buffer: wgpu::Buffer,
+        texture: Option<wgpu::Texture>,
+        bind_group: Option<wgpu::BindGroup>,
+        bind_group_layout: wgpu::BindGroupLayout,
+        sampler: wgpu::Sampler,
+    }
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::GL,
-            ..Default::default()
-        });
+    #[wasm_bindgen]
+    impl ImageFilter {
+        #[wasm_bindgen(constructor)]
+        pub async fn new(canvas: HtmlCanvasElement) -> StdResult<ImageFilter, JsValue> {
+            console_error_panic_hook::set_once();
 
-        let surface = instance
-            .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
-            .map_err(|e| JsValue::from_str(&format!("Surface creation failed: {:?}", e)))?;
+            let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
+                backends: wgpu::Backends::GL,
+                ..Default::default()
+            });
 
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::default(),
-                compatible_surface: Some(&surface),
-                force_fallback_adapter: false,
-            })
-            .await
-            .unwrap();
+            let surface = instance
+                .create_surface(wgpu::SurfaceTarget::Canvas(canvas.clone()))
+                .map_err(|e| JsValue::from_str(&format!("Surface creation failed: {:?}", e)))?;
 
-        let (device, queue) = adapter
-            .request_device(&wgpu::DeviceDescriptor {
-                label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
-                memory_hints: wgpu::MemoryHints::default(),
-                trace: wgpu::Trace::Off,
-            })
-            .await
-            .map_err(|e| JsValue::from_str(&format!("Device request failed: {:?}", e)))?;
-
-        let width = canvas.width();
-        let height = canvas.height();
-        let surface_caps = surface.get_capabilities(&adapter);
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
-
-        surface.configure(
-            &device,
-            &wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format: surface_format,
-                width,
-                height,
-                present_mode: wgpu::PresentMode::Fifo,
-                alpha_mode: surface_caps.alpha_modes[0],
-                view_formats: vec![],
-                desired_maximum_frame_latency: 2,
-            },
-        );
-
-        let dummy_config = Config::default();
-        let config = GpuConfig::from_config(&dummy_config, width, height);
-        let config_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Config Buffer"),
-            contents: bytemuck::bytes_of(&config),
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        });
-
-        const VERTEX_SHADER: &str = include_str!("shaders/vertex.wgsl");
-        const FRAGMENT_ORIGINAL: &str = include_str!("shaders/fs_original.wgsl");
-        const FRAGMENT_SMOOTHED: &str = include_str!("shaders/fs_smoothed.wgsl");
-        const FRAGMENT_PALETTIZED: &str = include_str!("shaders/fs_palettized.wgsl");
-
-        let vs_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("Vertex Shader"),
-            source: wgpu::ShaderSource::Wgsl(VERTEX_SHADER.into()),
-        });
-        let fs_modules = [
-            device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Original Shader"),
-                source: wgpu::ShaderSource::Wgsl(FRAGMENT_ORIGINAL.into()),
-            }),
-            device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Smoothed Shader"),
-                source: wgpu::ShaderSource::Wgsl(FRAGMENT_SMOOTHED.into()),
-            }),
-            device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("Palettized Shader"),
-                source: wgpu::ShaderSource::Wgsl(FRAGMENT_PALETTIZED.into()),
-            }),
-        ];
-
-        let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("Media Bind Group Layout"),
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture {
-                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                        view_dimension: wgpu::TextureViewDimension::D2,
-                        multisampled: false,
-                    },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 2,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Buffer {
-                        ty: wgpu::BufferBindingType::Uniform,
-                        has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(
-                            std::mem::size_of::<GpuConfig>() as u64
-                        ),
-                    },
-                    count: None,
-                },
-            ],
-        });
-
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[&bind_group_layout],
-            push_constant_ranges: &[],
-        });
-
-        let fragment_entry_points = ["fs_original", "fs_smoothed", "fs_palettized"];
-        let pipelines = fs_modules
-            .iter()
-            .enumerate()
-            .map(|(i, fs_module)| {
-                device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                    label: Some(&format!("Render Pipeline {}", fragment_entry_points[i])),
-                    layout: Some(&pipeline_layout),
-                    vertex: wgpu::VertexState {
-                        module: &vs_module,
-                        entry_point: Some("vs_main"),
-                        buffers: &[],
-                        compilation_options: Default::default(),
-                    },
-                    fragment: Some(wgpu::FragmentState {
-                        module: fs_module,
-                        entry_point: Some(fragment_entry_points[i]),
-                        targets: &[Some(wgpu::ColorTargetState {
-                            format: surface_format,
-                            blend: Some(wgpu::BlendState::REPLACE),
-                            write_mask: wgpu::ColorWrites::ALL,
-                        })],
-                        compilation_options: Default::default(),
-                    }),
-                    primitive: wgpu::PrimitiveState::default(),
-                    depth_stencil: None,
-                    multisample: wgpu::MultisampleState::default(),
-                    multiview: None,
-                    cache: None,
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions {
+                    power_preference: wgpu::PowerPreference::default(),
+                    compatible_surface: Some(&surface),
+                    force_fallback_adapter: false,
                 })
+                .await
+                .unwrap();
+
+            let (device, queue) = adapter
+                .request_device(&wgpu::DeviceDescriptor {
+                    label: None,
+                    required_features: wgpu::Features::empty(),
+                    required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                    memory_hints: wgpu::MemoryHints::default(),
+                    trace: wgpu::Trace::Off,
+                })
+                .await
+                .map_err(|e| JsValue::from_str(&format!("Device request failed: {:?}", e)))?;
+
+            let width = canvas.width();
+            let height = canvas.height();
+            let surface_caps = surface.get_capabilities(&adapter);
+            let surface_format = surface_caps
+                .formats
+                .iter()
+                .copied()
+                .find(|f| f.is_srgb())
+                .unwrap_or(surface_caps.formats[0]);
+
+            surface.configure(
+                &device,
+                &wgpu::SurfaceConfiguration {
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    format: surface_format,
+                    width,
+                    height,
+                    present_mode: wgpu::PresentMode::Fifo,
+                    alpha_mode: surface_caps.alpha_modes[0],
+                    view_formats: vec![],
+                    desired_maximum_frame_latency: 2,
+                },
+            );
+
+            let dummy_config = Config::default();
+            let config = GpuConfig::from_config(&dummy_config, width, height);
+            let config_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("Config Buffer"),
+                contents: bytemuck::bytes_of(&config),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            });
+
+            const VERTEX_SHADER: &str = include_str!("shaders/vertex.wgsl");
+            const FRAGMENT_ORIGINAL: &str = include_str!("shaders/fs_original.wgsl");
+            const FRAGMENT_SMOOTHED: &str = include_str!("shaders/fs_smoothed.wgsl");
+            const FRAGMENT_PALETTIZED: &str = include_str!("shaders/fs_palettized.wgsl");
+
+            let vs_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("Vertex Shader"),
+                source: wgpu::ShaderSource::Wgsl(VERTEX_SHADER.into()),
+            });
+            let fs_modules = [
+                device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("Original Shader"),
+                    source: wgpu::ShaderSource::Wgsl(FRAGMENT_ORIGINAL.into()),
+                }),
+                device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("Smoothed Shader"),
+                    source: wgpu::ShaderSource::Wgsl(FRAGMENT_SMOOTHED.into()),
+                }),
+                device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("Palettized Shader"),
+                    source: wgpu::ShaderSource::Wgsl(FRAGMENT_PALETTIZED.into()),
+                }),
+            ];
+
+            let bind_group_layout =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("Media Bind Group Layout"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                multisampled: false,
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(
+                                    std::mem::size_of::<GpuConfig>() as u64,
+                                ),
+                            },
+                            count: None,
+                        },
+                    ],
+                });
+
+            let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("Render Pipeline Layout"),
+                bind_group_layouts: &[&bind_group_layout],
+                push_constant_ranges: &[],
+            });
+
+            let fragment_entry_points = ["fs_original", "fs_smoothed", "fs_palettized"];
+            let pipelines = fs_modules
+                .iter()
+                .enumerate()
+                .map(|(i, fs_module)| {
+                    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                        label: Some(&format!("Render Pipeline {}", fragment_entry_points[i])),
+                        layout: Some(&pipeline_layout),
+                        vertex: wgpu::VertexState {
+                            module: &vs_module,
+                            entry_point: Some("vs_main"),
+                            buffers: &[],
+                            compilation_options: Default::default(),
+                        },
+                        fragment: Some(wgpu::FragmentState {
+                            module: fs_module,
+                            entry_point: Some(fragment_entry_points[i]),
+                            targets: &[Some(wgpu::ColorTargetState {
+                                format: surface_format,
+                                blend: Some(wgpu::BlendState::REPLACE),
+                                write_mask: wgpu::ColorWrites::ALL,
+                            })],
+                            compilation_options: Default::default(),
+                        }),
+                        primitive: wgpu::PrimitiveState::default(),
+                        depth_stencil: None,
+                        multisample: wgpu::MultisampleState::default(),
+                        multiview: None,
+                        cache: None,
+                    })
+                })
+                .collect();
+
+            let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+                address_mode_u: wgpu::AddressMode::ClampToEdge,
+                address_mode_v: wgpu::AddressMode::ClampToEdge,
+                mag_filter: wgpu::FilterMode::Linear,
+                min_filter: wgpu::FilterMode::Linear,
+                ..Default::default()
+            });
+
+            Ok(ImageFilter {
+                adapter,
+                device,
+                queue,
+                surface,
+                pipelines,
+                current_shader_index: 0,
+                config_buffer,
+                texture: None,
+                bind_group: None,
+                bind_group_layout,
+                sampler,
             })
-            .collect();
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
-
-        Ok(ImageFilter {
-            adapter,
-            device,
-            queue,
-            surface,
-            pipelines,
-            current_shader_index: 0,
-            config_buffer,
-            texture: None,
-            bind_group: None,
-            bind_group_layout,
-            sampler,
-        })
-    }
-
-    #[wasm_bindgen]
-    pub fn resize_canvas(&mut self, width: u32, height: u32) -> StdResult<(), JsValue> {
-        let surface_caps = self.surface.get_capabilities(&self.adapter);
-        let surface_format = surface_caps
-            .formats
-            .iter()
-            .copied()
-            .find(|f| f.is_srgb())
-            .unwrap_or(surface_caps.formats[0]);
-
-        self.surface.configure(
-            &self.device,
-            &wgpu::SurfaceConfiguration {
-                usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-                format: surface_format,
-                width,
-                height,
-                present_mode: wgpu::PresentMode::Fifo,
-                alpha_mode: surface_caps.alpha_modes[0],
-                view_formats: vec![],
-                desired_maximum_frame_latency: 2,
-            },
-        );
-
-        if self.texture.is_some() {
-            self.render()?;
-        }
-        Ok(())
-    }
-
-    #[wasm_bindgen]
-    pub fn update_from_video_frame(&mut self, video: &HtmlVideoElement) -> StdResult<(), JsValue> {
-        let width = video.video_width();
-        let height = video.video_height();
-
-        if width == 0 || height == 0 {
-            return Ok(());
         }
 
-        let needs_new_texture = self.texture.as_ref().map_or(true, |t| {
-            let size = t.size();
-            size.width != width || size.height != height
-        });
+        #[wasm_bindgen]
+        pub fn resize_canvas(&mut self, width: u32, height: u32) -> StdResult<(), JsValue> {
+            let surface_caps = self.surface.get_capabilities(&self.adapter);
+            let surface_format = surface_caps
+                .formats
+                .iter()
+                .copied()
+                .find(|f| f.is_srgb())
+                .unwrap_or(surface_caps.formats[0]);
 
-        if needs_new_texture {
-            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Media Texture"),
-                size: wgpu::Extent3d {
+            self.surface.configure(
+                &self.device,
+                &wgpu::SurfaceConfiguration {
+                    usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    format: surface_format,
                     width,
                     height,
-                    depth_or_array_layers: 1,
+                    present_mode: wgpu::PresentMode::Fifo,
+                    alpha_mode: surface_caps.alpha_modes[0],
+                    view_formats: vec![],
+                    desired_maximum_frame_latency: 2,
                 },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_DST
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
-            });
+            );
 
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-            let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Media Bind Group"),
-                layout: &self.bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: self.config_buffer.as_entire_binding(),
-                    },
-                ],
-            });
-
-            self.texture = Some(texture);
-            self.bind_group = Some(bind_group);
+            if self.texture.is_some() {
+                self.render()?;
+            }
+            Ok(())
         }
 
-        let texture = self.texture.as_ref().unwrap();
+        #[wasm_bindgen]
+        pub fn update_from_video_frame(
+            &mut self,
+            video: &HtmlVideoElement,
+        ) -> StdResult<(), JsValue> {
+            let width = video.video_width();
+            let height = video.video_height();
 
-        let source = wgpu::CopyExternalImageSourceInfo {
-            source: wgpu::ExternalImageSource::HTMLVideoElement(video.clone()),
-            origin: wgpu::Origin2d::ZERO,
-            flip_y: false,
-        };
+            if width == 0 || height == 0 {
+                return Ok(());
+            }
 
-        let dest = wgpu::CopyExternalImageDestInfo {
-            texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d::ZERO,
-            aspect: wgpu::TextureAspect::All,
-            color_space: wgpu::PredefinedColorSpace::Srgb,
-            premultiplied_alpha: false,
-        };
-
-        let extent = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        };
-
-        self.queue
-            .copy_external_image_to_texture(&source, dest, extent);
-
-        self.render()?;
-        Ok(())
-    }
-
-    pub fn update_from_image_bitmap(&mut self, bitmap: &ImageBitmap) -> StdResult<(), JsValue> {
-        let width = bitmap.width();
-        let height = bitmap.height();
-
-        if width == 0 || height == 0 {
-            return Ok(());
-        }
-
-        let needs_new_texture = self.texture.as_ref().map_or(true, |t| {
-            let size = t.size();
-            size.width != width || size.height != height
-        });
-
-        if needs_new_texture {
-            let texture = self.device.create_texture(&wgpu::TextureDescriptor {
-                label: Some("Media Texture"),
-                size: wgpu::Extent3d {
-                    width,
-                    height,
-                    depth_or_array_layers: 1,
-                },
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_DST
-                    | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                view_formats: &[],
+            let needs_new_texture = self.texture.as_ref().map_or(true, |t| {
+                let size = t.size();
+                size.width != width || size.height != height
             });
 
-            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-            let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Media Bind Group"),
-                layout: &self.bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&view),
+            if needs_new_texture {
+                let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("Media Texture"),
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
                     },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: self.config_buffer.as_entire_binding(),
-                    },
-                ],
-            });
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::COPY_DST
+                        | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                });
 
-            self.texture = Some(texture);
-            self.bind_group = Some(bind_group);
-        }
+                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+                let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Media Bind Group"),
+                    layout: &self.bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: self.config_buffer.as_entire_binding(),
+                        },
+                    ],
+                });
 
-        self.queue.copy_external_image_to_texture(
-            &wgpu::ImageCopyExternalImage {
-                source: wgpu::ExternalImageSource::ImageBitmap(bitmap.clone()),
+                self.texture = Some(texture);
+                self.bind_group = Some(bind_group);
+            }
+
+            let texture = self.texture.as_ref().unwrap();
+
+            let source = wgpu::CopyExternalImageSourceInfo {
+                source: wgpu::ExternalImageSource::HTMLVideoElement(video.clone()),
                 origin: wgpu::Origin2d::ZERO,
                 flip_y: false,
-            },
-            wgpu::CopyExternalImageDestInfo {
-                texture: self.texture.as_ref().unwrap(),
+            };
+
+            let dest = wgpu::CopyExternalImageDestInfo {
+                texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
                 color_space: wgpu::PredefinedColorSpace::Srgb,
                 premultiplied_alpha: false,
-            },
-            wgpu::Extent3d {
+            };
+
+            let extent = wgpu::Extent3d {
                 width,
                 height,
                 depth_or_array_layers: 1,
-            },
-        );
+            };
 
-        self.render()?;
-        Ok(())
-    }
+            self.queue
+                .copy_external_image_to_texture(&source, dest, extent);
 
-    pub fn set_config(&mut self, config: &Config) -> StdResult<(), JsValue> {
-        let (texture_width, texture_height) = if let Some(texture) = &self.texture {
-            let size = texture.size();
-            (size.width, size.height)
-        } else {
-            return Err(JsValue::from_str(
-                "Cannot apply filter: No media has been set",
-            ));
-        };
-
-        match config.mapping {
-            Mapping::Smoothed => self.current_shader_index = 1,
-            Mapping::Palettized => self.current_shader_index = 2,
-        }
-
-        let gpu_config = GpuConfig::from_config(config, texture_width, texture_height);
-        self.queue
-            .write_buffer(&self.config_buffer, 0, bytemuck::bytes_of(&gpu_config));
-
-        self.render()?;
-        Ok(())
-    }
-
-    pub fn set_shader_index(&mut self, index: u32) -> StdResult<(), JsValue> {
-        if index as usize >= self.pipelines.len() {
-            return Err(JsValue::from_str("Invalid shader index"));
-        }
-        self.current_shader_index = index as usize;
-        self.render()?;
-        Ok(())
-    }
-
-    pub fn render(&self) -> StdResult<(), JsValue> {
-        let frame = self
-            .surface
-            .get_current_texture()
-            .map_err(|e| JsValue::from_str(&format!("Failed to get current texture: {:?}", e)))?;
-        let view = frame
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Render Encoder"),
-            });
-
-        {
-            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("Render Pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                timestamp_writes: None,
-                occlusion_query_set: None,
-            });
-
-            if let Some(bind_group) = &self.bind_group {
-                render_pass.set_pipeline(&self.pipelines[self.current_shader_index]);
-                render_pass.set_bind_group(0, bind_group, &[]);
-                render_pass.draw(0..3, 0..1);
-            }
-        }
-
-        self.queue.submit(Some(encoder.finish()));
-        frame.present();
-        Ok(())
-    }
-
-    pub fn update_texture_data(&mut self, data: &[u8]) -> StdResult<(), JsValue> {
-        if let Some(texture) = &self.texture {
-            let size = texture.size();
-            self.queue.write_texture(
-                texture.as_image_copy(),
-                data,
-                wgpu::TexelCopyBufferLayout {
-                    offset: 0,
-                    bytes_per_row: Some(4 * size.width),
-                    rows_per_image: Some(size.height),
-                },
-                size,
-            );
             self.render()?;
             Ok(())
-        } else {
-            Err(JsValue::from_str("No texture initialized"))
+        }
+
+        pub fn update_from_image_bitmap(&mut self, bitmap: &ImageBitmap) -> StdResult<(), JsValue> {
+            let width = bitmap.width();
+            let height = bitmap.height();
+
+            if width == 0 || height == 0 {
+                return Ok(());
+            }
+
+            let needs_new_texture = self.texture.as_ref().map_or(true, |t| {
+                let size = t.size();
+                size.width != width || size.height != height
+            });
+
+            if needs_new_texture {
+                let texture = self.device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("Media Texture"),
+                    size: wgpu::Extent3d {
+                        width,
+                        height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING
+                        | wgpu::TextureUsages::COPY_DST
+                        | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                });
+
+                let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+                let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("Media Bind Group"),
+                    layout: &self.bind_group_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: self.config_buffer.as_entire_binding(),
+                        },
+                    ],
+                });
+
+                self.texture = Some(texture);
+                self.bind_group = Some(bind_group);
+            }
+
+            self.queue.copy_external_image_to_texture(
+                &wgpu::ImageCopyExternalImage {
+                    source: wgpu::ExternalImageSource::ImageBitmap(bitmap.clone()),
+                    origin: wgpu::Origin2d::ZERO,
+                    flip_y: false,
+                },
+                wgpu::CopyExternalImageDestInfo {
+                    texture: self.texture.as_ref().unwrap(),
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                    color_space: wgpu::PredefinedColorSpace::Srgb,
+                    premultiplied_alpha: false,
+                },
+                wgpu::Extent3d {
+                    width,
+                    height,
+                    depth_or_array_layers: 1,
+                },
+            );
+
+            self.render()?;
+            Ok(())
+        }
+
+        pub fn set_config(&mut self, config: &Config) -> StdResult<(), JsValue> {
+            let (texture_width, texture_height) = if let Some(texture) = &self.texture {
+                let size = texture.size();
+                (size.width, size.height)
+            } else {
+                return Err(JsValue::from_str(
+                    "Cannot apply filter: No media has been set",
+                ));
+            };
+
+            match config.mapping {
+                Mapping::Smoothed => self.current_shader_index = 1,
+                Mapping::Palettized => self.current_shader_index = 2,
+            }
+
+            let gpu_config = GpuConfig::from_config(config, texture_width, texture_height);
+            self.queue
+                .write_buffer(&self.config_buffer, 0, bytemuck::bytes_of(&gpu_config));
+
+            self.render()?;
+            Ok(())
+        }
+
+        pub fn set_shader_index(&mut self, index: u32) -> StdResult<(), JsValue> {
+            if index as usize >= self.pipelines.len() {
+                return Err(JsValue::from_str("Invalid shader index"));
+            }
+            self.current_shader_index = index as usize;
+            self.render()?;
+            Ok(())
+        }
+
+        pub fn render(&self) -> StdResult<(), JsValue> {
+            let frame = self.surface.get_current_texture().map_err(|e| {
+                JsValue::from_str(&format!("Failed to get current texture: {:?}", e))
+            })?;
+            let view = frame
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
+            let mut encoder = self
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                });
+
+            {
+                let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("Render Pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                });
+
+                if let Some(bind_group) = &self.bind_group {
+                    render_pass.set_pipeline(&self.pipelines[self.current_shader_index]);
+                    render_pass.set_bind_group(0, bind_group, &[]);
+                    render_pass.draw(0..3, 0..1);
+                }
+            }
+
+            self.queue.submit(Some(encoder.finish()));
+            frame.present();
+            Ok(())
+        }
+
+        pub fn update_texture_data(&mut self, data: &[u8]) -> StdResult<(), JsValue> {
+            if let Some(texture) = &self.texture {
+                let size = texture.size();
+                self.queue.write_texture(
+                    texture.as_image_copy(),
+                    data,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(4 * size.width),
+                        rows_per_image: Some(size.height),
+                    },
+                    size,
+                );
+                self.render()?;
+                Ok(())
+            } else {
+                Err(JsValue::from_str("No texture initialized"))
+            }
         }
     }
 }
+
+#[cfg(target_arch = "wasm32")]
+pub use wasm::ImageFilter;

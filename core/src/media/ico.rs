@@ -1,6 +1,4 @@
 use crate::{
-    color::ConvertToLab,
-    color::Lab,
     config::Config,
     error::{Error, Result},
     processing, Filter,
@@ -194,19 +192,12 @@ impl Ico {
     pub async fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 
-        let lab_colors = config
-            .palette
-            .colors
-            .iter()
-            .map(|rgb| rgb.to_lab())
-            .collect::<Vec<Lab>>();
-
         for (i, buffer) in self.buffers.iter_mut().enumerate() {
             let width = self.widths[i];
             let height = self.heights[i];
 
             log::debug!("Processing icon pixels {} ({}x{})", i, width, height);
-            processing::process_pixels(buffer, config, &lab_colors).await?;
+            processing::process_pixels(buffer.as_mut(), width, height, config.clone()).await?;
         }
 
         log::debug!("All icons in ico palettified.");

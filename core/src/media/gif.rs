@@ -1,5 +1,4 @@
 use crate::{
-    color::ConvertToLab,
     config::Config,
     error::{Error, Result},
     processing, Filter, Image,
@@ -281,16 +280,10 @@ impl Gif {
     pub async fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 
-        let lab_colors = config
-            .palette
-            .colors
-            .iter()
-            .map(|rgb| rgb.to_lab())
-            .collect::<Vec<_>>();
-
         log::debug!("Processing gif pixels ({}x{})", self.width, self.height);
         for frame in &mut self.frames {
-            processing::process_pixels(frame.buffer_mut(), config, &lab_colors).await?;
+            let (w, h) = (frame.buffer().width(), frame.buffer().height());
+            processing::process_pixels(frame.buffer_mut().as_mut(), w, h, config.clone()).await?;
         }
         log::debug!("Pixel processing complete.");
 

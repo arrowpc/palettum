@@ -1,5 +1,4 @@
 use crate::{
-    color::{ConvertToLab, Lab},
     config::Config,
     error::{Error, Result},
     processing, Filter,
@@ -167,13 +166,6 @@ impl Video {
         config.validate()?;
         ffmpeg::init()?;
 
-        let lab_colors = config
-            .palette
-            .colors
-            .iter()
-            .map(|rgb| rgb.to_lab())
-            .collect::<Vec<Lab>>();
-
         let decoder_ctx = ffmpeg::codec::Context::from_parameters(self.codec_params.clone())?;
         let mut decoder = decoder_ctx.decoder().video()?;
 
@@ -228,7 +220,8 @@ impl Video {
                 to_rgba_scaler.run(&decoded_frame, &mut rgba_frame)?;
 
                 let mut img_buf = Self::frame_to_img_buf(&rgba_frame)?;
-                processing::process_pixels(&mut img_buf, config, &lab_colors).await?;
+                let (w, h) = (img_buf.width(), img_buf.height());
+                processing::process_pixels(img_buf.as_mut(), w, h, config.clone()).await?;
                 let processed_rgba_frame = Self::img_buf_to_frame(&img_buf)?;
 
                 let mut output_frame =

@@ -1,5 +1,4 @@
 use crate::{
-    color::{ConvertToLab, Lab},
     config::Config,
     error::{Error, Result},
     processing, Filter, Mapping,
@@ -220,10 +219,6 @@ impl Image {
             (base_width, base_height)
         };
 
-        // Ensure final dimensions are not zero if they were calculated to be zero
-        // (e.g. very small scale on small image)
-        // This is now handled when calculating final_width/final_height and base_width/base_height
-
         // Only resize if dimensions actually change
         if final_width != self.width || final_height != self.height {
             log::debug!(
@@ -249,16 +244,15 @@ impl Image {
     pub async fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 
-        let lab_colors = config
-            .palette
-            .colors
-            .iter()
-            .map(|rgb| rgb.to_lab())
-            .collect::<Vec<Lab>>();
-
         log::debug!("Processing image pixels ({}x{})", self.width, self.height);
         log::debug!("{}", config);
-        processing::process_pixels(&mut self.buffer, config, &lab_colors).await?;
+        processing::process_pixels(
+            self.buffer.as_mut(),
+            self.width,
+            self.height,
+            config.clone(),
+        )
+        .await?;
         log::debug!("Pixel processing complete.");
 
         if config.mapping != Mapping::Smoothed {

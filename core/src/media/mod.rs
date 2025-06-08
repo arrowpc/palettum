@@ -1,11 +1,16 @@
 mod gif;
 mod ico;
 mod image;
+
+#[cfg(feature = "video")]
 mod video;
+
 use ::image::{guess_format, ImageFormat};
 pub use gif::Gif;
 pub use ico::Ico;
 pub use image::Image;
+
+#[cfg(feature = "video")]
 pub use video::Video;
 
 use crate::{
@@ -20,11 +25,19 @@ pub enum Media {
     Gif(Gif),
     Ico(Ico),
     Image(Image),
+    #[cfg(feature = "video")]
     Video(Video),
 }
 
 impl Media {
     pub fn from_file(path: &Path) -> Result<Self> {
+        #[cfg(feature = "video")]
+        {
+            if path.extension().unwrap().to_str().unwrap() == "mp4" {
+                return Ok(Media::Video(Video::from_file(path)?));
+            }
+        }
+
         let format = ImageFormat::from_path(path)?;
         match format {
             ImageFormat::Gif => Ok(Media::Gif(Gif::from_file(path)?)),
@@ -37,6 +50,12 @@ impl Media {
     }
 
     pub fn from_memory(bytes: &[u8]) -> Result<Self> {
+        #[cfg(feature = "video")]
+        {
+            // If you want to support video from memory, add detection here.
+            // For now, we skip this as your original code does not support it.
+        }
+
         let format = guess_format(bytes)?;
         match format {
             ImageFormat::Gif => Ok(Media::Gif(Gif::from_memory(bytes)?)),
@@ -53,6 +72,7 @@ impl Media {
             Media::Gif(gif) => gif.write_to_file(path),
             Media::Ico(ico) => ico.write_to_file(path),
             Media::Image(img) => img.write_to_file(path),
+            #[cfg(feature = "video")]
             Media::Video(vid) => vid.write_to_file(path),
         }
     }
@@ -62,6 +82,7 @@ impl Media {
             Media::Gif(gif) => gif.write_to_memory(),
             Media::Ico(ico) => ico.write_to_memory(),
             Media::Image(img) => img.write_to_memory(),
+            #[cfg(feature = "video")]
             Media::Video(vid) => vid.write_to_memory(),
         }
     }
@@ -77,6 +98,7 @@ impl Media {
             Media::Gif(gif) => gif.resize(target_width, target_height, scale, filter),
             Media::Ico(ico) => ico.resize(target_width, target_height, scale, filter),
             Media::Image(img) => img.resize(target_width, target_height, scale, filter),
+            #[cfg(feature = "video")]
             Media::Video(vid) => vid.resize(target_width, target_height, scale, filter),
         }
     }
@@ -86,6 +108,7 @@ impl Media {
             Media::Gif(gif) => gif.palettify(config).await,
             Media::Ico(ico) => ico.palettify(config).await,
             Media::Image(img) => img.palettify(config).await,
+            #[cfg(feature = "video")]
             Media::Video(vid) => vid.palettify(config).await,
         }
     }
@@ -95,14 +118,19 @@ impl Media {
             Media::Gif(_) => "gif",
             Media::Ico(_) => "ico",
             Media::Image(_) => "png",
+            #[cfg(feature = "video")]
             Media::Video(_) => "mp4",
         }
     }
 }
 
 pub fn load_media_from_path(path: &Path) -> Result<Media> {
-    if path.extension().unwrap().to_str().unwrap() == "mp4" {
-        return Ok(Media::Video(Video::from_file(path)?));
+    #[cfg(feature = "video")]
+    {
+        // TODO: Actual proper video detection
+        if path.extension().unwrap().to_str().unwrap() == "mp4" {
+            return Ok(Media::Video(Video::from_file(path)?));
+        }
     }
 
     let format = ImageFormat::from_path(path)?;
@@ -117,6 +145,11 @@ pub fn load_media_from_path(path: &Path) -> Result<Media> {
 }
 
 pub fn load_media_from_memory(bytes: &[u8]) -> Result<Media> {
+    #[cfg(feature = "video")]
+    {
+        todo!()
+    }
+
     let format = guess_format(bytes)?;
     match format {
         ImageFormat::Gif => Ok(Media::Gif(Gif::from_memory(bytes)?)),

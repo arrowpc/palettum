@@ -57,4 +57,5 @@ impl From<Filter> for ::image::imageops::FilterType {
     }
 }
 
+#[cfg(feature = "video")]
 pub use ffmpeg_next;

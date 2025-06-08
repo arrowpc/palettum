@@ -13,6 +13,7 @@ pub enum Error {
     #[error("PNG encoding or I/O error: {0}")]
     PngEncodingError(#[from] png::EncodingError),
 
+    #[cfg(feature = "video")]
     #[error("FFmpeg error: {0}")]
     FFmpegError(#[from] ffmpeg_next::Error),
 
@@ -90,7 +91,20 @@ pub enum Error {
 
     #[error("Invalid input media or color count")]
     InvalidPaletteFromMedia,
+
+    #[error("{0}")]
+    Internal(String),
 }
 
 /// Result type of the core library
 pub type Result<T> = core::result::Result<T, Error>;
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen::JsValue;
+
+#[cfg(target_arch = "wasm32")]
+impl From<Error> for JsValue {
+    fn from(err: Error) -> JsValue {
+        JsValue::from_str(&err.to_string())
+    }
+}

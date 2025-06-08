@@ -23,39 +23,6 @@ pub async fn init_gpu_processor() -> StdResult<(), JsValue> {
 }
 
 #[wasm_bindgen]
-pub fn load_media(bytes: Vec<u8>) {
-    log::info!("Loading media...");
-    let media = match load_media_from_memory(&bytes) {
-        Ok(m) => m,
-        Err(e) => {
-            log::error!("Failed to load media: {}", e);
-            return;
-        }
-    };
-    let mut guard = MEDIA.lock().unwrap();
-    *guard = Some(media);
-    log::info!("Loaded media");
-}
-
-#[wasm_bindgen]
-pub fn clear_media() {
-    log::info!("Clearing media...");
-    let mut guard = MEDIA.lock().unwrap();
-    *guard = None;
-}
-
-#[wasm_bindgen]
-pub fn media_bytes() -> Uint8Array {
-    let guard = MEDIA.lock().unwrap();
-    if let Some(ref media) = *guard {
-        let bytes = media.as_bytes();
-        Uint8Array::from(bytes.as_slice())
-    } else {
-        Uint8Array::new_with_length(0)
-    }
-}
-
-#[wasm_bindgen]
 pub async fn palettify(config: Config) -> StdResult<Uint8Array, JsValue> {
     let media = {
         let guard = MEDIA.lock().unwrap();

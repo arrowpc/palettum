@@ -877,7 +877,7 @@ mod wasm {
             }
 
             self.queue.copy_external_image_to_texture(
-                &wgpu::ImageCopyExternalImage {
+                &wgpu::CopyExternalImageSourceInfo {
                     source: wgpu::ExternalImageSource::ImageBitmap(bitmap.clone()),
                     origin: wgpu::Origin2d::ZERO,
                     flip_y: false,

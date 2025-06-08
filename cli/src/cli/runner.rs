@@ -127,16 +127,16 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 }
                 let mut media = load_media_from_path(&input)
                     .with_context(|| format!("Failed to load media from {:?}", input))?;
+
+                let mut output_with_ext = output.clone();
+                output_with_ext.set_extension(media.default_extension());
                 info!(
                     "Palettifying:\n {} → {}\n Palette: {}",
                     s.primary.apply_to(input.display()),
-                    s.secondary.apply_to(format!(
-                        "{}.{}",
-                        output.display(),
-                        media.default_extension()
-                    )),
+                    s.secondary.apply_to(output_with_ext.display()),
                     s.highlight.apply_to(args.palette.id.clone()),
                 );
+
                 media
                     .resize(args.width, args.height, args.scale, args.filter)
                     .with_context(|| format!("Failed to resize {:?}", input))?;

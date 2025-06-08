@@ -7,15 +7,10 @@ use crate::{
 
 use ffmpeg_next as ffmpeg;
 
-use std::fs::File;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use ffmpeg::format::Pixel;
-use ffmpeg::software::scaling::flag::Flags;
-use ffmpeg::software::scaling::Context as ScalerContext;
-use ffmpeg::Packet;
+use std::{fs::File, path::PathBuf};
 
 pub struct Video {
     pub width: u32,
@@ -88,10 +83,6 @@ impl Video {
         let time_base = stream.time_base();
         let duration_ts = stream.duration();
 
-        let num = time_base.numerator();
-        let den = time_base.denominator();
-        let duration_secs = (duration_ts as f64) * (num as f64) / (den as f64);
-
         let packets = ictx
             .packets()
             .filter_map(|(s, p)| {
@@ -115,9 +106,18 @@ impl Video {
     }
 
     pub fn write_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
+        let path = path.as_ref();
+        if matches!(path.extension(), Some(ext) if ext != "mp4") {
+            log::debug!(
+                "Output path {} has a non-mp4 extension; replacing with .mp4",
+                path.display()
+            );
+        }
+        let mut path_with_ext = PathBuf::from(path);
+        path_with_ext.set_extension("mp4");
         ffmpeg::init()?;
 
-        let mut octx = ffmpeg::format::output(&path)?;
+        let mut octx = ffmpeg::format::output(&path_with_ext)?;
 
         let stream_mapping = [0];
         let ist_time_bases = [self.time_base];

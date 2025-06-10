@@ -63,7 +63,7 @@ async function initialize(onProgress: ProgressCallback): Promise<void> {
 
       onProgress({ percentage: 10, message: "Initializing WebCodecs..." });
       await LibAVWebCodecs.load({
-        polyfill: false,
+        polyfill: true,
         LibAV: LibAV,
         libavOptions: { yesthreads: true, base: "/_libav" },
       });

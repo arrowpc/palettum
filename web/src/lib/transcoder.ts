@@ -8,8 +8,10 @@
  * It is designed to run inside a Web Worker to avoid blocking the main UI thread.
  */
 
-import { Config, process_pixels } from "@/wasm/pkg/wasm";
-import LibAV from "@libav.js/variant-webcodecs";
+import { Config, process_pixels } from "palettum";
+import LibAV, {
+  type LibAV as LibAVInstance,
+} from "@libav.js/variant-webcodecs";
 import * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
 import * as LibAVWebCodecs from "libavjs-webcodecs-polyfill";
 
@@ -36,16 +38,17 @@ interface VideoEncoderEncodeOptions {
 }
 
 // --- STATE MANAGEMENT ---
-const state: {
-  libav: any;
-  bridge: any;
-  initializing: Promise<void> | null;
-} = {
-  libav: null,
-  bridge: null,
-  initializing: null,
-};
+interface TranscoderState {
+  libav: LibAVInstance | undefined;
+  bridge: typeof LibAVWebCodecsBridge | undefined;
+  initializing: Promise<void> | undefined;
+}
 
+const state: TranscoderState = {
+  libav: undefined,
+  bridge: undefined,
+  initializing: undefined,
+};
 /**
  * Loads and initializes the required libraries (LibAV, WebCodecs Polyfill).
  * This function is idempotent and safe to call multiple times.
@@ -62,7 +65,7 @@ async function initialize(onProgress: ProgressCallback): Promise<void> {
       await LibAVWebCodecs.load({
         polyfill: false,
         LibAV: LibAV,
-        libavOptions: { base: "/_libav" },
+        libavOptions: { yesthreads: true, base: "/_libav" },
       });
 
       onProgress({ percentage: 10, message: "Initializing LibAV..." });
@@ -73,7 +76,7 @@ async function initialize(onProgress: ProgressCallback): Promise<void> {
       console.error("Initialization failed:", error);
       throw new Error("Failed to initialize transcoding libraries.");
     } finally {
-      state.initializing = null;
+      state.initializing = undefined;
     }
   })();
   return state.initializing;
@@ -168,14 +171,14 @@ export async function transcode(
 ): Promise<Blob> {
   await initialize(onProgress);
   const { libav, bridge } = state;
+  if (!libav) throw new Error("LibAV not initialized");
+  if (!bridge) throw new Error("Bridge not initialized");
 
   await libav.mkreadaheadfile("input", file);
   onProgress({ percentage: 25, message: "Demuxing input file..." });
   const [ifc, istreams] = await libav.ff_init_demuxer_file("input");
   const rpkt = await libav.av_packet_alloc();
   const wpkt = await libav.av_packet_alloc();
-
-  const totalDuration = ifc.duration / 1000000; // in seconds
 
   // --- Stream Setup ---
   const iToO: number[] = [];
@@ -197,24 +200,36 @@ export async function transcode(
     iToO.push(-1);
     if (istream.codec_type === libav.AVMEDIA_TYPE_VIDEO) {
       const decoderConfig = await bridge.videoStreamToConfig(libav, istream);
-      if (!(await VideoDecoder.isConfigSupported(decoderConfig)).supported)
+      if (!decoderConfig) continue;
+      if (
+        !(
+          await VideoDecoder.isConfigSupported(
+            decoderConfig as VideoDecoderConfig,
+          )
+        ).supported
+      )
         continue;
 
       const decoder = new VideoDecoder({
         output: (frame) => decoderStreams[o].push(frame),
         error: (e) => console.error("Video Decoder Error:", e),
       });
-      decoder.configure(decoderConfig);
+      decoder.configure(decoderConfig as VideoDecoderConfig);
 
-      const encConfig: VideoEncoderConfig = {
-        codec: vc,
-        width: decoderConfig.codedWidth,
-        height: decoderConfig.codedHeight,
-        bitrateMode: "quantizer",
-        latencyMode: "quality",
-        // TODO: Figure out why this breaks
-        // hardwareAcceleration: "prefer-hardware",
-      };
+      let encConfig: VideoEncoderConfig;
+      if (decoderConfig.codedWidth && decoderConfig.codedHeight) {
+        encConfig = {
+          codec: vc,
+          width: decoderConfig.codedWidth,
+          height: decoderConfig.codedHeight,
+          bitrateMode: "quantizer",
+          latencyMode: "quality",
+          // TODO: Figure out why this breaks
+          // hardwareAcceleration: "prefer-hardware",
+        };
+      } else {
+        throw new Error("width or height undefined");
+      }
 
       const encoder = new VideoEncoder({
         output: (chunk, meta) => encoderStreams[o].push({ chunk, meta }),
@@ -228,17 +243,24 @@ export async function transcode(
       encoders.push({ encoder, config: encConfig });
       decoderStreams.push(new BufferStream());
       encoderStreams.push(new BufferStream());
-      ostreams.push(await bridge.configToVideoStream(libav, encConfig, o));
+      ostreams.push(await bridge.configToVideoStream(libav, encConfig));
     } else if (istream.codec_type === libav.AVMEDIA_TYPE_AUDIO) {
       const decoderConfig = await bridge.audioStreamToConfig(libav, istream);
-      if (!(await AudioDecoder.isConfigSupported(decoderConfig)).supported)
+      if (!decoderConfig) continue;
+      if (
+        !(
+          await AudioDecoder.isConfigSupported(
+            decoderConfig as AudioDecoderConfig,
+          )
+        ).supported
+      )
         continue;
 
       const decoder = new AudioDecoder({
         output: (frame) => decoderStreams[o].push(frame),
         error: (e) => console.error("Audio Decoder Error:", e),
       });
-      decoder.configure(decoderConfig);
+      decoder.configure(decoderConfig as AudioDecoderConfig);
 
       const encConfig = {
         codec: "opus",
@@ -257,7 +279,7 @@ export async function transcode(
       encoders.push({ encoder, config: encConfig });
       decoderStreams.push(new BufferStream());
       encoderStreams.push(new BufferStream());
-      ostreams.push(await bridge.configToAudioStream(libav, encConfig, o));
+      ostreams.push(await bridge.configToAudioStream(libav, encConfig));
     }
   }
 
@@ -384,8 +406,7 @@ export async function transcode(
         await libav.ff_write_multi(ofc, wpkt, [packet]);
 
         if (ostream.codec_type === libav.AVMEDIA_TYPE_VIDEO) {
-          const percentage =
-            30 + (value.chunk.timestamp / 1000000 / totalDuration) * 65;
+          const percentage = 30 + (value.chunk.timestamp / 1000000 / 30) * 65;
           onProgress({
             percentage: Math.min(95, Math.round(percentage)),
             message: "Transcoding...",
@@ -407,8 +428,8 @@ export async function transcode(
   await libav.av_packet_free(wpkt);
 
   const output = await libav.readFile("output.mkv");
-  await libav.terminate();
-  state.libav = null; // Reset for next run
+  libav.terminate();
+  state.libav = undefined; // Reset for next run
 
   onProgress({ percentage: 100, message: "Done!" });
   return new Blob([output.buffer], { type: "video/x-matroska" });
@@ -421,6 +442,8 @@ export async function transcode(
  */
 export async function getDemuxer(file: File, onProgress: ProgressCallback) {
   await initialize(onProgress);
+  if (!state.libav) throw new Error("LibAV not initialized");
+
   await state.libav.mkreadaheadfile("input", file);
   const [ifc, istreams] = await state.libav.ff_init_demuxer_file("input");
   return { ifc, istreams, libav: state.libav, bridge: state.bridge };

@@ -1,13 +1,3 @@
-/**
- * @file transcoder.ts
- * A comprehensive, modular library for client-side video transcoding.
- *
- * This library uses LibAV.js (via WebAssembly) and the WebCodecs API (with a
- * polyfill for compatibility) to perform video operations in the browser.
- *
- * It is designed to run inside a Web Worker to avoid blocking the main UI thread.
- */
-
 import { Config, process_pixels } from "palettum";
 import LibAV, {
   type LibAV as LibAVInstance,
@@ -15,12 +5,17 @@ import LibAV, {
 import * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
 import * as LibAVWebCodecs from "libavjs-webcodecs-polyfill";
 
-// --- TYPE DEFINITIONS ---
-
 export type ProgressCallback = (progress: {
   percentage: number;
   message: string;
 }) => void;
+
+type LibAVFormatContext = number & {
+  pb?: {
+    pos: number;
+    size: number;
+  };
+};
 
 interface VideoEncoderEncodeOptions {
   vp9?: {
@@ -37,7 +32,6 @@ interface VideoEncoderEncodeOptions {
   };
 }
 
-// --- STATE MANAGEMENT ---
 interface TranscoderState {
   libav: LibAVInstance | undefined;
   bridge: typeof LibAVWebCodecsBridge | undefined;
@@ -49,28 +43,64 @@ const state: TranscoderState = {
   bridge: undefined,
   initializing: undefined,
 };
-/**
- * Loads and initializes the required libraries (LibAV, WebCodecs Polyfill).
- * This function is idempotent and safe to call multiple times.
- */
-async function initialize(onProgress: ProgressCallback): Promise<void> {
+
+type Stage = "INIT" | "SETUP" | "DECODE" | "ENCODE" | "MUX";
+
+class ProgressManager {
+  private onProgress: ProgressCallback;
+  private totalDuration: number;
+  private stageBaselines: Record<Stage, number> = {
+    INIT: 0,
+    SETUP: 5,
+    DECODE: 7,
+    ENCODE: 20,
+    MUX: 99,
+  };
+  private stageWeights: Record<Stage, number> = {
+    INIT: 5,
+    SETUP: 10,
+    DECODE: 5,
+    ENCODE: 75,
+    MUX: 5,
+  };
+
+  constructor(onProgress: ProgressCallback, totalDuration: number) {
+    this.onProgress = onProgress;
+    this.totalDuration = totalDuration > 0 ? totalDuration : 1;
+  }
+
+  update(stage: Stage, stageProgress: number, message: string) {
+    const base = this.stageBaselines[stage];
+    const weight = this.stageWeights[stage];
+    const percentage = base + stageProgress * weight;
+
+    this.onProgress({
+      percentage: Math.min(100, Math.round(percentage)),
+      message,
+    });
+  }
+
+  /** Reports progress based on a timestamp relative to the total video duration */
+  updateFromTimestamp(stage: Stage, timestamp: number, message: string) {
+    const stageProgress = timestamp / this.totalDuration;
+    this.update(stage, stageProgress, message);
+  }
+}
+
+async function initialize(progressManager: ProgressManager): Promise<void> {
   if (state.libav) return;
   if (state.initializing) return state.initializing;
 
   state.initializing = (async () => {
     try {
-      onProgress({ percentage: 0, message: "Loading libraries..." });
-
-      onProgress({ percentage: 10, message: "Initializing WebCodecs..." });
+      progressManager.update("INIT", 0, "Loading libraries...");
       await LibAVWebCodecs.load({
         polyfill: true,
         LibAV: LibAV,
         libavOptions: { yesthreads: true, base: "/_libav" },
       });
-
-      onProgress({ percentage: 10, message: "Initializing LibAV..." });
+      progressManager.update("INIT", 0.5, "Initializing LibAV...");
       state.libav = await LibAV.LibAV({ base: "/_libav" });
-
       state.bridge = LibAVWebCodecsBridge;
     } catch (error) {
       console.error("Initialization failed:", error);
@@ -81,8 +111,6 @@ async function initialize(onProgress: ProgressCallback): Promise<void> {
   })();
   return state.initializing;
 }
-
-// --- HELPER CLASSES AND FUNCTIONS ---
 
 class BufferStream extends ReadableStream<any> {
   private buf: any[] = [];
@@ -155,30 +183,44 @@ function createFrameModifier(config: Config) {
   };
 }
 
-// --- HIGH-LEVEL API ---
-
-/**
- * Transcodes a video file, applying a color modification to each frame.
- * @param file The input video file.
- * @param config The configuration for the pixel processing.
- * @param onProgress A callback to report progress updates.
- * @returns A Blob containing the transcoded video data.
- */
 export async function transcode(
   file: File,
   config: Config,
   onProgress: ProgressCallback,
 ): Promise<Blob> {
-  await initialize(onProgress);
+  const tempLibav = await LibAV.LibAV({ base: "/_libav" });
+  await tempLibav.mkreadaheadfile("input-probe", file);
+  const [probeIfc, probeStreams] =
+    await tempLibav.ff_init_demuxer_file("input-probe");
+
+  const videoStream = probeStreams.find(
+    (s) => s.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO,
+  );
+
+  if (!videoStream || !videoStream.duration || !videoStream.time_base_num) {
+    throw new Error("Could not determine video duration from stream metadata.");
+  }
+
+  const durationInSeconds = videoStream.duration * videoStream.time_base_num;
+  const totalDuration = durationInSeconds * 1_000_000;
+
+  await tempLibav.avformat_close_input_js(probeIfc);
+  tempLibav.terminate();
+
+  const progressManager = new ProgressManager(onProgress, totalDuration);
+
+  await initialize(progressManager);
   const { libav, bridge } = state;
   if (!libav) throw new Error("LibAV not initialized");
   if (!bridge) throw new Error("Bridge not initialized");
 
+  progressManager.update("SETUP", 0, "Analyzing input file...");
   await libav.mkreadaheadfile("input", file);
-  onProgress({ percentage: 25, message: "Demuxing input file..." });
   const [ifc, istreams] = await libav.ff_init_demuxer_file("input");
   const rpkt = await libav.av_packet_alloc();
   const wpkt = await libav.av_packet_alloc();
+
+  progressManager.update("SETUP", 0.5, "Configuring decoders & encoders...");
 
   // --- Stream Setup ---
   const iToO: number[] = [];
@@ -289,6 +331,14 @@ export async function transcode(
   const demuxerPromise = (async () => {
     while (true) {
       const [res, packets] = await libav.ff_read_frame_multi(ifc, rpkt);
+
+      // Report progress based on how much of the input file has been read
+      const ifcWithPb = ifc as LibAVFormatContext;
+      if (ifcWithPb.pb && ifcWithPb.pb.size > 0) {
+        const demuxProgress = ifcWithPb.pb.pos / ifcWithPb.pb.size;
+        progressManager.update("DECODE", demuxProgress, "Decoding video...");
+      }
+
       for (const idx in packets) {
         const oidx = iToO[Number(idx)];
         if (oidx < 0) continue;
@@ -320,6 +370,12 @@ export async function transcode(
         if (done) break;
 
         if (encoder instanceof VideoEncoder) {
+          progressManager.updateFromTimestamp(
+            "ENCODE",
+            frame.timestamp,
+            "palettifying...",
+          );
+
           const modifiedFrame = await modifyFrame(frame);
           const encOptions: VideoEncoderEncodeOptions = {};
           const codecId = config.codec;
@@ -406,11 +462,11 @@ export async function transcode(
         await libav.ff_write_multi(ofc, wpkt, [packet]);
 
         if (ostream.codec_type === libav.AVMEDIA_TYPE_VIDEO) {
-          const percentage = 30 + (value.chunk.timestamp / 1000000 / 30) * 65;
-          onProgress({
-            percentage: Math.min(95, Math.round(percentage)),
-            message: "Transcoding...",
-          });
+          progressManager.updateFromTimestamp(
+            "MUX",
+            value.chunk.timestamp,
+            "Assembling final file...",
+          );
         }
       }
     })();
@@ -418,7 +474,6 @@ export async function transcode(
 
   await Promise.all([demuxerPromise, ...encoderPromises, ...muxerPromises]);
 
-  onProgress({ percentage: 98, message: "Finalizing file..." });
   await libav.av_write_trailer(ofc);
 
   // --- Cleanup ---
@@ -435,13 +490,7 @@ export async function transcode(
   return new Blob([output.buffer], { type: "video/x-matroska" });
 }
 
-// --- MODULAR API ---
-
-/**
- * Initializes the system and returns a demuxer for a given file.
- */
-export async function getDemuxer(file: File, onProgress: ProgressCallback) {
-  await initialize(onProgress);
+export async function getDemuxer(file: File) {
   if (!state.libav) throw new Error("LibAV not initialized");
 
   await state.libav.mkreadaheadfile("input", file);
@@ -449,9 +498,6 @@ export async function getDemuxer(file: File, onProgress: ProgressCallback) {
   return { ifc, istreams, libav: state.libav, bridge: state.bridge };
 }
 
-/**
- * An async generator that decodes a video stream and yields VideoFrames.
- */
 export async function* decodeFrames(
   demuxerCtx: any,
   videoStreamIndex: number,

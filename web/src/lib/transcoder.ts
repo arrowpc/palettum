@@ -270,8 +270,15 @@ export async function transcode(
           // hardwareAcceleration: "prefer-hardware",
         };
       } else {
-        throw new Error("width or height undefined");
+        throw new Error("Width or height undefined");
       }
+
+      // TODO: Use a preferential system instead of giving up if the base config isn't supported
+      VideoDecoder.isConfigSupported(encConfig).then((result) => {
+        if (!result.supported) {
+          throw new Error("Codec is notRsupported");
+        }
+      });
 
       const encoder = new VideoEncoder({
         output: (chunk, meta) => encoderStreams[o].push({ chunk, meta }),

@@ -18,25 +18,13 @@ struct Config {
     image_height: u32,
 };
 
-struct FragmentInput {
-    @location(0) tex_coord: vec2<f32>,
-};
-
-@group(0) @binding(0) var t_input: texture_2d<f32>;
-@group(0) @binding(1) var s_input: sampler;
+@group(0) @binding(0) var tex: texture_2d<f32>;
+@group(0) @binding(1) var samp: sampler;
 @group(0) @binding(2) var<uniform> config: Config;
 
-const WHITE_X: f32 = 95.047;
-const WHITE_Y: f32 = 100.000;
-const WHITE_Z: f32 = 108.883;
-const EPSILON: f32 = 0.008856;
-const KAPPA: f32 = 903.3;
-const PI_MATH: f32 = 3.141592653589793;
-const POW25_7: f32 = 6103515625.0;
-
 @fragment
-fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
-    let pixel = textureSample(t_input, s_input, in.tex_coord);
+fn fs_main(@location(0) uv : vec2<f32>) -> @location(0) vec4<f32> {
+    let pixel = textureSample(tex, samp, uv);
     let pixel_lab = linear_rgb_to_lab(pixel.rgb);
 
     let weight_threshold = 1e-9;
@@ -76,6 +64,14 @@ fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
 
     return vec4<f32>(rgb_linear_normalized, pixel.a);
 }
+
+const WHITE_X: f32 = 95.047;
+const WHITE_Y: f32 = 100.000;
+const WHITE_Z: f32 = 108.883;
+const EPSILON: f32 = 0.008856;
+const KAPPA: f32 = 903.3;
+const PI_MATH: f32 = 3.141592653589793;
+const POW25_7: f32 = 6103515625.0;
 
 fn compute_weight(distance: f32, formula: u32, strength: f32) -> f32 {
     let epsilon = 1e-9;

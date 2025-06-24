@@ -6,6 +6,6 @@ struct FragmentInput {
 @group(0) @binding(1) var s_input: sampler;
 
 @fragment
-fn fs_original(in: FragmentInput) -> @location(0) vec4<f32> {
+fn fs_main(in: FragmentInput) -> @location(0) vec4<f32> {
     return textureSample(t_input, s_input, in.tex_coord);
 }

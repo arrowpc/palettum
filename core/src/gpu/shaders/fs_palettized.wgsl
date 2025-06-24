@@ -231,7 +231,7 @@ const BLUE_NOISE_64X64: array<u32, 4096> = array<u32, 4096>(
 );
 
 @fragment
-fn fs_palettized(in: FragmentInput, @builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
+fn fs_main(in: FragmentInput, @builtin(position) frag_coord: vec4<f32>) -> @location(0) vec4<f32> {
     let pixel_srgb = textureSample(t_input, s_input, in.tex_coord);
 
     if pixel_srgb.a * 255.0 < f32(config.transparency_threshold) {

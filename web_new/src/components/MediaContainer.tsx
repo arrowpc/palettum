@@ -6,7 +6,7 @@ import { transfer } from "comlink";
 import CanvasViewer from "./canvas-viewer";
 import { cn } from "@/lib/utils";
 
-const RADIUS_VALUE = 3;
+const RADIUS_VALUE = 6;
 const RADIUS_UNIT = "vw";
 const BORDER_RADIUS = `${RADIUS_VALUE}${RADIUS_UNIT}`;
 const OFFSET_FACTOR = 1 - 1 / Math.SQRT2;
@@ -88,7 +88,13 @@ export default function MediaContainer() {
   return (
     <div className="relative w-full aspect-[16/9] group">
       <div
-        className="w-full h-full bg-gray-200 overflow-hidden"
+        className={cn(
+          "w-full h-full overflow-hidden",
+          "border-2",
+          hasMedia
+            ? "border-solid border-primary"
+            : "border-dashed border-primary",
+        )}
         style={{ borderRadius: BORDER_RADIUS }}
       >
         <canvas

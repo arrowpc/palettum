@@ -3,8 +3,8 @@ import { cva } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const toggleSwitchContainer = cva([
-  "inline-flex divide-x divide-slate-700 overflow-hidden rounded-full",
-  "bg-slate-800/80 backdrop-blur-md",
+  "inline-flex divide-x divide-border overflow-hidden rounded-[1vw] border-2 border-solid border-primary",
+  "bg-muted/80 backdrop-blur-md",
 ]);
 
 const toggleSwitchButton = cva(
@@ -15,8 +15,8 @@ const toggleSwitchButton = cva(
   {
     variants: {
       active: {
-        true: "bg-pink-500 text-white",
-        false: "text-slate-200 hover:bg-slate-700/60",
+        true: "bg-primary text-primary-foreground",
+        false: "text-muted-foreground hover:bg-accent",
       },
     },
     defaultVariants: {

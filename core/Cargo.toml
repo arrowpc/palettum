@@ -36,7 +36,7 @@ async-once-cell = "0.5.4"
 js-sys = "0.3.77"
 console_error_panic_hook = "0.1.7"
 wasm-bindgen-futures = "0.4.50"
-web-sys = { version = "0.3.77", features = ["console", "Window", "Document", "HtmlCanvasElement", "HtmlInputElement", "OffscreenCanvas", "HtmlVideoElement"] }
+web-sys = { version = "0.3.77", features = ["HtmlCanvasElement", "ImageBitmap", "OffscreenCanvasRenderingContext2d", "ImageData", "OffscreenCanvas"] }
 ffmpeg-next = { version = "7.1.0", optional = true, default-features = false, features = [ "format", "codec", "software-scaling", "static", "build-lib-x264", "build-license-gpl"] }
 
 [features]

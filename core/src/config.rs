@@ -48,7 +48,7 @@ pub struct Config {
     #[builder(default = 0.5)]
     pub smooth_strength: f32,
 
-    #[cfg_attr(feature = "wasm", tsify(type = "DitherAlgorithm"))]
+    #[cfg_attr(feature = "wasm", tsify(type = "Dithering"))]
     #[builder(default)]
     pub dither_algorithm: palettized::Dithering,
 

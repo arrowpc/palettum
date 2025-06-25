@@ -13,7 +13,7 @@ use tsify::Tsify;
 #[cfg_attr(
     feature = "wasm",
     derive(Tsify, Serialize, Deserialize),
-    tsify(type_prefix = "Smoothed")
+    tsify(type_prefix = "Smooth")
 )]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum, strum_macros::Display))]
 pub enum Formula {

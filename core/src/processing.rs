@@ -334,7 +334,6 @@ pub async fn process_pixels(
     if let Some(gpu_processor_arc) = super::gpu::get_gpu_processor().await? {
         let gpu_processor_ref: &GpuImageProcessor = &gpu_processor_arc;
 
-        log::debug!("Using GPU for image processing");
         let result = gpu_processor_ref
             .process_image(image_data, width, height, &config)
             .await?;
@@ -349,8 +348,6 @@ pub async fn process_pixels(
         }
         return Ok(());
     }
-
-    log::debug!("Using CPU for image processing (GPU not available or failed to init)");
 
     let lookup_table = if config.quant_level > 0 {
         let img_size = width as usize * height as usize;

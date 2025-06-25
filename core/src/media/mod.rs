@@ -52,8 +52,7 @@ impl Media {
     pub fn from_memory(bytes: &[u8]) -> Result<Self> {
         #[cfg(feature = "video")]
         {
-            // If you want to support video from memory, add detection here.
-            // For now, we skip this as your original code does not support it.
+            todo!()
         }
 
         let format = guess_format(bytes)?;

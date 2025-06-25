@@ -491,10 +491,13 @@ impl GpuImageProcessor {
 
 // #[cfg(target_arch = "wasm32")]
 mod wasm {
+    use super::GpuConfig;
+    use crate::Config;
     use wasm_bindgen::prelude::*;
     use web_sys::{ImageBitmap, OffscreenCanvas};
 
-    const UNIFORM_BYTES: u64 = 16; // two vec2<f32>
+    const PRESENT_UNIFORM_BYTES: u64 = 16; // two vec2<f32>
+    const CONFIG_UNIFORM_BYTES: u64 = std::mem::size_of::<GpuConfig>() as u64;
 
     #[derive(Debug, Clone, Copy, PartialEq, Default)]
     enum DrawMode {
@@ -504,15 +507,12 @@ mod wasm {
         Stretch,
     }
 
-    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+    #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Default)]
     enum Filter {
+        #[default]
         Color,
         Grayscale,
-    }
-    impl Default for Filter {
-        fn default() -> Self {
-            Filter::Color
-        }
+        Smoothed,
     }
 
     // ------------------------------------------------------------
@@ -526,6 +526,7 @@ mod wasm {
         sampler: wgpu::Sampler,
         tex_bgl: wgpu::BindGroupLayout,
         uni_bgl: wgpu::BindGroupLayout,
+        smoothed_frag_bgl: wgpu::BindGroupLayout,
 
         // pipelines
         blit: wgpu::RenderPipeline,
@@ -565,10 +566,12 @@ mod wasm {
                 work_tex: None,
                 work_bg: None,
                 uniform_buf: None,
+                config_buf: None,
                 last_bitmap: None,
                 draw_mode: DrawMode::default(),
                 filter: Filter::default(),
                 using_webgpu,
+                config: None,
             }
         }
 
@@ -661,8 +664,18 @@ mod wasm {
             self.filter = match filt {
                 "color" | "none" => Filter::Color,
                 "grayscale" | "gray" => Filter::Grayscale,
+                "smoothed" => Filter::Smoothed,
                 _ => return Err(JsValue::from_str("filter must be color | grayscale")),
             };
+            Ok(())
+        }
+
+        #[wasm_bindgen]
+        pub fn set_config(&mut self, config: Config) -> Result<(), JsValue> {
+            // log::info!("Setting config: {}", config);
+            self.config = Some(config);
+            // Re-draw to apply new config
+            let _ = self.try_draw();
             Ok(())
         }
 
@@ -857,13 +870,11 @@ mod wasm {
         fn present(&mut self) -> Result<(), JsValue> {
             let ctx = self.canvas.as_ref().ok_or("canvas missing")?;
             let gpu = self.gpu.as_ref().unwrap();
+            let work_tex = self.work_tex.as_ref().ok_or("work_tex missing")?;
             let work_bg = self.work_bg.as_ref().ok_or("work_bg missing")?;
 
-            // ------------ uniform (scale / offset) -----------------
-            let (img_w, img_h) = {
-                let t = self.work_tex.as_ref().unwrap();
-                (t.size().width as f32, t.size().height as f32)
-            };
+            // ------------ uniform (scale / offset) calculation -----------------
+            let (img_w, img_h) = { (work_tex.size().width as f32, work_tex.size().height as f32) };
             let (can_w, can_h) = (ctx.config.width as f32, ctx.config.height as f32);
 
             let img_ar = img_w / img_h;
@@ -889,10 +900,11 @@ mod wasm {
                 DrawMode::Stretch => {}
             }
 
+            // Always update the general uniform_buf as present_vs.wgsl always uses it
             if self.uniform_buf.is_none() {
                 self.uniform_buf = Some(gpu.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("uniform_buf"),
-                    size: UNIFORM_BYTES,
+                    size: PRESENT_UNIFORM_BYTES,
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                     mapped_at_creation: false,
                 }));
@@ -912,10 +924,62 @@ mod wasm {
                     resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                         buffer: self.uniform_buf.as_ref().unwrap(),
                         offset: 0,
-                        size: wgpu::BufferSize::new(UNIFORM_BYTES),
+                        size: wgpu::BufferSize::new(PRESENT_UNIFORM_BYTES),
                     }),
                 }],
             });
+
+            // Handle config_buf for Smoothed filter
+            let smoothed_frag_bg_to_use: Option<wgpu::BindGroup> = match self.filter {
+                Filter::Smoothed => {
+                    let gpu_config_data = GpuConfig::from_config(
+                        &self.config.clone().unwrap(),
+                        work_tex.size().width,
+                        work_tex.size().height,
+                    );
+
+                    if self.config_buf.is_none() {
+                        self.config_buf = Some(gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("config_buf"),
+                            size: CONFIG_UNIFORM_BYTES,
+                            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                            mapped_at_creation: false,
+                        }));
+                    }
+                    gpu.queue.write_buffer(
+                        self.config_buf.as_ref().unwrap(),
+                        0,
+                        bytemuck::cast_slice(&[gpu_config_data]),
+                    );
+
+                    // Create the group(0) bind group for the smoothed pipeline
+                    Some(gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("smoothed_frag_bg"),
+                        layout: &gpu.smoothed_frag_bgl, // Use the new layout
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Sampler(&gpu.sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::TextureView(
+                                    &work_tex.create_view(&Default::default()),
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                    buffer: self.config_buf.as_ref().unwrap(),
+                                    offset: 0,
+                                    size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
+                                }),
+                            },
+                        ],
+                    }))
+                }
+                _ => None, // No specific config bind group for other filters
+            };
 
             // ------------ render -----------------------------------
             let frame = ctx
@@ -944,10 +1008,23 @@ mod wasm {
                     occlusion_query_set: None,
                     timestamp_writes: None,
                 });
+
                 let pipe = gpu.present.get(&self.filter).unwrap();
                 rpass.set_pipeline(pipe);
-                rpass.set_bind_group(0, work_bg, &[]);
+
+                // Set group(0) bind group
+                match self.filter {
+                    Filter::Smoothed => {
+                        rpass.set_bind_group(0, smoothed_frag_bg_to_use.as_ref().unwrap(), &[]);
+                    }
+                    _ => {
+                        // For Color and Grayscale, use the work_bg (which is built using tex_bgl)
+                        rpass.set_bind_group(0, work_bg, &[]);
+                    }
+                }
+                // Set group(1) bind group (used by present_vs.wgsl for all filters)
                 rpass.set_bind_group(1, &uni_bg, &[]);
+
                 rpass.draw(0..6, 0..1);
             }
 
@@ -970,12 +1047,15 @@ mod wasm {
         work_tex: Option<wgpu::Texture>,  // possibly down-scaled copy
         work_bg: Option<wgpu::BindGroup>, // sampler + work_tex view
 
-        uniform_buf: Option<wgpu::Buffer>,
+        uniform_buf: Option<wgpu::Buffer>, // For general scale/offset uniform (group 1)
+        config_buf: Option<wgpu::Buffer>,  // For palettum config uniform (group 0, binding 2)
 
         last_bitmap: Option<ImageBitmap>,
 
         draw_mode: DrawMode,
         filter: Filter,
+        // Feels like this ain't needed but we'll see I guess
+        config: Option<Config>,
     }
 
     impl Renderer {
@@ -1049,11 +1129,44 @@ mod wasm {
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: wgpu::BufferSize::new(UNIFORM_BYTES),
+                        min_binding_size: wgpu::BufferSize::new(PRESENT_UNIFORM_BYTES),
                     },
                     count: None,
                 }],
             });
+
+            let smoothed_frag_bgl =
+                device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("smoothed_frag_bgl"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0, // Sampler
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1, // Texture
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
+                        },
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,                               // Config Uniform
+                            visibility: wgpu::ShaderStages::FRAGMENT, // Config data needed in fragment
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
+                            },
+                            count: None,
+                        },
+                    ],
+                });
 
             // shader modules ----------------------------------------------------
             let quad_vs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -1120,6 +1233,7 @@ mod wasm {
                 sampler,
                 tex_bgl,
                 uni_bgl,
+                smoothed_frag_bgl,
                 blit: blit_pipe,
                 present: std::collections::HashMap::new(),
                 present_fmt: None,
@@ -1161,46 +1275,86 @@ mod wasm {
                     ),
                 });
 
-            let mut make = |fs: &wgpu::ShaderModule, filt: Filter| {
-                gpu.present.insert(filt, {
-                    let layout = [&gpu.tex_bgl, &gpu.uni_bgl];
-                    let pl = gpu
-                        .device
-                        .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                            label: Some("present_layout"),
-                            bind_group_layouts: &layout,
-                            push_constant_ranges: &[],
-                        });
-                    gpu.device
-                        .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                            label: Some("present_pipe"),
-                            layout: Some(&pl),
-                            vertex: wgpu::VertexState {
-                                module: &vs,
-                                entry_point: Some("vs_main"),
-                                buffers: &[],
-                                compilation_options: Default::default(),
-                            },
-                            fragment: Some(wgpu::FragmentState {
-                                module: fs,
-                                entry_point: Some("fs_main"),
-                                targets: &[Some(wgpu::ColorTargetState {
-                                    format: fmt,
-                                    blend: Some(wgpu::BlendState::REPLACE),
-                                    write_mask: wgpu::ColorWrites::ALL,
-                                })],
-                                compilation_options: Default::default(),
-                            }),
-                            primitive: Default::default(),
-                            depth_stencil: None,
-                            multisample: Default::default(),
-                            multiview: None,
-                            cache: None,
-                        })
+            // smoothed
+            let smoothed_fs = gpu
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("present_smoothed_fs"),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("shaders/smoothed_fs.wgsl").into(),
+                    ),
                 });
+
+            let make = |vs: &wgpu::ShaderModule,
+                        fs: &wgpu::ShaderModule,
+                        group0_bgl: &wgpu::BindGroupLayout, // Group 0 layout
+                        filt: Filter|
+             -> wgpu::RenderPipeline {
+                // All present pipelines use vs (consuming group 1) and a specific group 0.
+                let layout = [group0_bgl, &gpu.uni_bgl];
+                let pl = gpu
+                    .device
+                    .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                        label: Some(&format!("present_{:?}_layout", filt)),
+                        bind_group_layouts: &layout,
+                        push_constant_ranges: &[],
+                    });
+                gpu.device
+                    .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                        label: Some(&format!("present_{:?}_pipe", filt)),
+                        layout: Some(&pl),
+                        vertex: wgpu::VertexState {
+                            module: vs,
+                            entry_point: Some("vs_main"),
+                            buffers: &[],
+                            compilation_options: Default::default(),
+                        },
+                        fragment: Some(wgpu::FragmentState {
+                            module: fs,
+                            entry_point: Some("fs_main"),
+                            targets: &[Some(wgpu::ColorTargetState {
+                                format: fmt,
+                                blend: Some(wgpu::BlendState::REPLACE),
+                                write_mask: wgpu::ColorWrites::ALL,
+                            })],
+                            compilation_options: Default::default(),
+                        }),
+                        primitive: Default::default(),
+                        depth_stencil: None,
+                        multisample: Default::default(),
+                        multiview: None,
+                        cache: None,
+                    })
             };
-            make(&color_fs, Filter::Color);
-            make(&gray_fs, Filter::Grayscale);
+
+            gpu.present.insert(
+                Filter::Color,
+                make(
+                    &vs,
+                    &color_fs,
+                    &gpu.tex_bgl, // Group 0 for Color/Grayscale
+                    Filter::Color,
+                ),
+            );
+            gpu.present.insert(
+                Filter::Grayscale,
+                make(
+                    &vs,
+                    &gray_fs,
+                    &gpu.tex_bgl, // Group 0 for Color/Grayscale
+                    Filter::Grayscale,
+                ),
+            );
+
+            gpu.present.insert(
+                Filter::Smoothed,
+                make(
+                    &vs,
+                    &smoothed_fs,
+                    &gpu.smoothed_frag_bgl, // Group 0 for Smoothed
+                    Filter::Smoothed,
+                ),
+            );
 
             gpu.present_fmt = Some(fmt);
         }

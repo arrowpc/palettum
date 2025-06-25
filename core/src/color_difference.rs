@@ -9,7 +9,7 @@ use tsify::Tsify;
 #[cfg_attr(
     feature = "wasm",
     derive(Tsify, Serialize, Deserialize),
-    tsify(type_prefix = "Palettized")
+    tsify(type_prefix = "Diff")
 )]
 #[cfg_attr(feature = "cli", derive(clap::ValueEnum, strum_macros::Display))]
 pub enum Formula {

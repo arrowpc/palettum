@@ -3,13 +3,13 @@ import { cva } from "class-variance-authority";
 import { cn } from "../../lib/utils";
 
 const toggleSwitchContainer = cva([
-  "inline-flex divide-x divide-border overflow-hidden rounded-[1vw] border-2 border-solid border-primary",
+  "inline-flex divide-x divide-border overflow-hidden rounded-[0.75vw] border-2 border-solid border-foreground",
   "bg-muted/80 backdrop-blur-md",
 ]);
 
 const toggleSwitchButton = cva(
   [
-    "px-4 py-2 text-sm font-medium uppercase tracking-wide",
+    "px-4 py-2 text-base font-medium uppercase tracking-wide",
     "transition-colors",
   ],
   {

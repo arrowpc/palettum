@@ -23,7 +23,8 @@ const api = {
    * Initializes the worker, primarily to warm up the renderer.
    */
   async init() {
-    await getRenderer();
+    const renderer = await getRenderer();
+    renderer.set_draw_mode("aspect-fill");
   },
 
   async registerCanvas(id: CanvasId, canvas?: OffscreenCanvas) {

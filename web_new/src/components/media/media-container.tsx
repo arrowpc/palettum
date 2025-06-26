@@ -5,6 +5,7 @@ import CanvasPreview, { MEDIA_CANVAS_ID } from "./canvas-preview";
 import CanvasViewer from "./canvas-viewer";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { useRenderer } from "@/renderer-provider";
+import { CircleX } from "lucide-react";
 
 const BORDER_RADIUS = "6vw";
 const OFFSET_FACTOR = 1 - 1 / Math.SQRT2;
@@ -27,7 +28,7 @@ export default function MediaContainer() {
 
   const frameClass = cn(
     "absolute inset-0 overflow-hidden border-2 transition-colors",
-    file ? "border-solid border-primary" : "border-dashed border-primary/70",
+    file ? "border-solid border-foreground" : "border-dashed border-primary/70",
     dragging && "border-primary bg-primary/5",
   );
 
@@ -35,7 +36,7 @@ export default function MediaContainer() {
     <div className="relative w-full aspect-[16/9] group">
       <div className={frameClass} style={{ borderRadius: BORDER_RADIUS }}>
         {file ? (
-          <CanvasPreview file={file} />
+          <CanvasPreview file={file} onClick={() => setShowViewer(true)} />
         ) : (
           <InputArea onFile={setFile} onDragStateChange={setDragging} />
         )}
@@ -43,22 +44,16 @@ export default function MediaContainer() {
 
       {file && (
         <>
-          <button
+          <CircleX
             aria-label="Clear media"
             onClick={clear}
-            className="
-              absolute z-30 flex h-8 w-8 items-center justify-center
-              rounded-full bg-white/80 text-xl font-bold shadow
-              hover:bg-white
-            "
+            className="absolute h-10 w-10 fill-primary cursor-pointer"
             style={{
               top: CORNER_OFFSET,
               right: CORNER_OFFSET,
               transform: "translate(50%, -50%)",
             }}
-          >
-            ×
-          </button>
+          />
 
           <ToggleSwitch
             className="absolute bottom-0 left-0 z-30"
@@ -69,18 +64,6 @@ export default function MediaContainer() {
               { label: "Off", value: "off" },
             ]}
           />
-
-          <span
-            className="
-              absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-              z-20 flex h-16 w-32 cursor-pointer items-center justify-center
-              rounded bg-black text-xl font-bold text-white
-              opacity-0 transition-opacity group-hover:opacity-100
-            "
-            onClick={() => setShowViewer(true)}
-          >
-            View
-          </span>
         </>
       )}
 

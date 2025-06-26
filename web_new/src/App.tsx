@@ -1,7 +1,6 @@
-import MediaContainer from "./components/media/media-container";
-import Strength from "./components/settings/blend/Strength";
-import Quality from "./components/settings/general/Quality";
-import { useSyncConfigToWorker } from "./hooks/useSyncConfigToWorker";
+import MediaContainer from "@/components/media/media-container";
+import { useSyncConfigToWorker } from "@/hooks/useSyncConfigToWorker";
+import { ThemeProvider } from "@/components/theme-provider";
 
 import("react-scan").then(({ scan }) => {
   scan({ enabled: true });
@@ -12,10 +11,9 @@ function App() {
   return (
     <>
       <main className="max-w-2xl mx-auto min-h-screen">
-        <p>Hello!</p>
-        <MediaContainer />
-        <Quality />
-        <Strength />
+        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+          <MediaContainer />
+        </ThemeProvider>
       </main>
     </>
   );

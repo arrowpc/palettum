@@ -31,15 +31,15 @@ export interface ToggleSwitchProps
 
 const container = cva([
   "relative inline-flex select-none overflow-hidden",
-  "rounded-full border-2 border-primary bg-muted/70 backdrop-blur-md",
+  "rounded-full border-2 border-foreground bg-muted/70 backdrop-blur-md",
 ]);
 
 const labelBase =
   "relative z-10 flex-shrink-0 px-5 py-2 text-center " +
-  "text-sm font-medium uppercase tracking-wide " +
+  "text-base font-medium uppercase tracking-wide " +
   "transition-[color,transform] duration-150 ease-out";
 
-const thumbShadow = "shadow-[0_6px_20px_theme(colors.primary/0.35)]"; // Tailwind safe
+const thumbShadow = "shadow-[0_6px_20px_theme(colors.primary/0.35)]";
 
 const SPRING = { stiffness: 1000, damping: 45, mass: 0.3 };
 

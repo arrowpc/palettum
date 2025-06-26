@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ToggleSwitch } from "@/components/ui/toggle-switch";
+import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
 import { type DiffFormula } from "palettum";
 
 export default function Quality() {

@@ -19,6 +19,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "comlink": "^4.4.2",
+    "framer-motion": "^12.19.1",
     "gifuct-js": "^2.1.2",
     "libavjs-webcodecs-bridge": "^0.3.2",
     "libavjs-webcodecs-polyfill": "^0.5.3",

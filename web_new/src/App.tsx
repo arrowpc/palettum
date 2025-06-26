@@ -1,4 +1,4 @@
-import MediaContainer from "./components/MediaContainer";
+import MediaContainer from "./components/media/media-container";
 import Strength from "./components/settings/blend/Strength";
 import Quality from "./components/settings/general/Quality";
 import { useSyncConfigToWorker } from "./hooks/useSyncConfigToWorker";

@@ -36,7 +36,11 @@ export default function MediaContainer() {
     <div className="relative w-full aspect-[16/9] group">
       <div className={frameClass} style={{ borderRadius: BORDER_RADIUS }}>
         {file ? (
-          <CanvasPreview file={file} onClick={() => setShowViewer(true)} />
+          <CanvasPreview
+            file={file}
+            onClick={() => setShowViewer(true)}
+            borderRadius={BORDER_RADIUS}
+          />
         ) : (
           <InputArea onFile={setFile} onDragStateChange={setDragging} />
         )}

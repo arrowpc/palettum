@@ -1,7 +1,7 @@
 import { expose } from "comlink";
 import { getRenderer, disposeRenderer } from "./core/renderer";
 import { createPlayerForFile, type Player } from "./players";
-import type { Config, Palette } from "palettum";
+import type { Config } from "palettum";
 
 let player: Player | null = null;
 
@@ -25,37 +25,6 @@ const api = {
   async init() {
     await getRenderer();
   },
-
-  /**
-   * Sets the OffscreenCanvas for rendering and connects it to the renderer.
-   */
-  // async setCanvas(cvs: OffscreenCanvas) {
-  //   canvas = cvs;
-  //   const renderer = await getRenderer();
-  //   await renderer.set_canvas(canvas);
-  //   let palette: Palette = {
-  //     colors: [
-  //       [0, 0, 0],
-  //       [255, 255, 255],
-  //       [255, 0, 255],
-  //     ],
-  //     id: "whocares",
-  //   };
-  //   let config: Config = {
-  //     palette: palette,
-  //     diffFormula: "CIEDE2000",
-  //     ditherAlgorithm: "Bn",
-  //     ditherStrength: 0.5,
-  //     filter: "Nearest",
-  //     mapping: "Smoothed",
-  //     quantLevel: 0,
-  //     smoothFormula: "Rq",
-  //     smoothStrength: 0.1,
-  //     transparencyThreshold: 128,
-  //   };
-  //   renderer.set_config(config);
-  //   renderer.set_filter("smoothed");
-  // },
 
   async registerCanvas(id: CanvasId, canvas?: OffscreenCanvas) {
     if (canvas) canvases.set(id, canvas); // first call, object is transferred

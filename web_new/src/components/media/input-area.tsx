@@ -1,41 +1,70 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const ACCEPTED = "image/*,video/*";
 
 interface Props {
   onFile: (f: File) => void;
+  onDragStateChange?: (dragging: boolean) => void;
 }
 
-export default function InputArea({ onFile }: Props) {
+export default function InputArea({ onFile, onDragStateChange }: Props) {
   const picker = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
 
-  const stop = (e: React.DragEvent) => e.preventDefault();
+  const setDrag = (v: boolean) => {
+    setDragging(v);
+    onDragStateChange?.(v);
+  };
+
+  const handleFile = (f: File | undefined) => f && onFile(f);
+
+  const dragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDrag(true);
+  };
+
+  const dragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const dragLeave = (e: React.DragEvent) => {
+    if (e.currentTarget === e.target) setDrag(false);
+  };
 
   const drop = (e: React.DragEvent) => {
     e.preventDefault();
-    const f = e.dataTransfer.files?.[0];
-    if (f) onFile(f);
+    setDrag(false);
+    handleFile(e.dataTransfer.files?.[0]);
   };
+
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) =>
+      handleFile(e.clipboardData?.files?.[0]);
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
 
   return (
     <div
-      className="
-        absolute inset-0 flex flex-col items-center justify-center
-        space-y-4 bg-white/60 backdrop-blur-sm text-primary
-        pointer-events-none
-      "
-      onDragEnter={stop}
-      onDragOver={stop}
+      className={cn(
+        "absolute inset-0 flex flex-col items-center justify-center",
+        "space-y-4 transition-colors pointer-events-auto",
+        dragging && "bg-primary/5",
+      )}
+      onDragEnter={dragEnter}
+      onDragOver={dragOver}
+      onDragLeave={dragLeave}
       onDrop={drop}
     >
-      <p className="pointer-events-none text-base font-medium">
+      <p className="text-base font-medium select-none">
         Drag & drop, paste, or choose media
       </p>
 
       <Button
         type="button"
-        className="pointer-events-auto px-6 py-3 text-base"
+        className="px-6 py-3 text-base"
         onClick={() => picker.current?.click()}
       >
         Choose media
@@ -47,8 +76,7 @@ export default function InputArea({ onFile }: Props) {
         accept={ACCEPTED}
         className="hidden"
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
+          handleFile(e.target.files?.[0]);
           e.currentTarget.value = "";
         }}
       />

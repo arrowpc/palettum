@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
 const ACCEPTED = "image/*,video/*";
@@ -58,28 +59,34 @@ export default function InputArea({ onFile, onDragStateChange }: Props) {
       onDragLeave={dragLeave}
       onDrop={drop}
     >
-      <p className="text-base font-medium select-none">
-        Drag & drop, paste, or choose media
-      </p>
-
-      <Button
-        type="button"
-        className="px-6 py-3 text-base"
-        onClick={() => picker.current?.click()}
-      >
-        Choose media
-      </Button>
-
-      <input
-        ref={picker}
-        type="file"
-        accept={ACCEPTED}
-        className="hidden"
-        onChange={(e) => {
-          handleFile(e.target.files?.[0]);
-          e.currentTarget.value = "";
-        }}
-      />
+      <div className="flex flex-col items-center gap-3 w-full max-w-xs text-3xl">
+        <div className="flex items-center w-full gap-2">
+          <span className="text-muted-foreground">Drag</span>
+          <Separator className="flex-1" />
+          <span className="text-muted-foreground">Paste</span>
+        </div>
+        <div className="flex items-center w-full gap-2">
+          <Separator className="flex-1" />
+          <span className="text-muted-foreground">or</span>
+          <Separator className="flex-1" />
+        </div>
+        <Button
+          className="text-3xl py-6 cursor-pointer"
+          onClick={() => picker.current?.click()}
+        >
+          Choose Media
+        </Button>
+        <input
+          ref={picker}
+          type="file"
+          accept={ACCEPTED}
+          className="hidden"
+          onChange={(e) => {
+            handleFile(e.target.files?.[0]);
+            e.currentTarget.value = "";
+          }}
+        />
+      </div>
     </div>
   );
 }

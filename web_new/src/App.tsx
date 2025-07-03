@@ -1,7 +1,7 @@
 import MediaContainer from "@/components/media/media-container";
-import { useSyncConfigToWorker } from "@/hooks/useSyncConfigToWorker";
+import { useSyncConfigToWorker } from "@/hooks/use-sync-config-to-worker";
 import { ThemeProvider } from "@/components/theme-provider";
-import PaletteManager from "./components/palette/palette-manager";
+import PaletteManager from "@/components/palette/palette-manager";
 
 import("react-scan").then(({ scan }) => {
   scan({ enabled: true });

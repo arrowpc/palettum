@@ -189,6 +189,7 @@ interface ConfigState {
 export const useConfigStore = create<ConfigState & PaletteState>(
   (set, get) => ({
     config: {
+      palette: initialSelectedPalette!,
       mapping: "Smoothed",
       diffFormula: "CIEDE2000",
       smoothFormula: "Idw",
@@ -211,7 +212,10 @@ export const useConfigStore = create<ConfigState & PaletteState>(
       savePalettes(palettes);
     },
     setSelectedPalette: (palette) => {
-      set({ selectedPalette: palette });
+      set((state) => ({
+        selectedPalette: palette,
+        config: { ...state.config, palette },
+      }));
       saveSelectedPaletteId(palette.id);
 
       const currentOrder = get().paletteSelectionOrder;
@@ -255,6 +259,16 @@ export const useConfigStore = create<ConfigState & PaletteState>(
         }
 
         savePalettes(newPalettes);
+
+        // If the updated palette is the selected one, update the config
+        if (state.selectedPalette.id === originalId) {
+          return {
+            palettes: newPalettes,
+            selectedPalette: updatedPalette,
+            config: { ...state.config, palette: updatedPalette },
+          };
+        }
+
         return { palettes: newPalettes };
       });
     },
@@ -279,13 +293,20 @@ export const useConfigStore = create<ConfigState & PaletteState>(
         }
 
         if (nextSelected) {
-          set({ selectedPalette: nextSelected });
+          set((state) => ({
+            selectedPalette: nextSelected,
+            config: { ...state.config, palette: nextSelected },
+          }));
           saveSelectedPaletteId(nextSelected.id);
         } else {
           const defaultPalettes = loadDefaultPalettes();
           if (defaultPalettes.length > 0) {
-            set({ selectedPalette: defaultPalettes[0] });
-            saveSelectedPaletteId(defaultPalettes[0].id);
+            const newSelected = defaultPalettes[0];
+            set((state) => ({
+              selectedPalette: newSelected,
+              config: { ...state.config, palette: newSelected },
+            }));
+            saveSelectedPaletteId(newSelected.id);
           } else {
             // All palettes are gone, this is a critical state.
             // For now, the UI will break, which is a sign of a problem.

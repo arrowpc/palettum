@@ -114,3 +114,36 @@ export function getContrastTextColor(color: Rgb | string): "black" | "white" {
 export function getOppositeTextColor(color: Rgb | string): "black" | "white" {
   return getContrastTextColor(color) === "black" ? "white" : "black";
 }
+
+export const generateUniqueId = (
+  baseId: string,
+  existingIds: Set<string>,
+): string => {
+  let counter = 0;
+  let candidate = baseId.slice(0, LIMITS.MAX_ID_LENGTH);
+
+  while (existingIds.has(candidate)) {
+    counter += 1;
+    const suffix = `-${counter}`;
+    const maxBase = LIMITS.MAX_ID_LENGTH - suffix.length;
+    candidate = `${baseId.slice(0, maxBase)}${suffix}`;
+  }
+
+  return candidate;
+};
+
+export const getDisplayedColors = (
+  palette: Palette,
+  maxColors: number,
+  startIndex: number,
+) => {
+  if (palette.colors.length <= maxColors) {
+    return palette.colors;
+  }
+  const displayed = [];
+  for (let i = 0; i < maxColors; i++) {
+    const index = (startIndex + i) % palette.colors.length;
+    displayed.push(palette.colors[index]);
+  }
+  return displayed;
+};

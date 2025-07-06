@@ -28,7 +28,7 @@ use strum_macros::Display;
 #[cfg(feature = "wasm")]
 use tsify::Tsify;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Hash)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
 #[cfg_attr(feature = "cli", derive(ValueEnum, Display))]
 pub enum Mapping {

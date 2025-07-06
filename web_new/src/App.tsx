@@ -11,12 +11,12 @@ function App() {
   useSyncConfigToWorker();
   return (
     <>
-      <main className="max-w-2xl mx-auto min-h-screen">
-        <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+      <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
+        <main className="max-w-2xl mx-auto min-h-screen flex flex-col gap-8">
           <MediaContainer />
           <PaletteManager />
-        </ThemeProvider>
-      </main>
+        </main>
+      </ThemeProvider>
     </>
   );
 }

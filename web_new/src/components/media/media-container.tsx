@@ -6,18 +6,20 @@ import CanvasViewer from "./canvas-viewer";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { useRenderer } from "@/renderer-provider";
 import { CircleX } from "lucide-react";
+import type { Mapping } from "palettum";
+import { useConfigStore } from "@/store";
 
 const BORDER_RADIUS = "6vw";
 const OFFSET_FACTOR = 1 - 1 / Math.SQRT2;
 const CORNER_OFFSET = `calc(${BORDER_RADIUS} * ${OFFSET_FACTOR})`;
 
-type Mode = "on" | "off";
-
 export default function MediaContainer() {
   const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
-  const [mode, setMode] = useState<Mode>("off");
+  const setting = "mapping";
+  const value = useConfigStore((state) => state.config[setting]);
+  const setConfig = useConfigStore((state) => state.setConfig);
   const renderer = useRenderer();
 
   const clear = () => {
@@ -61,11 +63,11 @@ export default function MediaContainer() {
 
           <ToggleSwitch
             className="absolute bottom-0 left-0 z-30"
-            value={mode}
-            onChange={(v) => setMode(v as Mode)}
+            value={value ?? "Smoothed"}
+            onChange={(v) => setConfig(setting, v as Mapping)}
             options={[
-              { label: "On", value: "on" },
-              { label: "Off", value: "off" },
+              { label: "Blend", value: "Smoothed" },
+              { label: "Match", value: "Palettized" },
             ]}
           />
         </>

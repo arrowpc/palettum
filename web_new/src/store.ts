@@ -186,6 +186,20 @@ interface ConfigState {
   setConfig: <K extends keyof Config>(key: K, value: Config[K]) => void;
 }
 
+interface MediaState {
+  file: File | null;
+  hasAlpha: boolean;
+  setFile: (file: File | null) => void;
+  setHasAlpha: (hasAlpha: boolean) => void;
+}
+
+export const useMediaStore = create<MediaState>((set) => ({
+  file: null,
+  hasAlpha: false,
+  setFile: (file) => set({ file }),
+  setHasAlpha: (hasAlpha) => set({ hasAlpha }),
+}));
+
 export const useConfigStore = create<ConfigState & PaletteState>(
   (set, get) => ({
     config: {
@@ -195,7 +209,7 @@ export const useConfigStore = create<ConfigState & PaletteState>(
       smoothFormula: "Idw",
       smoothStrength: 0.5,
       transparencyThreshold: 128,
-      ditherAlgorithm: "Bn",
+      ditherAlgorithm: "None",
       ditherStrength: 0.5,
       quantLevel: 0,
       filter: "Nearest",

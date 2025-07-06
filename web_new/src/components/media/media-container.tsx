@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn, checkAlphaChannel } from "@/lib/utils";
 import InputArea from "./input-area";
 import CanvasPreview, { MEDIA_CANVAS_ID } from "./canvas-preview";
 import CanvasViewer from "./canvas-viewer";
@@ -7,20 +7,28 @@ import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { useRenderer } from "@/renderer-provider";
 import { CircleX } from "lucide-react";
 import type { Mapping } from "palettum";
-import { useConfigStore } from "@/store";
+import { useConfigStore, useMediaStore } from "@/store";
 
 const BORDER_RADIUS = "6vw";
 const OFFSET_FACTOR = 1 - 1 / Math.SQRT2;
 const CORNER_OFFSET = `calc(${BORDER_RADIUS} * ${OFFSET_FACTOR})`;
 
 export default function MediaContainer() {
-  const [file, setFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
   const setting = "mapping";
   const value = useConfigStore((state) => state.config[setting]);
   const setConfig = useConfigStore((state) => state.setConfig);
+  const file = useMediaStore((state) => state.file);
+  const setFile = useMediaStore((state) => state.setFile);
+  const setHasAlpha = useMediaStore((state) => state.setHasAlpha);
   const renderer = useRenderer();
+
+  const handleFile = async (file: File) => {
+    setFile(file);
+    const hasAlpha = await checkAlphaChannel(file);
+    setHasAlpha(hasAlpha);
+  };
 
   const clear = () => {
     renderer.disposeCanvas(MEDIA_CANVAS_ID).catch(console.error);
@@ -44,7 +52,7 @@ export default function MediaContainer() {
             borderRadius={BORDER_RADIUS}
           />
         ) : (
-          <InputArea onFile={setFile} onDragStateChange={setDragging} />
+          <InputArea onFile={handleFile} onDragStateChange={setDragging} />
         )}
       </div>
 

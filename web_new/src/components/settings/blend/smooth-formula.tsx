@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useConfigStore } from "@/store";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { type SmoothFormula } from "palettum";
 
-export default function Mode() {
-  const [mode, setMode] = useState<SmoothFormula>("Idw");
+export default function SmoothFormula() {
+  const setting = "smoothFormula";
+  const value = useConfigStore((state) => state.config[setting]);
+  const setConfig = useConfigStore((state) => state.setConfig);
+
   return (
     <div className="flex flex-col items-center justify-center">
       <label>Mode</label>
@@ -13,8 +16,8 @@ export default function Mode() {
           { label: "Gaus", value: "Gaussian" },
           { label: "Rq", value: "Rq" },
         ]}
-        value={mode}
-        onChange={(v) => setMode(v as SmoothFormula)}
+        value={value}
+        onChange={(v) => setConfig(setting, v as SmoothFormula)}
       />
     </div>
   );

@@ -147,3 +147,20 @@ export const getDisplayedColors = (
   }
   return displayed;
 };
+
+export async function checkAlphaChannel(file: File): Promise<boolean> {
+  const image = await createImageBitmap(file);
+  const canvas = new OffscreenCanvas(image.width, image.height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return false;
+  }
+  ctx.drawImage(image, 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  for (let i = 3; i < imageData.data.length; i += 4) {
+    if (imageData.data[i] < 255) {
+      return true;
+    }
+  }
+  return false;
+}

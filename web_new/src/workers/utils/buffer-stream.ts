@@ -25,6 +25,12 @@ export class BufferStream<T = any> extends ReadableStream<T | null> {
   }
 
   clear() {
+    // Close any VideoFrame or AudioData objects in the buffer before clearing
+    for (const item of this.buf) {
+      if (item && typeof (item as any).close === "function") {
+        (item as any).close();
+      }
+    }
     this.buf = [];
     if (this.resume) {
       this.resume(); // Resolve any pending pull requests

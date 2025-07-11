@@ -92,6 +92,9 @@ pub enum Error {
     #[error("Invalid input media or color count")]
     InvalidPaletteFromMedia,
 
+    #[error("GPU error: {0}")]
+    Gpu(String),
+
     #[error("{0}")]
     Internal(String),
 }

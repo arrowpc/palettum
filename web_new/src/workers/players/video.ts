@@ -144,4 +144,9 @@ export class VideoPlayer implements Player {
     }
     this.decoder?.close();
   }
+
+  async export(): Promise<Blob> {
+    console.warn("VideoPlayer.export() not implemented.");
+    return Promise.reject("Not implemented");
+  }
 }

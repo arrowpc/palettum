@@ -65,4 +65,9 @@ export class GifPlayer implements Player {
     self.clearTimeout(this.loopHandle);
     this.frames.forEach((f) => f.bmp.close());
   }
+
+  async export(): Promise<Blob> {
+    console.warn("GifPlayer.export() not implemented.");
+    return Promise.reject("Not implemented");
+  }
 }

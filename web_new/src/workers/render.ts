@@ -75,6 +75,13 @@ const api = {
     disposeRenderer();
     player = null;
   },
+
+  async export(): Promise<Blob> {
+    if (!player) {
+      throw new Error("No player loaded to export.");
+    }
+    return player.export();
+  },
 };
 
 export type RendererAPI = typeof api;

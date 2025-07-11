@@ -4,4 +4,5 @@ export interface Player {
   pause(): void;
   seek(t: number): void; // ms
   dispose(): Promise<void>;
+  export(): Promise<Blob>;
 }

@@ -23,4 +23,9 @@ export class ImagePlayer implements Player {
     this.bmp.close();
     this.disposed = true;
   }
+
+  async export(): Promise<Blob> {
+    console.warn("ImagePlayer.export() not implemented.");
+    return Promise.reject("Not implemented");
+  }
 }

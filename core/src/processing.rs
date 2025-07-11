@@ -315,7 +315,7 @@ pub(crate) fn process_pixels_cpu(
     }
 }
 
-use crate::gpu::GpuImageProcessor;
+use crate::gpu::{compute::{GpuImageProcessor, get_gpu_image_processor}, context::get_gpu_context};
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub async fn process_pixels(
@@ -331,22 +331,24 @@ pub async fn process_pixels(
         .map(|rgb| rgb.to_lab())
         .collect::<Vec<Lab>>();
 
-    if let Some(gpu_processor_arc) = super::gpu::get_gpu_processor().await? {
-        let gpu_processor_ref: &GpuImageProcessor = &gpu_processor_arc;
+    if let Ok(context) = get_gpu_context().await {
+        if let Some(gpu_processor_arc) = get_gpu_image_processor(context).await? {
+            let gpu_processor_ref: &GpuImageProcessor = &gpu_processor_arc;
 
-        let result = gpu_processor_ref
-            .process_image(image_data, width, height, &config)
-            .await?;
+            let result = gpu_processor_ref
+                .process_image(image_data, width, height, &config)
+                .await?;
 
-        if image_data.len() == result.len() {
-            image_data.copy_from_slice(&result);
-        } else {
-            log::error!("GPU output buffer size mismatch.");
-            return Err(Error::Internal(
-                "GPU output buffer size mismatch".to_string(),
-            ));
+            if image_data.len() == result.len() {
+                image_data.copy_from_slice(&result);
+            } else {
+                log::error!("GPU output buffer size mismatch.");
+                return Err(Error::Internal(
+                    "GPU output buffer size mismatch".to_string(),
+                ));
+            }
+            return Ok(());
         }
-        return Ok(());
     }
 
     let lookup_table = if config.quant_level > 0 {

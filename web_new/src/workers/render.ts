@@ -67,14 +67,21 @@ const api = {
     player = null;
   },
 
-  async export(config: Config): Promise<Blob> {
+  async export(config: Config, onProgress?: (progress: number) => void): Promise<Blob> {
     if (!player) {
       throw new Error("No player loaded to export");
+    }
+    // For now, image and GIF players don't support progress, so we'll just call onProgress once at 100%
+    // When video exporting is implemented, the player.export method will call onProgress multiple times.
+    if (onProgress) {
+      onProgress(100);
     }
     return player.export(config);
   },
 };
 
-export type RendererAPI = typeof api;
+export type RendererAPI = Omit<typeof api, "export"> & {
+  export: (config: Config, onProgress?: (progress: number) => void) => Promise<Blob>;
+};
 
 expose(api);

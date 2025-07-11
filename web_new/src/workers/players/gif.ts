@@ -1,6 +1,8 @@
 import { parseGIF, decompressFrames } from "gifuct-js";
 import { type Player } from "./interface";
 import { getRenderer } from "../core/renderer";
+import { palettify } from "palettum";
+import type { Config } from "palettum";
 
 export class GifPlayer implements Player {
   private buffer: ArrayBuffer;
@@ -66,8 +68,12 @@ export class GifPlayer implements Player {
     this.frames.forEach((f) => f.bmp.close());
   }
 
-  async export(): Promise<Blob> {
-    console.warn("GifPlayer.export() not implemented.");
-    return Promise.reject("Not implemented");
+  async export(config: Config): Promise<Blob> {
+    const palettizedBytes = await palettify(
+      new Uint8Array(this.buffer),
+      config,
+    );
+
+    return new Blob([palettizedBytes], { type: "image/gif" });
   }
 }

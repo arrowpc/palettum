@@ -19,9 +19,6 @@ async function applyCanvas(id: CanvasId) {
 }
 
 const api = {
-  /**
-   * Initializes the worker, primarily to warm up the renderer.
-   */
   async init() {
     const renderer = await getRenderer();
     renderer.set_draw_mode("aspect-fill");
@@ -46,9 +43,6 @@ const api = {
     renderer.set_config(cfg);
   },
 
-  /**
-   * Loads a new file, disposing of any previous player.
-   */
   async load(file: Blob) {
     if (player) await player.dispose();
     player = await createPlayerForFile(file);
@@ -67,20 +61,17 @@ const api = {
     player?.seek(ms);
   },
 
-  /**
-   * Cleans up all resources used by the worker.
-   */
   dispose() {
     player?.dispose();
     disposeRenderer();
     player = null;
   },
 
-  async export(): Promise<Blob> {
+  async export(config: Config): Promise<Blob> {
     if (!player) {
-      throw new Error("No player loaded to export.");
+      throw new Error("No player loaded to export");
     }
-    return player.export();
+    return player.export(config);
   },
 };
 

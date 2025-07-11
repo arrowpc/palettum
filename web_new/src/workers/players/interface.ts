@@ -1,8 +1,10 @@
+import type { Config } from "palettum";
+
 export interface Player {
   init(): Promise<void> | void;
   play(): void;
   pause(): void;
   seek(t: number): void; // ms
   dispose(): Promise<void>;
-  export(): Promise<Blob>;
+  export(config: Config): Promise<Blob>;
 }

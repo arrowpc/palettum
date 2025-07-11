@@ -3,6 +3,7 @@ import { useSyncConfigToWorker } from "@/hooks/use-sync-config-to-worker";
 import { ThemeProvider } from "@/components/theme-provider";
 import PaletteManager from "@/components/palette/palette-manager";
 import SettingsPanel from "@/components/settings/settings-panel";
+import { ExportButton } from "@/components/export-button";
 import { useMediaStore } from "@/store";
 
 import("react-scan").then(({ scan }) => {
@@ -19,7 +20,12 @@ function App() {
         <main className="max-w-2xl mx-auto min-h-screen flex flex-col gap-8">
           <MediaContainer />
           <PaletteManager />
-          {file && <SettingsPanel />}
+          {file && (
+            <>
+              <SettingsPanel />
+              <ExportButton />
+            </>
+          )}
         </main>
       </ThemeProvider>
     </>

@@ -17,8 +17,11 @@ export class VideoPlayer implements Player {
     null;
   private libav: LibAVInstance | null = null;
   private bridge: typeof LibAVWebCodecsBridge | null = null;
+  private file: Blob;
 
-  constructor(private file: Blob) { }
+  constructor(file: Blob) {
+    this.file = file;
+  }
 
   async init(): Promise<void> {
     const { libav, bridge } = await initLibAV();

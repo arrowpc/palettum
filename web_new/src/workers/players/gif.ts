@@ -4,6 +4,7 @@ import { getRenderer } from "../core/renderer";
 
 import type { Config } from "palettum";
 
+
 export class GifPlayer implements Player {
   private buffer: ArrayBuffer;
   private frames: { bmp: ImageBitmap; dur: number }[] = [];
@@ -68,12 +69,14 @@ export class GifPlayer implements Player {
     this.frames.forEach((f) => f.bmp.close());
   }
 
-  async export(config: Config): Promise<Blob> {
+  async export(config: Config, onProgress?: (progress: number, message: string) => void): Promise<Blob> {
     const { palettify } = await import("palettum");
+    onProgress?.(0, "palettifying...");
     const palettizedBytes = await palettify(
       new Uint8Array(this.buffer),
       config,
     );
+    onProgress?.(100, "");
 
     return new Blob([palettizedBytes], { type: "image/gif" });
   }

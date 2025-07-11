@@ -1,5 +1,4 @@
 import type { Config } from "palettum";
-import type { ProgressCallback } from "./video";
 
 export interface Player {
   init(): Promise<void> | void;
@@ -7,5 +6,5 @@ export interface Player {
   pause(): void;
   seek(t: number): void; // ms
   dispose(): Promise<void>;
-  export(config: Config, onProgress: ProgressCallback): Promise<Blob>;
+  export(config: Config, onProgress?: (progress: number, message: string) => void): Promise<Blob>;
 }

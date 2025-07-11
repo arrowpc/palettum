@@ -2,9 +2,9 @@ import { useState } from "react";
 import { useConfigStore } from "@/store";
 import { useRenderer } from "@/renderer-provider";
 import { Button } from "./ui/button";
-import * as Comlink from "comlink";
 import { Download, Loader2 } from "lucide-react";
-import { CircularProgress } from "./ui/circular-progress";
+import { CircularProgress } from "./ui/experimental/circular-progress";
+import { proxy } from "comlink";
 
 type ExportState = "idle" | "loading" | "progress";
 
@@ -13,6 +13,7 @@ export function ExportButton() {
   const renderer = useRenderer();
   const [exportState, setExportState] = useState<ExportState>("idle");
   const [exportProgress, setExportProgress] = useState(0);
+  const [exportMessage, setExportMessage] = useState("Exporting...");
 
   const handleExport = async () => {
     if (!renderer) {
@@ -20,18 +21,20 @@ export function ExportButton() {
       return;
     }
 
-    setExportState("loading"); // Default to classic loading
+    setExportState("loading");
     setExportProgress(0);
-
-    const onProgress = (progress: number) => {
-      setExportState("progress");
-      setExportProgress(progress);
-    };
+    setExportMessage("Exporting...");
 
     try {
-      // For now, image and GIF don't support progress, so onProgress won't be called until 100%
-      // When video exporting is implemented, we'll pass onProgress conditionally.
-      const blob = await renderer.export(config, Comlink.proxy(onProgress));
+      const blob = await renderer.export(
+        config,
+        proxy((progress: number, message: string) => {
+          setExportState("progress");
+          setExportProgress(progress);
+          setExportMessage(message);
+        }),
+      );
+
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -52,6 +55,7 @@ export function ExportButton() {
     } finally {
       setExportState("idle");
       setExportProgress(0);
+      setExportMessage("Exporting...");
     }
   };
 
@@ -72,10 +76,9 @@ export function ExportButton() {
       {exportState === "progress" && (
         <>
           <CircularProgress progress={exportProgress} className="mr-2" />
-          Exporting...
+          {exportMessage}
         </>
       )}
     </Button>
   );
 }
-

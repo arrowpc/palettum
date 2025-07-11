@@ -25,12 +25,14 @@ export class ImagePlayer implements Player {
     this.disposed = true;
   }
 
-  async export(config: Config): Promise<Blob> {
+  async export(config: Config, onProgress?: (progress: number, message: string) => void): Promise<Blob> {
     const { palettify } = await import("palettum");
+    onProgress?.(0, "palettifying...");
     const palettizedBytes = await palettify(
       new Uint8Array(await this.file.arrayBuffer()),
       config,
     );
+    onProgress?.(100, "");
 
     return new Blob([palettizedBytes], { type: "image/png" });
   }

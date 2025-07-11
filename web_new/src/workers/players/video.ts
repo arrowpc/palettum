@@ -6,11 +6,6 @@ import { getRenderer } from "../core/renderer";
 import { BufferStream } from "../utils/buffer-stream";
 import type { Config } from "palettum";
 
-export type ProgressCallback = (progress: {
-  percentage: number;
-  message: string;
-}) => void;
-
 type LibAVFormatContext = number & {
   pb?: {
     pos: number;
@@ -31,49 +26,6 @@ interface VideoEncoderEncodeOptions {
   hevc?: {
     quantizer?: number;
   };
-}
-
-type Stage = "INIT" | "SETUP" | "DECODE" | "ENCODE" | "MUX";
-
-class ProgressManager {
-  private onProgress: ProgressCallback;
-  private totalDuration: number;
-  private stageBaselines: Record<Stage, number> = {
-    INIT: 0,
-    SETUP: 5,
-    DECODE: 7,
-    ENCODE: 20,
-    MUX: 99,
-  };
-  private stageWeights: Record<Stage, number> = {
-    INIT: 5,
-    SETUP: 10,
-    DECODE: 5,
-    ENCODE: 75,
-    MUX: 5,
-  };
-
-  constructor(onProgress: ProgressCallback, totalDuration: number) {
-    this.onProgress = onProgress;
-    this.totalDuration = totalDuration > 0 ? totalDuration : 1;
-  }
-
-  update(stage: Stage, stageProgress: number, message: string) {
-    const base = this.stageBaselines[stage];
-    const weight = this.stageWeights[stage];
-    const percentage = base + stageProgress * weight;
-
-    this.onProgress({
-      percentage: Math.min(100, Math.round(percentage)),
-      message,
-    });
-  }
-
-  /** Reports progress based on a timestamp relative to the total video duration */
-  updateFromTimestamp(stage: Stage, timestamp: number, message: string) {
-    const stageProgress = timestamp / this.totalDuration;
-    this.update(stage, stageProgress, message);
-  }
 }
 
 function createFrameModifier(config: Config) {
@@ -268,7 +220,7 @@ export class VideoPlayer implements Player {
     this.decoder?.close();
   }
 
-  async export(config: Config, onProgress?: ProgressCallback): Promise<Blob> {
+  async export(config: Config, onProgress?: (progress: number, message: string) => void): Promise<Blob> {
     if (!this.libav || !this.bridge) {
       throw new Error("LibAV not initialized for export.");
     }
@@ -278,8 +230,7 @@ export class VideoPlayer implements Player {
 
     // Probe for duration
     await tempLibav.mkreadaheadfile("input-export-probe", this.file);
-    const [probeIfc, probeStreams] =
-      await tempLibav.ff_init_demuxer_file("input-export-probe");
+    const [probeIfc, probeStreams] = await tempLibav.ff_init_demuxer_file("input-export-probe");
 
     const videoStream = probeStreams.find(
       (s) => s.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO,
@@ -297,19 +248,13 @@ export class VideoPlayer implements Player {
     await tempLibav.avformat_close_input_js(probeIfc);
     await tempLibav.unlink("input-export-probe");
 
-    const progressManager = new ProgressManager(
-      onProgress ?? (() => { }),
-      totalDuration,
-    );
-
-    progressManager.update("SETUP", 0, "Analyzing input file...");
+    onProgress?.(0, "Analyzing input file...");
     await tempLibav.mkreadaheadfile("input-export", this.file);
-    const [ifc, istreams] =
-      await tempLibav.ff_init_demuxer_file("input-export");
+    const [ifc, istreams] = await tempLibav.ff_init_demuxer_file("input-export");
     const rpkt = await tempLibav.av_packet_alloc();
     const wpkt = await tempLibav.av_packet_alloc();
 
-    progressManager.update("SETUP", 0.5, "Configuring decoders & encoders...");
+    onProgress?.(0, "Configuring decoders & encoders...");
 
     // --- Stream Setup ---
     const iToO: number[] = [];
@@ -438,7 +383,7 @@ export class VideoPlayer implements Player {
         const ifcWithPb = ifc as LibAVFormatContext;
         if (ifcWithPb.pb && ifcWithPb.pb.size > 0) {
           const demuxProgress = ifcWithPb.pb.pos / ifcWithPb.pb.size;
-          progressManager.update("DECODE", demuxProgress, "Decoding video...");
+          onProgress?.(Math.round(demuxProgress * 100), "Decoding video...");
         }
 
         for (const idx in packets) {
@@ -472,11 +417,7 @@ export class VideoPlayer implements Player {
           if (done) break;
 
           if (encoder instanceof VideoEncoder) {
-            progressManager.updateFromTimestamp(
-              "ENCODE",
-              frame.timestamp,
-              "palettifying...",
-            );
+            onProgress?.(Math.round((frame.timestamp / totalDuration) * 100), "palettifying...");
 
             const modifiedFrame = await modifyFrame(frame);
             const encOptions: VideoEncoderEncodeOptions = {};
@@ -567,11 +508,7 @@ export class VideoPlayer implements Player {
           await tempLibav.ff_write_multi(ofc, wpkt, [packet]);
 
           if (ostream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO) {
-            progressManager.updateFromTimestamp(
-              "MUX",
-              value.chunk.timestamp,
-              "Assembling final file...",
-            );
+            onProgress?.(Math.round((value.chunk.timestamp / totalDuration) * 100), "Assembling final file...");
           }
         }
       })();
@@ -590,7 +527,7 @@ export class VideoPlayer implements Player {
 
     const output = await tempLibav.readFile("output.mkv");
 
-    onProgress?.({ percentage: 100, message: "Done!" });
+    onProgress?.(100, "Done!");
     return new Blob([output.buffer], { type: "video/x-matroska" });
   }
 }

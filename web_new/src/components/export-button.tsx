@@ -35,7 +35,13 @@ export function ExportButton() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `palettized_image.${blob.type.split("/")[1]}`;
+      let filename = `palettized_image`;
+      if (blob.type === "video/x-matroska") {
+        filename += ".mkv";
+      } else {
+        filename += `.${blob.type.split("/")[1]}`;
+      }
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

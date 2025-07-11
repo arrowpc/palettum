@@ -277,6 +277,17 @@ impl Gif {
         Ok((repeat, speed))
     }
 
+    pub fn get_frame_delay(&self, frame_idx: usize) -> u16 {
+        if frame_idx < self.frames.len() {
+            let delay_struct = self.frames[frame_idx].delay();
+            let (numer_ms, denom_ms) = delay_struct.numer_denom_ms();
+            let centiseconds = ((numer_ms as u64 * 1) / (denom_ms as u64 * 10)) as u16;
+            centiseconds
+        } else {
+            0
+        }
+    }
+
     pub async fn palettify(&mut self, config: &Config) -> Result<()> {
         config.validate()?;
 

@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 palettum = { path = "../core", features = ["wasm"] }
+image.workspace = true
 log.workspace = true
 wasm-bindgen.workspace = true
 console_error_panic_hook = "0.1.7"

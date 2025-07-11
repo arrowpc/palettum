@@ -2294,6 +2294,7 @@ name = "wasm"
 version = "0.5.2"
 dependencies = [
  "console_error_panic_hook",
+ "image",
  "log",
  "once_cell",
  "palettum",

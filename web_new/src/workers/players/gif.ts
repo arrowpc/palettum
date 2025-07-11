@@ -2,6 +2,8 @@ import { type Player } from "./interface";
 import { getRenderer } from "../core/renderer";
 import type { Config, Gif } from "palettum";
 
+const LOOP = true;
+
 export class GifPlayer implements Player {
   private gif: Gif | null = null;
   private frames: { bmp: ImageBitmap; dur: number }[] = [];
@@ -51,6 +53,9 @@ export class GifPlayer implements Player {
       const { bmp, dur } = this.frames[this.idx];
       r.draw(bmp);
       this.idx = (this.idx + 1) % this.frames.length;
+      if (this.idx === 0 && !LOOP) {
+        return;
+      }
       this.loopHandle = self.setTimeout(draw, dur);
     };
     draw();

@@ -1,3 +1,5 @@
+const LOOP = true;
+
 import type { LibAV as LibAVInstance } from "@libav.js/variant-webcodecs";
 import type * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
 import { type Player } from "./interface";
@@ -81,6 +83,7 @@ export class VideoPlayer implements Player {
   private playing = true;
   private disposed = false;
   private frameQueue = new BufferStream<VideoFrame>();
+  private vConfig: VideoDecoderConfig | null = null;
   private drawHandle: number | undefined;
   private ifc = 0;
   private rpkt = 0;
@@ -96,6 +99,7 @@ export class VideoPlayer implements Player {
   }
 
   async init(): Promise<void> {
+    this.frameQueue = new BufferStream<VideoFrame>();
     const { libav, bridge } = await initLibAV();
     this.libav = libav;
     this.bridge = bridge;
@@ -109,6 +113,7 @@ export class VideoPlayer implements Player {
     const vStream = istreams[vIdx];
     const vConfig = await bridge.videoStreamToConfig(libav, vStream);
     if (!vConfig) return;
+    this.vConfig = vConfig as VideoDecoderConfig;
     if (
       !(await VideoDecoder.isConfigSupported(vConfig as VideoDecoderConfig))
         .supported
@@ -132,6 +137,11 @@ export class VideoPlayer implements Player {
         const READ_LIMIT = 64 * 1024;
 
         while (!this.disposed) {
+          // Implement back-pressure: pause demuxing if frameQueue is too full
+          while (this.frameQueue.size() > 30 && !this.disposed) {
+            await new Promise(resolve => setTimeout(resolve, 100)); // Wait a bit
+          }
+
           const [res, packets] = await this.libav.ff_read_frame_multi(
             this.ifc,
             this.rpkt,
@@ -145,10 +155,28 @@ export class VideoPlayer implements Player {
             }
           }
 
-          if (res === this.libav.AVERROR_EOF) break;
+          if (res === this.libav.AVERROR_EOF) {
+            if (LOOP) {
+              // Seek back to the beginning for looping
+              await this.libav.avformat_seek_file(this.ifc, -1, 0, 0, 0, 0, 0, 0, this.libav.AVSEEK_FLAG_ANY);
+              // Clear decoder's internal state after seeking
+              this.decoder.reset();
+              this.decoder.configure(this.vConfig!);
+              // Clear the frameQueue to remove any unconsumed frames from the previous loop
+              // and prepare for new frames from the beginning of the video.
+              this.frameQueue.clear(); // Use clear() instead of re-initializing
+              continue; // Continue the loop to read frames from the beginning
+            } else {
+              // If not looping, break the loop and signal end of stream
+              break;
+            }
+          }
         }
-        await this.decoder.flush();
-        this.frameQueue.push(null);
+        // Only flush and push null if the loop is truly ending (not looping or disposed)
+        if (!LOOP || this.disposed) {
+          await this.decoder.flush();
+          this.frameQueue.push(null);
+        }
       } catch (err) {
         console.error("Demux/decode loop failed:", err);
       }
@@ -169,7 +197,24 @@ export class VideoPlayer implements Player {
       }
       if (!nextFrame) {
         const { done, value } = await this.frameReader!.read();
-        if (done) return;
+        if (done) {
+          if (LOOP) {
+            // Release the lock on the old reader
+            this.frameReader?.releaseLock();
+            // Get a new reader for the looped content
+            this.frameReader = this.frameQueue.getReader();
+            const { value: newFirstFrame } = await this.frameReader.read();
+            if (newFirstFrame) {
+              nextFrame = newFirstFrame;
+            } else {
+              // If no frame is immediately available, wait and try again
+              this.drawHandle = self.setTimeout(drawNext, 50);
+              return;
+            }
+          } else {
+            return; // Not looping, so stop drawing
+          }
+        }
         nextFrame = value;
       }
       if (!nextFrame) return;
@@ -220,7 +265,10 @@ export class VideoPlayer implements Player {
     this.decoder?.close();
   }
 
-  async export(config: Config, onProgress?: (progress: number, message: string) => void): Promise<Blob> {
+  async export(
+    config: Config,
+    onProgress?: (progress: number, message: string) => void,
+  ): Promise<Blob> {
     if (!this.libav || !this.bridge) {
       throw new Error("LibAV not initialized for export.");
     }
@@ -230,7 +278,8 @@ export class VideoPlayer implements Player {
 
     // Probe for duration
     await tempLibav.mkreadaheadfile("input-export-probe", this.file);
-    const [probeIfc, probeStreams] = await tempLibav.ff_init_demuxer_file("input-export-probe");
+    const [probeIfc, probeStreams] =
+      await tempLibav.ff_init_demuxer_file("input-export-probe");
 
     const videoStream = probeStreams.find(
       (s) => s.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO,
@@ -250,7 +299,8 @@ export class VideoPlayer implements Player {
 
     onProgress?.(0, "Analyzing input file...");
     await tempLibav.mkreadaheadfile("input-export", this.file);
-    const [ifc, istreams] = await tempLibav.ff_init_demuxer_file("input-export");
+    const [ifc, istreams] =
+      await tempLibav.ff_init_demuxer_file("input-export");
     const rpkt = await tempLibav.av_packet_alloc();
     const wpkt = await tempLibav.av_packet_alloc();
 
@@ -417,7 +467,10 @@ export class VideoPlayer implements Player {
           if (done) break;
 
           if (encoder instanceof VideoEncoder) {
-            onProgress?.(Math.round((frame.timestamp / totalDuration) * 100), "palettifying...");
+            onProgress?.(
+              Math.round((frame.timestamp / totalDuration) * 100),
+              "palettifying...",
+            );
 
             const modifiedFrame = await modifyFrame(frame);
             const encOptions: VideoEncoderEncodeOptions = {};
@@ -508,7 +561,10 @@ export class VideoPlayer implements Player {
           await tempLibav.ff_write_multi(ofc, wpkt, [packet]);
 
           if (ostream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO) {
-            onProgress?.(Math.round((value.chunk.timestamp / totalDuration) * 100), "Assembling final file...");
+            onProgress?.(
+              Math.round((value.chunk.timestamp / totalDuration) * 100),
+              "Assembling final file...",
+            );
           }
         }
       })();

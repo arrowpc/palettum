@@ -19,4 +19,16 @@ export class BufferStream<T = any> extends ReadableStream<T | null> {
     this.resume?.();
     this.resume = null;
   }
+
+  size(): number {
+    return this.buf.length;
+  }
+
+  clear() {
+    this.buf = [];
+    if (this.resume) {
+      this.resume(); // Resolve any pending pull requests
+      this.resume = null;
+    }
+  }
 }

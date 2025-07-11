@@ -39,6 +39,7 @@ pub enum Mapping {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
+#[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 #[cfg_attr(feature = "cli", derive(ValueEnum, Display))]
 pub enum Filter {
     Nearest,

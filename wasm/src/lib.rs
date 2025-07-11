@@ -4,7 +4,7 @@ use palettum::{
     error::Result,
     gpu::{self},
     media::{load_media_from_memory, Gif as CoreGif},
-    Config, Filter as CoreFilter, Media, Palette,
+    Config, Filter, Media, Palette,
 };
 use std::{result::Result as StdResult, sync::Mutex};
 use wasm_bindgen::prelude::*;

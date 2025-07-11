@@ -42,11 +42,9 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         );
     }
 
-    let rgb_srgb_normalized = lab_to_rgb(avg_lab);
+    let rgb_linear_normalized = lab_to_linear_rgb(avg_lab);
 
-    let final_rgb_linear = vec3<f32>(srgb_to_linear(rgb_srgb_normalized.r), srgb_to_linear(rgb_srgb_normalized.g), srgb_to_linear(rgb_srgb_normalized.b));
-
-    return vec4<f32>(final_rgb_linear, pixel.a);
+    return vec4<f32>(rgb_linear_normalized, pixel.a);
 }
 
 fn compute_weight(distance: f32, formula: u32, strength: f32) -> f32 {

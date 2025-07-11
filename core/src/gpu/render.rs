@@ -6,8 +6,8 @@ use web_sys::{ImageBitmap, OffscreenCanvas};
 
 use crate::{config::Config, Mapping};
 
-use super::context::GpuContext;
 use super::compute::GpuConfig;
+use super::context::GpuContext;
 
 const PRESENT_UNIFORM_BYTES: u64 = 16; // two vec2<f32>
 const CONFIG_UNIFORM_BYTES: u64 = std::mem::size_of::<GpuConfig>() as u64;
@@ -60,7 +60,9 @@ pub struct Renderer {
 impl Renderer {
     #[wasm_bindgen(constructor)]
     pub async fn new() -> Renderer {
-        let context = super::context::get_gpu_context().await.expect("Failed to get GPU context");
+        let context = super::context::get_gpu_context()
+            .await
+            .expect("Failed to get GPU context");
         // common objects ----------------------------------------------------
         let sampler = context.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("linear_sampler"),
@@ -109,39 +111,40 @@ impl Renderer {
                 }],
             });
 
-        let mapping_frag_bgl = context
-            .device
-            .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("mapping_frag_bgl"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0, // Sampler
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1, // Texture
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            multisampled: false,
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+        let mapping_frag_bgl =
+            context
+                .device
+                .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                    label: Some("mapping_frag_bgl"),
+                    entries: &[
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 0, // Sampler
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                            count: None,
                         },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,                               // Config Uniform
-                        visibility: wgpu::ShaderStages::FRAGMENT, // Config data needed in fragment
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 1, // Texture
+                            visibility: wgpu::ShaderStages::FRAGMENT,
+                            ty: wgpu::BindingType::Texture {
+                                multisampled: false,
+                                view_dimension: wgpu::TextureViewDimension::D2,
+                                sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            },
+                            count: None,
                         },
-                        count: None,
-                    },
-                ],
-            });
+                        wgpu::BindGroupLayoutEntry {
+                            binding: 2,                               // Config Uniform
+                            visibility: wgpu::ShaderStages::FRAGMENT, // Config data needed in fragment
+                            ty: wgpu::BindingType::Buffer {
+                                ty: wgpu::BufferBindingType::Uniform,
+                                has_dynamic_offset: false,
+                                min_binding_size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
+                            },
+                            count: None,
+                        },
+                    ],
+                });
 
         // shader modules ----------------------------------------------------
         let quad_vs = context
@@ -204,7 +207,7 @@ impl Renderer {
             &quad_vs,
             &blit_fs,
             &[&tex_bgl],
-            wgpu::TextureFormat::Rgba8Unorm,
+            wgpu::TextureFormat::Rgba8UnormSrgb,
             "blit",
         );
 
@@ -250,13 +253,7 @@ impl Renderer {
 
         // configure swap-chain
         let caps = surface.get_capabilities(&self.context.adapter);
-        let mut fmt = caps.formats[0];
-        for &f in caps.formats.iter() {
-            if f == wgpu::TextureFormat::Rgba8Unorm {
-                fmt = f;
-                break;
-            }
-        }
+        let format = caps.formats[0];
 
         let mut alpha_mode = wgpu::CompositeAlphaMode::Opaque;
         if self.context.using_webgpu {
@@ -265,18 +262,18 @@ impl Renderer {
 
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: fmt,
+            format: format.remove_srgb_suffix(),
             width: canvas.width(),
             height: canvas.height(),
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode,
-            view_formats: vec![],
+            view_formats: vec![format.add_srgb_suffix()],
             desired_maximum_frame_latency: 2,
         };
         surface.configure(&self.context.device, &config);
 
         if self.present_fmt.is_none() {
-            self.build_present_pipelines(fmt);
+            self.build_present_pipelines(format.add_srgb_suffix());
         };
 
         self.canvas = Some(CanvasCtx { surface, config });
@@ -423,24 +420,22 @@ impl Renderer {
                 .as_ref()
                 .unwrap()
                 .create_view(&Default::default());
-            self.work_bg = Some(
-                self.context
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("work_bg"),
-                        layout: &self.tex_bgl,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::Sampler(&self.sampler),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: wgpu::BindingResource::TextureView(&view),
-                            },
-                        ],
-                    }),
-            );
+            self.work_bg = Some(self.context.device.create_bind_group(
+                &wgpu::BindGroupDescriptor {
+                    label: Some("work_bg"),
+                    layout: &self.tex_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(&view),
+                        },
+                    ],
+                },
+            ));
         }
         Ok(())
     }
@@ -540,16 +535,12 @@ impl Renderer {
 
         // Always update the general uniform_buf as present_vs.wgsl always uses it
         if self.uniform_buf.is_none() {
-            self.uniform_buf = Some(
-                self.context
-                    .device
-                    .create_buffer(&wgpu::BufferDescriptor {
-                        label: Some("uniform_buf"),
-                        size: PRESENT_UNIFORM_BYTES,
-                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                        mapped_at_creation: false,
-                    }),
-            );
+            self.uniform_buf = Some(self.context.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("uniform_buf"),
+                size: PRESENT_UNIFORM_BYTES,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
         }
         let data: [f32; 4] = [scale[0], scale[1], offset[0], offset[1]];
         self.context.queue.write_buffer(
@@ -585,16 +576,13 @@ impl Renderer {
                 );
 
                 if self.config_buf.is_none() {
-                    self.config_buf = Some(
-                        self.context
-                            .device
-                            .create_buffer(&wgpu::BufferDescriptor {
-                                label: Some("config_buf"),
-                                size: CONFIG_UNIFORM_BYTES,
-                                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-                                mapped_at_creation: false,
-                            }),
-                    );
+                    self.config_buf =
+                        Some(self.context.device.create_buffer(&wgpu::BufferDescriptor {
+                            label: Some("config_buf"),
+                            size: CONFIG_UNIFORM_BYTES,
+                            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                            mapped_at_creation: false,
+                        }));
                 }
                 self.context.queue.write_buffer(
                     self.config_buf.as_ref().unwrap(),
@@ -638,7 +626,11 @@ impl Renderer {
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("frame: {:?}", e)))?;
-        let view = frame.texture.create_view(&Default::default());
+
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: self.present_fmt,
+            ..Default::default()
+        });
 
         let mut enc = self
             .context
@@ -691,9 +683,7 @@ impl Renderer {
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("present_vs"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("shaders/present_vs.wgsl").into(),
-                ),
+                source: wgpu::ShaderSource::Wgsl(include_str!("shaders/present_vs.wgsl").into()),
             });
 
         let mut shaders = HashMap::new();
@@ -710,13 +700,13 @@ impl Renderer {
         let palettized_fs_code = preprocess(&shaders, "palettized_fs.wgsl").unwrap();
 
         // palettized
-        let palettized_fs = self
-            .context
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("present_palettized_fs"),
-                source: wgpu::ShaderSource::Wgsl(Cow::Owned(palettized_fs_code)),
-            });
+        let palettized_fs =
+            self.context
+                .device
+                .create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some("present_palettized_fs"),
+                    source: wgpu::ShaderSource::Wgsl(Cow::Owned(palettized_fs_code)),
+                });
 
         shaders.insert(
             PathBuf::from("smoothed_fs.wgsl"),
@@ -815,7 +805,7 @@ impl Renderer {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
             usage: wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::RENDER_ATTACHMENT,

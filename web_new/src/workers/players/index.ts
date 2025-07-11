@@ -5,15 +5,9 @@ import { VideoPlayer } from "./video";
 
 export { type Player } from "./interface";
 
-/**
- * Creates the appropriate player instance based on the file's MIME type.
- * @param file The file to create a player for.
- * @returns A promise that resolves to a Player instance.
- */
 export async function createPlayerForFile(file: Blob): Promise<Player> {
   if (file.type.startsWith("image/") && file.type !== "image/gif") {
-    const bmp = await createImageBitmap(file);
-    return new ImagePlayer(bmp);
+    return new ImagePlayer(file);
   } else if (file.type === "image/gif") {
     const buffer = await file.arrayBuffer();
     return new GifPlayer(buffer);

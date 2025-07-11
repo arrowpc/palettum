@@ -1,7 +1,7 @@
 import { parseGIF, decompressFrames } from "gifuct-js";
 import { type Player } from "./interface";
 import { getRenderer } from "../core/renderer";
-import { palettify } from "palettum";
+
 import type { Config } from "palettum";
 
 export class GifPlayer implements Player {
@@ -69,6 +69,7 @@ export class GifPlayer implements Player {
   }
 
   async export(config: Config): Promise<Blob> {
+    const { palettify } = await import("palettum");
     const palettizedBytes = await palettify(
       new Uint8Array(this.buffer),
       config,

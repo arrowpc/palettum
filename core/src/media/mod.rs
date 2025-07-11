@@ -149,7 +149,9 @@ pub fn load_media_from_memory(bytes: &[u8]) -> Result<Media> {
         todo!()
     }
 
+    log::info!("Here");
     let format = guess_format(bytes)?;
+    log::info!("There");
     match format {
         ImageFormat::Gif => Ok(Media::Gif(Gif::from_memory(bytes)?)),
         ImageFormat::Ico => Ok(Media::Ico(Ico::from_memory(bytes)?)),

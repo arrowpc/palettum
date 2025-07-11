@@ -1,19 +1,19 @@
 import { type Player } from "./interface";
 import { getRenderer } from "../core/renderer";
-import { palettify } from "palettum";
+
 import type { Config } from "palettum";
 
 export class ImagePlayer implements Player {
-  private bmp: ImageBitmap;
   private disposed = false;
+  private file: Blob;
 
-  constructor(bmp: ImageBitmap) {
-    this.bmp = bmp;
+  constructor(file: Blob) {
+    this.file= file;
   }
 
   async init() {
     const r = await getRenderer();
-    r.draw(this.bmp);
+    r.draw(await createImageBitmap(this.file));
   }
 
   play() { }
@@ -22,18 +22,13 @@ export class ImagePlayer implements Player {
 
   async dispose() {
     if (this.disposed) return;
-    this.bmp.close();
     this.disposed = true;
   }
 
   async export(config: Config): Promise<Blob> {
-    const canvas = new OffscreenCanvas(this.bmp.width, this.bmp.height);
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(this.bmp, 0, 0);
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
+    const { palettify } = await import("palettum");
     const palettizedBytes = await palettify(
-      new Uint8Array(imageData.data.buffer),
+      new Uint8Array(await this.file.arrayBuffer()),
       config,
     );
 

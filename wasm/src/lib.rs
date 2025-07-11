@@ -23,16 +23,15 @@ pub async fn palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> 
     log::info!("Received image bytes for processing in WASM...");
 
     log::info!("Using config: {}", config);
-    log::info!("Resize filter: {:?} ", config.filter);
 
     let bytes = image_bytes.to_vec();
     let mut media = load_media_from_memory(&bytes)?;
-    media.resize(
-        config.resize_width,
-        config.resize_height,
-        config.resize_scale,
-        config.filter,
-    )?;
+    // media.resize(
+    //     config.resize_width,
+    //     config.resize_height,
+    //     config.resize_scale,
+    //     config.filter,
+    // )?;
     media.palettify(&config).await?;
 
     let duration = start_time.elapsed();

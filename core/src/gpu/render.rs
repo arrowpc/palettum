@@ -1,4 +1,5 @@
-use std::{collections::HashMap, sync::Arc};
+use super::shader_loader::preprocess;
+use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 
 use wasm_bindgen::prelude::*;
 use web_sys::{ImageBitmap, OffscreenCanvas};
@@ -695,16 +696,34 @@ impl Renderer {
                 ),
             });
 
+        let mut shaders = HashMap::new();
+        shaders.insert(
+            PathBuf::from("common.wgsl"),
+            include_str!("shaders/common.wgsl").to_string(),
+        );
+
+        shaders.insert(
+            PathBuf::from("palettized_fs.wgsl"),
+            include_str!("shaders/palettized_fs.wgsl").to_string(),
+        );
+
+        let palettized_fs_code = preprocess(&shaders, "palettized_fs.wgsl").unwrap();
+
         // palettized
         let palettized_fs = self
             .context
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("present_palettized_fs"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("shaders/palettized_fs.wgsl").into(),
-                ),
+                source: wgpu::ShaderSource::Wgsl(Cow::Owned(palettized_fs_code)),
             });
+
+        shaders.insert(
+            PathBuf::from("smoothed_fs.wgsl"),
+            include_str!("shaders/smoothed_fs.wgsl").to_string(),
+        );
+
+        let smoothed_fs_code = preprocess(&shaders, "smoothed_fs.wgsl").unwrap();
 
         // smoothed
         let smoothed_fs = self
@@ -712,9 +731,7 @@ impl Renderer {
             .device
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("present_smoothed_fs"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("shaders/smoothed_fs.wgsl").into(),
-                ),
+                source: wgpu::ShaderSource::Wgsl(Cow::Owned(smoothed_fs_code)),
             });
 
         let make = |vs: &wgpu::ShaderModule,

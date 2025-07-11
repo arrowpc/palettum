@@ -1,4 +1,5 @@
-use std::{borrow::Cow, sync::Arc};
+use super::shader_loader::preprocess;
+use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 use wgpu::util::DeviceExt;
 
 use crate::{config::Config, error::Result, palettized::Dithering, Mapping};
@@ -91,7 +92,8 @@ const WORKGROUP_SIZE_Y: u32 = 16;
 impl GpuImageProcessor {
     pub fn new(context: Arc<GpuContext>) -> Self {
         let mapping_layout = Self::create_bind_group_layout(&context.device);
-        let palettized_pipeline = Self::create_palettized_pipeline(&context.device, &mapping_layout);
+        let palettized_pipeline =
+            Self::create_palettized_pipeline(&context.device, &mapping_layout);
         let smoothed_pipeline = Self::create_smoothed_pipeline(&context.device, &mapping_layout);
 
         Self {
@@ -127,7 +129,8 @@ impl GpuImageProcessor {
             height
         };
 
-        let max_bindable_storage_buffer_size = self.context.device.limits().max_storage_buffer_binding_size;
+        let max_bindable_storage_buffer_size =
+            self.context.device.limits().max_storage_buffer_binding_size;
         let max_rows_per_chunk_based_on_binding = if bytes_per_row_for_rgba > 0 {
             (max_bindable_storage_buffer_size as u64 / bytes_per_row_for_rgba) as u32
         } else {
@@ -174,7 +177,8 @@ impl GpuImageProcessor {
                 &image_data[chunk_rgba_data_start_index..chunk_rgba_data_end_index];
 
             let rgba_chunk_buffer =
-                self.context.device
+                self.context
+                    .device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some(&format!("RGBA Image Chunk Buffer {}", chunk_index)),
                         contents: current_image_data_slice,
@@ -183,7 +187,8 @@ impl GpuImageProcessor {
 
             let gpu_chunk_config = GpuConfig::from_config(config, width, current_chunk_height);
             let config_chunk_buffer =
-                self.context.device
+                self.context
+                    .device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                         label: Some(&format!("Config Chunk Buffer {}", chunk_index)),
                         contents: bytemuck::bytes_of(&gpu_chunk_config),
@@ -200,30 +205,34 @@ impl GpuImageProcessor {
                 mapped_at_creation: false,
             });
 
-            let mut encoder = self
-                .context.device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some(&format!("Image Proc. Commands Chunk {}", chunk_index)),
-                });
+            let mut encoder =
+                self.context
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some(&format!("Image Proc. Commands Chunk {}", chunk_index)),
+                    });
 
-            let general_bind_group = self.context.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some(&format!("General Bind Group Chunk {}", chunk_index)),
-                layout: &self.mapping_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: rgba_chunk_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: config_chunk_buffer.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: result_chunk_buffer.as_entire_binding(),
-                    },
-                ],
-            });
+            let general_bind_group =
+                self.context
+                    .device
+                    .create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some(&format!("General Bind Group Chunk {}", chunk_index)),
+                        layout: &self.mapping_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: rgba_chunk_buffer.as_entire_binding(),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: config_chunk_buffer.as_entire_binding(),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: result_chunk_buffer.as_entire_binding(),
+                            },
+                        ],
+                    });
 
             match config.mapping {
                 Mapping::Palettized => {
@@ -353,11 +362,21 @@ impl GpuImageProcessor {
         device: &wgpu::Device,
         layout: &wgpu::BindGroupLayout,
     ) -> wgpu::ComputePipeline {
+        let mut shaders = HashMap::new();
+        shaders.insert(
+            PathBuf::from("common.wgsl"),
+            include_str!("shaders/common.wgsl").to_string(),
+        );
+        shaders.insert(
+            PathBuf::from("palettized.wgsl"),
+            include_str!("shaders/palettized.wgsl").to_string(),
+        );
+
+        let palettized_shader_code = preprocess(&shaders, "palettized.wgsl").unwrap();
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Palettized Mapping Shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
-                "shaders/palettized.wgsl"
-            ))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Owned(palettized_shader_code)),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -380,9 +399,21 @@ impl GpuImageProcessor {
         device: &wgpu::Device,
         layout: &wgpu::BindGroupLayout,
     ) -> wgpu::ComputePipeline {
+        let mut shaders = HashMap::new();
+        shaders.insert(
+            PathBuf::from("common.wgsl"),
+            include_str!("shaders/common.wgsl").to_string(),
+        );
+        shaders.insert(
+            PathBuf::from("smoothed.wgsl"),
+            include_str!("shaders/smoothed.wgsl").to_string(),
+        );
+
+        let smoothed_shader_code = preprocess(&shaders, "smoothed.wgsl").unwrap();
+
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Smoothed Shader"),
-            source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!("shaders/smoothed.wgsl"))),
+            source: wgpu::ShaderSource::Wgsl(Cow::Owned(smoothed_shader_code)),
         });
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -403,14 +434,17 @@ impl GpuImageProcessor {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-static GPU_IMAGE_PROCESSOR_INSTANCE: async_once_cell::OnceCell<Arc<GpuImageProcessor>> = async_once_cell::OnceCell::new();
+static GPU_IMAGE_PROCESSOR_INSTANCE: async_once_cell::OnceCell<Arc<GpuImageProcessor>> =
+    async_once_cell::OnceCell::new();
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
     static GPU_IMAGE_PROCESSOR_INSTANCE: std::cell::RefCell<Option<Arc<GpuImageProcessor>>> = std::cell::RefCell::new(None);
 }
 
-pub async fn get_gpu_image_processor(context: Arc<GpuContext>) -> Result<Option<Arc<GpuImageProcessor>>> {
+pub async fn get_gpu_image_processor(
+    context: Arc<GpuContext>,
+) -> Result<Option<Arc<GpuImageProcessor>>> {
     #[cfg(target_arch = "wasm32")]
     {
         let mut result = None;

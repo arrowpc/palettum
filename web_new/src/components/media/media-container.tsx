@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useRef, useLayoutEffect } from "react";
 import { cn, checkAlphaChannel } from "@/lib/utils";
 import InputArea from "./input-area";
 import CanvasPreview, { MEDIA_CANVAS_ID } from "./canvas-preview";
@@ -6,17 +6,19 @@ import CanvasViewer from "./canvas-viewer";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import { useRenderer } from "@/providers/renderer-provider";
 import { CircleX } from "lucide-react";
-import type { Mapping } from "palettum";
+import { type Mapping } from "palettum";
+
 import { useConfigStore, useMediaStore } from "@/store";
 import DashedBorder from "@/components/ui/dashed-border";
 
-const BORDER_RADIUS = "6vw";
-const OFFSET_FACTOR = 1 - 1 / Math.SQRT2;
-const CORNER_OFFSET = `calc(${BORDER_RADIUS} * ${OFFSET_FACTOR})`;
+const BORDER_RADIUS_SCALE = 0.15;
 
 export default function MediaContainer() {
   const [dragging, setDragging] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
+  const [borderRadius, setBorderRadius] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const setting = "mapping";
   const value = useConfigStore((state) => state.config[setting]);
   const setConfig = useConfigStore((state) => state.setConfig);
@@ -24,6 +26,18 @@ export default function MediaContainer() {
   const setFile = useMediaStore((state) => state.setFile);
   const setHasAlpha = useMediaStore((state) => state.setHasAlpha);
   const renderer = useRenderer();
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      setBorderRadius(container.offsetWidth * BORDER_RADIUS_SCALE);
+    });
+
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   const handleFile = async (file: File) => {
     setFile(file);
@@ -43,30 +57,33 @@ export default function MediaContainer() {
     dragging && "text-primary bg-primary/5",
   );
 
+  const offsetFactor = 1 - 1 / Math.SQRT2;
+  const cornerOffset = `calc(${borderRadius}px * ${offsetFactor})`;
+
   return (
-    <div className="relative w-full aspect-[16/9] group">
+    <div ref={containerRef} className="relative w-full aspect-[16/9] group">
       <div
         className={frameClass}
-        style={{ borderRadius: BORDER_RADIUS }}
+        style={{ borderRadius: `${borderRadius}px` }}
       >
-        {file ? (
-          <div className="w-full h-full border-2 border-solid border-foreground" style={{ borderRadius: BORDER_RADIUS }}>
+        <DashedBorder
+          isSolid={!!file}
+          dash={50}
+          gap={30}
+          strokeWidth={2}
+          borderRadius={borderRadius}
+          animationDuration={300}
+        >
+          {file ? (
             <CanvasPreview
               file={file}
               onCanvasClick={() => setShowViewer(true)}
-              borderRadius={BORDER_RADIUS}
+              borderRadius={`${borderRadius}px`}
             />
-          </div>
-        ) : (
-          <DashedBorder
-            dash={30}
-            gap={22}
-            strokeWidth={2}
-            borderRadius={BORDER_RADIUS}
-          >
+          ) : (
             <InputArea onFile={handleFile} onDragStateChange={setDragging} />
-          </DashedBorder>
-        )}
+          )}
+        </DashedBorder>
       </div>
 
       {file && (
@@ -76,8 +93,8 @@ export default function MediaContainer() {
             onClick={clear}
             className="absolute h-10 w-10 fill-primary cursor-pointer"
             style={{
-              top: CORNER_OFFSET,
-              right: CORNER_OFFSET,
+              top: cornerOffset,
+              right: cornerOffset,
               transform: "translate(50%, -50%)",
             }}
           />
@@ -85,7 +102,7 @@ export default function MediaContainer() {
           <ToggleSwitch
             className="absolute bottom-0 left-0 z-30"
             value={value ?? "Smoothed"}
-            onChange={(v) => setConfig(setting, v)}
+            onChange={(v) => setConfig(setting, v as Mapping)}
             options={[
               { label: "Blend", value: "Smoothed" },
               { label: "Match", value: "Palettized" },
@@ -105,4 +122,3 @@ export default function MediaContainer() {
     </div>
   );
 }
-

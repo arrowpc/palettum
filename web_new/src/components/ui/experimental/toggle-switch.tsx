@@ -1,17 +1,7 @@
 import * as React from "react";
-import {
-  animate,
-  motion,
-  useMotionValue,
-  useMotionValueEvent,
-  useSpring,
-} from "framer-motion";
+import { animate, motion, type PanInfo, useMotionValue } from "framer-motion";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
-
-/* -------------------------------------------------------------------------- */
-/*                                Interfaces                                  */
-/* -------------------------------------------------------------------------- */
 
 export interface Option {
   label: string;
@@ -22,12 +12,8 @@ export interface ToggleSwitchProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "onChange"> {
   options: Option[];
   value: string;
-  onChange: (value: string) => void;
+  onChange: (v: string) => void;
 }
-
-/* -------------------------------------------------------------------------- */
-/*                                   Style                                    */
-/* -------------------------------------------------------------------------- */
 
 const container = cva([
   "relative inline-flex select-none overflow-hidden",
@@ -35,240 +21,201 @@ const container = cva([
 ]);
 
 const labelBase =
-  "relative z-10 flex-shrink-0 px-5 py-2 text-center " +
+  "relative z-10 flex-shrink-0 origin-center px-5 py-2 text-center " +
   "text-base font-medium uppercase tracking-wide " +
-  "transition-[color,transform] duration-150 ease-out";
+  "pointer-events-none";
 
 const thumbShadow = "shadow-[0_6px_20px_theme(colors.primary/0.35)]";
 
-const SPRING = { stiffness: 1000, damping: 45, mass: 0.3 };
+const SPRING = {
+  type: "spring" as const,
+  stiffness: 550,
+  damping: 46,
+  mass: 0.35,
+};
 
-/* -------------------------------------------------------------------------- */
-/*                                Component                                   */
-/* -------------------------------------------------------------------------- */
-
+const PRESS_SCALE = 0.88;
+const MUTED_OPACITY = 0.65;
 export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
-  (props, ref) => {
+  (props, forwardRef) => {
     const { options, value, onChange, className, ...rest } = props;
 
-    /* ---------------------------- layout vars -------------------------------- */
-
-    const wrapperRef = React.useRef<HTMLDivElement | null>(null);
+    const wrapperRef = React.useRef<HTMLDivElement>(null);
     const labelRefs = React.useRef<(HTMLDivElement | null)[]>([]);
-    const [widths, setWidths] = React.useState<number[]>([]);
-    const [offsets, setOffsets] = React.useState<number[]>([]);
+
+    const [segments, setSegments] = React.useState<
+      { offset: number; width: number }[]
+    >([]);
+
+    const [hoveredLabelIndex, setHoveredLabelIndex] = React.useState<
+      number | null
+    >(null);
 
     const measure = React.useCallback(() => {
-      const w = labelRefs.current.map((el) =>
-        el ? el.getBoundingClientRect().width : 0,
+      setSegments(
+        labelRefs.current.map((el) =>
+          el
+            ? { offset: el.offsetLeft, width: el.offsetWidth }
+            : { offset: 0, width: 0 },
+        ),
       );
-      const o: number[] = [];
-      w.reduce((acc, cur, i) => {
-        o[i] = acc;
-        return acc + cur;
-      }, 0);
-      setWidths(w);
-      setOffsets(o);
     }, []);
 
     React.useLayoutEffect(() => {
       measure();
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
+      const ro = new ResizeObserver(measure);
+      if (wrapperRef.current) ro.observe(wrapperRef.current);
+      labelRefs.current.forEach((el) => el && ro.observe(el));
+
+      return () => ro.disconnect();
     }, [measure, options.length]);
 
-    /* ------------------------------ motion ----------------------------------- */
-
-    const x = useMotionValue(0); // raw x
-    const xSpring = useSpring(x, SPRING);
-
-    const w = useMotionValue(0); // raw width
-    const wSpring = useSpring(w, SPRING);
-
-    const scale = useMotionValue(1);
-
-    const ctrlX = React.useRef<ReturnType<typeof animate> | null>(null);
-    const ctrlW = React.useRef<ReturnType<typeof animate> | null>(null);
-
-    /* ------------------------------- helpers --------------------------------- */
-
-    const idxByValue = React.useCallback(
-      (val: string) => options.findIndex((o) => o.value === val),
-      [options],
-    );
-    const clampIdx = React.useCallback(
-      (i: number) => Math.max(0, Math.min(i, options.length - 1)),
-      [options.length],
+    const activeIdx = React.useMemo(
+      () => options.findIndex((o) => o.value === value),
+      [options, value],
     );
 
-    const activeIdx = idxByValue(value);
-
-    /* ---------------------------- derived index ------------------------------ */
-
-    const nearestIdxFromX = React.useCallback(
-      (pos: number) => {
-        if (!offsets.length) return 0;
-        // find label whose centre is closest
-        const centres = offsets.map((off, i) => off + widths[i] / 2);
-        const nearest = centres.reduce(
+    const nearestIdx = React.useCallback(
+      (x: number) => {
+        if (!segments.length) return 0;
+        const centres = segments.map((s) => s.offset + s.width / 2);
+        return centres.reduce(
           (best, c, i) =>
-            Math.abs(c - (pos + widths[activeIdx] / 2)) <
-            Math.abs(centres[best] - (pos + widths[activeIdx] / 2))
-              ? i
-              : best,
+            Math.abs(c - x) < Math.abs(centres[best] - x) ? i : best,
           0,
         );
-        return nearest;
       },
-      [offsets, widths, activeIdx],
+      [segments],
     );
 
-    const [hintIdx, setHintIdx] = React.useState(activeIdx);
-
-    useMotionValueEvent(xSpring, "change", (latest) => {
-      setHintIdx(nearestIdxFromX(latest));
-    });
-
-    /* ----------------------- external value sync ----------------------------- */
+    const mvX = useMotionValue(0);
+    const mvW = useMotionValue(0);
 
     React.useEffect(() => {
-      if (!offsets.length) return;
-      ctrlX.current?.stop();
-      ctrlW.current?.stop();
+      if (!segments.length) return;
+      animate(mvX, segments[activeIdx].offset, SPRING as any);
+      animate(mvW, segments[activeIdx].width, SPRING as any);
+    }, [segments, activeIdx, mvX, mvW]);
 
-      ctrlX.current = animate(x, offsets[activeIdx], {
-        type: "spring",
-        ...SPRING,
-      });
-      ctrlW.current = animate(w, widths[activeIdx], {
-        type: "spring",
-        ...SPRING,
-      });
-    }, [activeIdx, offsets, widths, x, w]);
+    const constraints = React.useMemo(() => {
+      if (!segments.length) return { left: 0, right: 0 };
+      return {
+        left: segments[0].offset,
+        right: segments[segments.length - 1].offset,
+      };
+    }, [segments]);
 
-    /* ----------------------------- dragging ---------------------------------- */
+    const handleDrag = React.useCallback(
+      (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+        if (!wrapperRef.current) return;
+        const left = wrapperRef.current.getBoundingClientRect().left;
+        const currentHoveredIdx = nearestIdx(info.point.x - left);
+        if (currentHoveredIdx !== hoveredLabelIndex) {
+          setHoveredLabelIndex(currentHoveredIdx);
+        }
+      },
+      [nearestIdx, hoveredLabelIndex],
+    );
 
-    const dragging = React.useRef(false);
-    const moved = React.useRef(false);
-    const start = React.useRef({ px: 0, ox: 0 });
+    const handleDragEnd = React.useCallback(
+      (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+        if (!wrapperRef.current) return;
+        const left = wrapperRef.current.getBoundingClientRect().left;
+        const idx = nearestIdx(info.point.x - left);
 
-    const pressIn = () => {
-      animate(scale, 0.88, { duration: 0.15 });
-    };
-    const pressOut = () => {
-      animate(scale, 1, { duration: 0.15 });
-    };
+        animate(mvX, segments[idx].offset, SPRING as any);
+        animate(mvW, segments[idx].width, SPRING as any);
 
-    const onPointerDown: React.PointerEventHandler<HTMLDivElement> = (e) => {
-      if (!wrapperRef.current) return;
-      wrapperRef.current.setPointerCapture(e.pointerId);
-      dragging.current = true;
-      moved.current = false;
-      start.current = { px: e.clientX, ox: x.get() };
-      ctrlX.current?.stop();
-      ctrlW.current?.stop();
-      pressIn();
-    };
+        setHoveredLabelIndex(null);
 
-    const onPointerMove: React.PointerEventHandler<HTMLDivElement> = (e) => {
-      if (!dragging.current) return;
-      const delta = e.clientX - start.current.px;
-      if (Math.abs(delta) > 2) moved.current = true;
+        if (options[idx].value !== value) onChange(options[idx].value);
+      },
+      [nearestIdx, segments, mvX, mvW, options, value, onChange],
+    );
 
-      const nextX = start.current.ox + delta;
-      const minX = -32;
-      const maxX = offsets[offsets.length - 1] + 32;
-      x.set(Math.max(minX, Math.min(maxX, nextX)));
+    const handleTap = React.useCallback(
+      (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+        if (!wrapperRef.current) return;
+        const left = wrapperRef.current.getBoundingClientRect().left;
+        const idx = nearestIdx(info.point.x - left);
 
-      // squish proportional to overshoot
-      const overshoot = Math.max(-nextX, nextX - offsets[offsets.length - 1]);
-      scale.set(1 - Math.min(Math.abs(overshoot) / 32, 0.3));
-    };
+        animate(mvX, segments[idx].offset, SPRING as any);
+        animate(mvW, segments[idx].width, SPRING as any);
 
-    const onPointerUp: React.PointerEventHandler<HTMLDivElement> = (e) => {
-      if (!dragging.current) return;
-      dragging.current = false;
-      pressOut();
-      wrapperRef.current?.releasePointerCapture(e.pointerId);
+        if (options[idx].value !== value) onChange(options[idx].value);
+      },
+      [nearestIdx, segments, mvX, mvW, options, value, onChange],
+    );
 
-      let idx: number;
-
-      if (!moved.current) {
-        // treat as click – figure out which segment was clicked
-        const rect = wrapperRef.current!.getBoundingClientRect();
-        const clickX = e.clientX - rect.left;
-        idx = clampIdx(offsets.findIndex((off, i) => clickX < off + widths[i]));
-      } else {
-        idx = hintIdx;
-      }
-
-      ctrlX.current = animate(x, offsets[idx], { type: "spring", ...SPRING });
-      ctrlW.current = animate(w, widths[idx], { type: "spring", ...SPRING });
-
-      if (options[idx].value !== value) onChange(options[idx].value);
-    };
-
-    /* ---------------------------- keyboard nav ------------------------------- */
-
-    const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
-      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
       e.preventDefault();
       const dir = e.key === "ArrowRight" ? 1 : -1;
-      onChange(options[clampIdx(activeIdx + dir)].value);
+      const next = Math.max(0, Math.min(activeIdx + dir, options.length - 1));
+      onChange(options[next].value);
     };
-
-    /* ------------------------------ render ----------------------------------- */
 
     return (
       <div
         {...rest}
         ref={(node) => {
           wrapperRef.current = node;
-          if (typeof ref === "function") ref(node);
-          else if (ref)
-            (ref as React.MutableRefObject<HTMLDivElement | null>).current =
-              node;
+          if (typeof forwardRef === "function") forwardRef(node);
+          else if (forwardRef) {
+            (forwardRef as React.RefObject<HTMLDivElement>).current = node;
+          }
         }}
         role="radiogroup"
         tabIndex={0}
-        onKeyDown={onKeyDown}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
+        onKeyDown={handleKeyDown}
         className={cn(container(), className)}
       >
-        {/* Thumb ---------------------------------------------------------------- */}
         <motion.div
           aria-hidden
           className={cn(
             "absolute top-0 h-full rounded-md bg-primary",
             thumbShadow,
+            "z-1",
           )}
-          style={{
-            x: xSpring,
-            width: wSpring,
-            scaleX: scale,
-            transformOrigin: "center",
-            willChange: "transform",
-          }}
+          style={{ x: mvX, width: mvW }}
+          drag="x"
+          dragConstraints={constraints}
+          dragElastic={0.2}
+          dragMomentum={false}
+          whileTap={{ scale: PRESS_SCALE }}
+          whileDrag={{ scale: PRESS_SCALE }}
+          onDrag={handleDrag}
+          onDragEnd={handleDragEnd}
+          onTap={handleTap}
         />
 
-        {/* Labels --------------------------------------------------------------- */}
         {options.map((o, i) => (
-          <div
+          <motion.div
             key={o.value}
-            ref={(el) => (labelRefs.current[i] = el)}
+            ref={(el) => {
+              labelRefs.current[i] = el;
+            }}
             role="radio"
             aria-checked={o.value === value}
             className={cn(labelBase, {
               "text-primary-foreground": i === activeIdx,
-              "text-muted-foreground": i !== activeIdx && i !== hintIdx,
-              "text-foreground/80": i === hintIdx && i !== activeIdx,
-              "scale-105": i === hintIdx,
+              "text-muted-foreground": i !== activeIdx,
             })}
+            initial={false}
+            animate={{
+              scale: i === hoveredLabelIndex ? 1.15 : 1,
+              opacity:
+                i === activeIdx || i === hoveredLabelIndex ? 1 : MUTED_OPACITY,
+            }}
+            transition={{
+              type: "spring",
+              stiffness: 400,
+              damping: 30,
+              mass: 0.8,
+            }}
           >
             {o.label}
-          </div>
+          </motion.div>
         ))}
       </div>
     );

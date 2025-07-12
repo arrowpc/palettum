@@ -1,5 +1,5 @@
 import { expose, proxy } from "comlink";
-import { getRenderer, disposeRenderer } from "./core/renderer";
+import { getRenderer } from "./core/renderer";
 import { createMediaHandlerForFile } from "./media";
 import type { Config } from "palettum";
 
@@ -79,7 +79,7 @@ const api = {
     if (!mediaHandler) {
       throw new Error("No media handler loaded to export");
     }
-    
+
     const proxiedOnProgress = onProgress ? proxy(onProgress) : undefined;
     return mediaHandler.export(config, proxiedOnProgress);
   },

@@ -1,12 +1,10 @@
 use image::EncodableLayout;
-use once_cell::sync::Lazy;
 use palettum::{
     error::Result,
-    gpu::{self},
     media::{load_media_from_memory, Gif as CoreGif},
-    Config, Filter, Media, Palette,
+    Config, Filter, Palette,
 };
-use std::{result::Result as StdResult, sync::Mutex};
+use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::Clamped;
 use wasm_bindgen_futures::js_sys::Uint8Array;

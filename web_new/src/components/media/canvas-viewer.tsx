@@ -22,7 +22,7 @@ import {
   DialogDescription,
   DialogOverlay,
 } from "@/components/ui/dialog";
-import { useRenderer } from "@/renderer-provider";
+import { useRenderer } from "@/providers/renderer-provider";
 import { transfer } from "comlink";
 
 function useContinuousTap(

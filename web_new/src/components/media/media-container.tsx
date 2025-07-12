@@ -4,7 +4,7 @@ import InputArea from "./input-area";
 import CanvasPreview, { MEDIA_CANVAS_ID } from "./canvas-preview";
 import CanvasViewer from "./canvas-viewer";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
-import { useRenderer } from "@/renderer-provider";
+import { useRenderer } from "@/providers/renderer-provider";
 import { CircleX } from "lucide-react";
 import type { Mapping } from "palettum";
 import { useConfigStore, useMediaStore } from "@/store";

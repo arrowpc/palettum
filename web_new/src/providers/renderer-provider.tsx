@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { wrap, type Remote } from "comlink";
-import { type RendererAPI, type MediaInfo } from "./workers/render";
+import { type RendererAPI, type MediaInfo } from "@/workers/render";
 
 type API = Remote<RendererAPI>;
 
@@ -18,7 +18,7 @@ export function RendererProvider({ children }: PropsWithChildren) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const worker = new Worker(new URL("./workers/render.ts", import.meta.url), {
+    const worker = new Worker(new URL("@/workers/render.ts", import.meta.url), {
       type: "module",
     });
     apiRef.current = wrap<RendererAPI>(worker);

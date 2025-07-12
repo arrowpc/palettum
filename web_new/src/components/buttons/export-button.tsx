@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useConfigStore } from "@/store";
-import { useRenderer } from "@/renderer-provider";
-import { Button } from "./ui/button";
+import { useRenderer } from "@/providers/renderer-provider";
+import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
-import { CircularProgress } from "./ui/experimental/circular-progress";
+import { CircularProgress } from "@/components/ui/experimental/circular-progress";
 import { proxy } from "comlink";
 
 type ExportState = "idle" | "loading" | "progress";

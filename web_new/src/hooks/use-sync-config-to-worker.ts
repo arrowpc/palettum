@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useConfigStore } from "@/store";
-import { useRenderer } from "@/renderer-provider";
+import { useRenderer } from "@/providers/renderer-provider";
 
 export function useSyncConfigToWorker() {
   const config = useConfigStore((state) => state.config);

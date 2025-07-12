@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { transfer } from "comlink";
-import { useRenderer } from "@/renderer-provider";
+import { useRenderer } from "@/providers/renderer-provider";
 import { Maximize, Play, Pause } from "lucide-react";
 import { type MediaInfo } from "@/workers/render";
 

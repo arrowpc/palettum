@@ -134,10 +134,10 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
     );
 
     const handleTap = React.useCallback(
-      (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
+      (e: React.MouseEvent<HTMLDivElement>) => {
         if (!wrapperRef.current) return;
         const left = wrapperRef.current.getBoundingClientRect().left;
-        const idx = nearestIdx(info.point.x - left);
+        const idx = nearestIdx(e.clientX - left);
 
         animate(mvX, segments[idx].offset, SPRING as any);
         animate(mvW, segments[idx].width, SPRING as any);
@@ -168,7 +168,8 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
         role="radiogroup"
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        className={cn(container(), className)}
+        className={cn(container(), "cursor-pointer", className)}
+        onClick={handleTap}
       >
         <motion.div
           aria-hidden
@@ -186,7 +187,6 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
           whileDrag={{ scale: PRESS_SCALE }}
           onDrag={handleDrag}
           onDragEnd={handleDragEnd}
-          onTap={handleTap}
         />
 
         {options.map((o, i) => (

@@ -19,10 +19,13 @@ function App() {
   return (
     <>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
-        <main className="max-w-2xl mx-auto min-h-screen flex flex-col gap-8">
-          <div className="flex justify-between w-full items-center">
+        <main className="max-w-2xl mx-auto min-h-screen flex flex-col gap-8 my-8">
+          <h1 className="text-3xl text-center">Palettum</h1>
+          <div className="flex justify-between w-full items-center gap-8">
             <GitHubButton />
-            <h1>Palettum</h1>
+            <p className="text-center text-sm text-muted-foreground">
+              Instantly style and recolor images, GIFs, and videos with your custom palette
+            </p>
             <ThemeToggle />
           </div>
           <MediaContainer />

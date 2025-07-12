@@ -40,7 +40,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  --text-scale: 0.5;
+  --text-scale: 0.75;
   --text-xs: calc(0.75rem * var(--text-scale));
   --text-sm: calc(0.875rem * var(--text-scale));
   --text-base: calc(1rem * var(--text-scale));
@@ -132,6 +132,7 @@
   body {
     @apply bg-background text-foreground;
     font-family: "8-bit HUD", sans-serif;
+    font-size: 0.75rem;
   }
   button {
     @apply cursor-pointer;

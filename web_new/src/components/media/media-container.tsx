@@ -91,7 +91,7 @@ export default function MediaContainer() {
           <CircleX
             aria-label="Clear media"
             onClick={clear}
-            className="absolute h-10 w-10 fill-primary cursor-pointer"
+            className="absolute h-10 w-10 fill-primary cursor-pointer hover:opacity-80 transition-opacity"
             style={{
               top: cornerOffset,
               right: cornerOffset,

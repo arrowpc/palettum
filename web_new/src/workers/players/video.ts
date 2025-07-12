@@ -139,7 +139,7 @@ export class VideoPlayer implements Player {
         while (!this.disposed) {
           // Implement back-pressure: pause demuxing if frameQueue is too full
           while (this.frameQueue.size() > 30 && !this.disposed) {
-            await new Promise(resolve => setTimeout(resolve, 100)); // Wait a bit
+            await new Promise((resolve) => setTimeout(resolve, 100)); // Wait a bit
           }
 
           const [res, packets] = await this.libav.ff_read_frame_multi(
@@ -158,7 +158,17 @@ export class VideoPlayer implements Player {
           if (res === this.libav.AVERROR_EOF) {
             if (LOOP) {
               // Seek back to the beginning for looping
-              await this.libav.avformat_seek_file(this.ifc, -1, 0, 0, 0, 0, 0, 0, this.libav.AVSEEK_FLAG_ANY);
+              await this.libav.avformat_seek_file(
+                this.ifc,
+                -1,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                this.libav.AVSEEK_FLAG_ANY,
+              );
               // Clear decoder's internal state after seeking
               this.decoder.reset();
               this.decoder.configure(this.vConfig!);
@@ -272,6 +282,8 @@ export class VideoPlayer implements Player {
     if (!this.libav || !this.bridge) {
       throw new Error("LibAV not initialized for export.");
     }
+
+    this.pause();
 
     const tempLibav = this.libav;
     const bridge = this.bridge;
@@ -584,6 +596,8 @@ export class VideoPlayer implements Player {
     const output = await tempLibav.readFile("output.mkv");
 
     onProgress?.(100, "Done!");
+
+    this.play();
     return new Blob([output.buffer], { type: "video/x-matroska" });
   }
 }

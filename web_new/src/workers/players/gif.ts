@@ -93,11 +93,15 @@ export class GifPlayer implements Player {
       throw new Error("GIF not initialized");
     }
 
+    this.pause();
+
     onProgress?.(0, "palettifying...");
     await this.gif.palettify(config);
 
     onProgress?.(100, "");
     const palettizedBytes = this.gif.to_bytes();
+
+    this.play();
 
     return new Blob([palettizedBytes], { type: "image/gif" });
   }

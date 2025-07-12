@@ -61,37 +61,38 @@ export default function MediaContainer() {
   const cornerOffset = `calc(${borderRadius}px * ${offsetFactor})`;
 
   return (
-    <div ref={containerRef} className="relative w-full aspect-[16/9] group">
+    <div ref={containerRef} className="relative w-full aspect-[16/9] group overflow-hidden">
       <div
         className={frameClass}
         style={{ borderRadius: `${borderRadius}px` }}
       >
-        <DashedBorder
-          isSolid={!!file}
-          dash={50}
-          gap={30}
-          strokeWidth={2}
-          borderRadius={borderRadius}
-          animationDuration={300}
-        >
-          {file ? (
-            <CanvasPreview
-              file={file}
-              onCanvasClick={() => setShowViewer(true)}
-              borderRadius={`${borderRadius}px`}
-            />
-          ) : (
-            <InputArea onFile={handleFile} onDragStateChange={setDragging} />
-          )}
-        </DashedBorder>
+        {file ? (
+          <CanvasPreview
+            file={file}
+            onCanvasClick={() => setShowViewer(true)}
+            borderRadius={`${borderRadius}px`}
+            className="pointer-events-auto"
+          />
+        ) : (
+          <InputArea onFile={handleFile} onDragStateChange={setDragging} />
+        )}
       </div>
+      <DashedBorder
+        isSolid={!!file}
+        dash={50}
+        gap={30}
+        strokeWidth={2}
+        borderRadius={borderRadius}
+        animationDuration={300}
+        className="absolute inset-0 z-10 pointer-events-none"
+      />
 
       {file && (
         <>
           <CircleX
             aria-label="Clear media"
             onClick={clear}
-            className="absolute h-10 w-10 fill-primary cursor-pointer hover:opacity-80 transition-opacity"
+            className="absolute h-10 w-10 fill-primary cursor-pointer hover:opacity-80 transition-opacity z-20"
             style={{
               top: cornerOffset,
               right: cornerOffset,

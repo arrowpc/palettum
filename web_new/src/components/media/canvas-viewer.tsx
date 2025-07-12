@@ -160,7 +160,7 @@ Toolbar.displayName = "Toolbar";
 const StableDialogContent = memo(
   ({ children }: { children: React.ReactNode }) => {
     return (
-      <DialogContent className="max-w-5xl w-full p-0 overflow-hidden border-none shadow-2xl">
+      <DialogContent className="w-full p-0 overflow-hidden border-none shadow-2xl">
         {children}
       </DialogContent>
     );
@@ -176,6 +176,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
   const [zoomLimits, setZoomLimits] = useState({ min: 0.1, max: 10 });
   const [touchDistance, setTouchDistance] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const displayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -188,27 +189,15 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
   const ZOOM_STEP = 1.2;
   const TARGET_MAX_PIXEL_SIZE = 256;
 
-  const CANVAS_WIDTH = 1920;
-  const CANVAS_HEIGHT = 1080;
-
   const VIEWER_CANVAS_ID = "viewer";
 
-  const getCanvasDimensions = useCallback(() => {
-    if (displayCanvasRef.current) {
-      return {
-        width: displayCanvasRef.current.width,
-        height: displayCanvasRef.current.height,
-      };
-    }
-    return { width: CANVAS_WIDTH, height: CANVAS_HEIGHT };
-  }, []);
-
   const calculateZoomLimits = useCallback(() => {
-    if (!viewportRef.current) return { min: 0.1, max: 10 };
+    if (!viewportRef.current || !canvasSize.width || !canvasSize.height)
+      return { min: 0.1, max: 10 };
     const pixelOneToOne = window.devicePixelRatio || 1;
     const MIN_CANVAS_DISPLAY_SIZE = 200;
     const { width: currentCanvasWidth, height: currentCanvasHeight } =
-      getCanvasDimensions();
+      canvasSize;
 
     if (currentCanvasWidth === 0 || currentCanvasHeight === 0)
       return { min: 0.1, max: 10 };
@@ -218,13 +207,14 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
     const minZoom = Math.max(0.01, Math.max(minWidthZoom, minHeightZoom));
     const maxZoom = pixelOneToOne * TARGET_MAX_PIXEL_SIZE;
     return { min: Math.min(minZoom, 1), max: Math.max(maxZoom, 1.1) };
-  }, [getCanvasDimensions]);
+  }, [canvasSize]);
 
   const calculateBoundaries = useCallback(() => {
-    if (!viewportRef.current) return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
+    if (!viewportRef.current || !canvasSize.width || !canvasSize.height)
+      return { minX: 0, maxX: 0, minY: 0, maxY: 0 };
     const viewport = viewportRef.current;
     const { width: currentCanvasWidth, height: currentCanvasHeight } =
-      getCanvasDimensions();
+      canvasSize;
     const scaledWidth = currentCanvasWidth * zoomLevel;
     const scaledHeight = currentCanvasHeight * zoomLevel;
     const horizontalOverflow = Math.max(
@@ -241,13 +231,14 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
       minY: -verticalOverflow,
       maxY: verticalOverflow,
     };
-  }, [zoomLevel, getCanvasDimensions]);
+  }, [zoomLevel, canvasSize]);
 
   const calculateFitToViewZoom = useCallback(() => {
-    if (!viewportRef.current) return 1;
+    if (!viewportRef.current || !canvasSize.width || !canvasSize.height)
+      return 1;
     const viewport = viewportRef.current;
     const { width: currentCanvasWidth, height: currentCanvasHeight } =
-      getCanvasDimensions();
+      canvasSize;
 
     if (currentCanvasWidth === 0 || currentCanvasHeight === 0) return 1;
 
@@ -256,7 +247,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
     const widthRatio = viewportWidth / currentCanvasWidth;
     const heightRatio = viewportHeight / currentCanvasHeight;
     return Math.min(widthRatio, heightRatio) * 0.95;
-  }, [getCanvasDimensions]);
+  }, [canvasSize]);
 
   const isDefaultView = useMemo(() => {
     const zoomDiff = Math.abs(zoomLevel - defaultZoomRef.current) < 0.001;
@@ -282,7 +273,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
   }, [calculateBoundaries]);
 
   useEffect(() => {
-    const initializeCanvasAndRenderer = () => {
+    const initializeCanvasAndRenderer = async () => {
       const displayEl = displayCanvasRef.current;
       const viewportEl = viewportRef.current;
 
@@ -291,34 +282,49 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
         return;
       }
 
-      displayEl.width = CANVAS_WIDTH;
-      displayEl.height = CANVAS_HEIGHT;
+      try {
+        const mediaInfo = await renderer.getMediaInfo();
+        const width = mediaInfo?.width || 1920;
+        const height = mediaInfo?.height || 1080;
+        setCanvasSize({ width, height });
 
-      const offscreenCanvas = displayEl.transferControlToOffscreen();
-      offscreenCanvas.width = CANVAS_WIDTH;
-      offscreenCanvas.height = CANVAS_HEIGHT;
+        displayEl.width = width;
+        displayEl.height = height;
 
-      renderer.registerCanvas(
-        VIEWER_CANVAS_ID,
-        transfer(offscreenCanvas, [offscreenCanvas]),
-      );
+        const offscreenCanvas = displayEl.transferControlToOffscreen();
+        offscreenCanvas.width = width;
+        offscreenCanvas.height = height;
 
+        await renderer.registerCanvas(
+          VIEWER_CANVAS_ID,
+          transfer(offscreenCanvas, [offscreenCanvas]),
+        );
+
+        setCanvasReady(true);
+      } catch (error) {
+        console.error("Failed to initialize canvas or renderer:", error);
+        setCanvasReady(false);
+      }
+    };
+
+    const frameId = requestAnimationFrame(initializeCanvasAndRenderer);
+
+    return () => {
+      cancelAnimationFrame(frameId);
+      renderer.disposeCanvas(VIEWER_CANVAS_ID);
+    };
+  }, [renderer]);
+
+  useEffect(() => {
+    if (canvasReady) {
       const newLimits = calculateZoomLimits();
       setZoomLimits(newLimits);
       const fitZoom = calculateFitToViewZoom();
       defaultZoomRef.current = fitZoom;
       setZoomLevel(fitZoom);
       setPosition({ x: 0, y: 0 });
-      setCanvasReady(true);
-    };
-
-    const frameId = requestAnimationFrame(initializeCanvasAndRenderer);
-    return () => {
-      cancelAnimationFrame(frameId);
-      // renderer.useCanvas(MEDIA_CANVAS_ID); // Switch back to the main media canvas
-      renderer.disposeCanvas(VIEWER_CANVAS_ID); // Clean up the viewer canvas in the worker
-    };
-  }, [renderer, calculateFitToViewZoom, calculateZoomLimits]);
+    }
+  }, [canvasReady, calculateFitToViewZoom, calculateZoomLimits]);
 
   useEffect(() => {
     if (canvasReady) {
@@ -540,26 +546,23 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
     };
   }, []);
 
-  const CanvasDisplay = useMemo(
-    () => (
-      <div className="absolute inset-0 flex items-center justify-center">
-        <canvas
-          ref={displayCanvasRef}
-          className="max-w-none pointer-events-none select-none"
-          style={{
-            transform: `translate(${position.x}px, ${position.y}px) scale(${zoomLevel})`,
-            transition: isDragging
-              ? "none"
-              : "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-            transformOrigin: "center",
-            willChange: "transform",
-            opacity: canvasReady ? 1 : 0,
-            imageRendering: zoomLevel > 3 ? "pixelated" : "auto",
-          }}
-        />
-      </div>
-    ),
-    [position.x, position.y, zoomLevel, isDragging, canvasReady],
+  const CanvasDisplay = (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <canvas
+        ref={displayCanvasRef}
+        className="max-w-none pointer-events-none select-none"
+        style={{
+          transform: `translate(${position.x}px, ${position.y}px) scale(${zoomLevel})`,
+          transition: isDragging
+            ? "none"
+            : "transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+          transformOrigin: "center",
+          willChange: "transform",
+          opacity: canvasReady ? 1 : 0,
+          imageRendering: zoomLevel > 3 ? "pixelated" : "auto",
+        }}
+      />
+    </div>
   );
 
   const containerStyle = useMemo(
@@ -573,42 +576,27 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
     [],
   );
 
-  const ViewportContent = useMemo(
-    () => (
-      <div
-        ref={viewportRef}
-        className={cn(
-          "w-full overflow-hidden relative",
-          isDragging ? "cursor-grabbing" : "cursor-grab",
-        )}
-        style={containerStyle}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onWheel={handleWheel}
-        onClick={handleTap}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
-      >
-        {CanvasDisplay}
-      </div>
-    ),
-    [
-      isDragging,
-      containerStyle,
-      handleMouseDown,
-      handleMouseMove,
-      handleMouseUp,
-      handleWheel,
-      handleTap,
-      handleTouchStart,
-      handleTouchMove,
-      handleTouchEnd,
-      CanvasDisplay,
-    ],
+  const ViewportContent = (
+    <div
+      ref={viewportRef}
+      className={cn(
+        "w-full overflow-hidden relative",
+        isDragging ? "cursor-grabbing" : "cursor-grab",
+      )}
+      style={containerStyle}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onWheel={handleWheel}
+      onClick={handleTap}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+    >
+      {CanvasDisplay}
+    </div>
   );
 
   const toolbarProps = useMemo(

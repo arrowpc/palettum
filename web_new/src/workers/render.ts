@@ -43,7 +43,7 @@ const api = {
     renderer.set_config(cfg);
   },
 
-  async load(file: Blob) {
+  async load(file: File) {
     if (mediaHandler) await mediaHandler.dispose();
     mediaHandler = await createMediaHandlerForFile(file);
     await mediaHandler.init();
@@ -52,10 +52,23 @@ const api = {
       canPlay: typeof mediaHandler.play === "function",
       canPause: typeof mediaHandler.pause === "function",
       canSeek: typeof mediaHandler.seek === "function",
-      // Add other media-specific info here if needed, e.g., duration, dimensions
-      // For now, we'll just include the capabilities.
+      width: mediaHandler.width,
+      height: mediaHandler.height,
     };
     return mediaInfo;
+  },
+
+  async getMediaInfo(): Promise<MediaInfo | null> {
+    if (!mediaHandler) {
+      return null;
+    }
+    return {
+      canPlay: typeof mediaHandler.play === "function",
+      canPause: typeof mediaHandler.pause === "function",
+      canSeek: typeof mediaHandler.seek === "function",
+      width: mediaHandler.width,
+      height: mediaHandler.height,
+    };
   },
 
   play() {
@@ -89,11 +102,13 @@ export interface MediaInfo {
   canPlay: boolean;
   canPause: boolean;
   canSeek: boolean;
+  width: number;
+  height: number;
 }
 
 export type RendererAPI = Omit<typeof api, "export" | "load"> & {
   export: (config: Config, onProgress?: (progress: number, message: string) => void) => Promise<Blob>;
-  load: (file: Blob) => Promise<MediaInfo>;
+  load: (file: File) => Promise<MediaInfo>;
 };
 
 expose(api);

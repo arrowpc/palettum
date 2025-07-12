@@ -5,14 +5,19 @@ import type { Config } from "palettum";
 export class ImageHandler {
   private disposed = false;
   private file: Blob;
+  public width = 0;
+  public height = 0;
 
-  constructor(file: Blob) {
-    this.file= file;
+  constructor(file: File) {
+    this.file = file;
   }
 
   async init() {
     const r = await getRenderer();
-    r.draw(await createImageBitmap(this.file));
+    const bmp = await createImageBitmap(this.file);
+    this.width = bmp.width;
+    this.height = bmp.height;
+    r.draw(bmp);
   }
 
   

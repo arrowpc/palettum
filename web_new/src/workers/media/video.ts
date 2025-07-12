@@ -92,8 +92,10 @@ export class VideoHandler {
   private libav: LibAVInstance | null = null;
   private bridge: typeof LibAVWebCodecsBridge | null = null;
   private file: Blob;
+  public width = 0;
+  public height = 0;
 
-  constructor(file: Blob) {
+  constructor(file: File) {
     this.file = file;
   }
 
@@ -113,6 +115,8 @@ export class VideoHandler {
     const vConfig = await bridge.videoStreamToConfig(libav, vStream);
     if (!vConfig) return;
     this.vConfig = vConfig as VideoDecoderConfig;
+    this.width = this.vConfig.codedWidth || 0;
+    this.height = this.vConfig.codedHeight || 0;
     if (
       !(await VideoDecoder.isConfigSupported(vConfig as VideoDecoderConfig))
         .supported

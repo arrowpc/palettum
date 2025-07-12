@@ -10,6 +10,8 @@ export class GifHandler {
   private playing = true;
   private loopHandle: number | undefined;
   private file: File;
+  public width = 0;
+  public height = 0;
 
   constructor(file: File) {
     this.file = file;
@@ -19,6 +21,8 @@ export class GifHandler {
     const { Gif } = await import("palettum");
     const buffer = await this.file.arrayBuffer();
     this.gif = new Gif(new Uint8Array(buffer));
+    this.width = this.gif.width;
+    this.height = this.gif.height;
     await this.reinitializeFrames();
     this.loop();
   }

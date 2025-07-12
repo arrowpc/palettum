@@ -1,6 +1,7 @@
 import MediaContainer from "@/components/media/media-container";
 import { useSyncConfigToWorker } from "@/hooks/use-sync-config-to-worker";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { GitHubButton } from "@/components/buttons/github-button";
 import { ThemeToggle } from "@/components/buttons/theme-toggle";
 import PaletteManager from "@/components/palette/palette-manager";
 import SettingsPanel from "@/components/settings/settings-panel";
@@ -19,7 +20,11 @@ function App() {
     <>
       <ThemeProvider defaultTheme="dark" storageKey="vite-ui-theme">
         <main className="max-w-2xl mx-auto min-h-screen flex flex-col gap-8">
-          <ThemeToggle />
+          <div className="flex justify-between w-full items-center">
+            <GitHubButton />
+            <h1>Palettum</h1>
+            <ThemeToggle />
+          </div>
           <MediaContainer />
           <PaletteManager />
           {file && (

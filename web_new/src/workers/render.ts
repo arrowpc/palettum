@@ -21,7 +21,7 @@ async function applyCanvas(id: CanvasId) {
 const api = {
   async init() {
     const renderer = await getRenderer();
-    renderer.set_draw_mode("aspect-fill");
+    renderer.set_draw_mode("aspect-fit");
   },
 
   async registerCanvas(id: CanvasId, canvas?: OffscreenCanvas) {

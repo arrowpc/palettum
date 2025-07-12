@@ -71,7 +71,7 @@ export default function InputArea({ onFile, onDragStateChange }: Props) {
           <Separator className="flex-1" />
         </div>
         <Button
-          className=" py-6 cursor-pointer"
+          className="py-3 cursor-pointer"
           onClick={() => picker.current?.click()}
         >
           Choose Media

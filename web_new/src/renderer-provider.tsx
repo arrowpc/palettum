@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 import { wrap, type Remote } from "comlink";
-import type { RendererAPI } from "./workers/render";
+import { type RendererAPI, type MediaInfo } from "./workers/render";
 
 type API = Remote<RendererAPI>;
 

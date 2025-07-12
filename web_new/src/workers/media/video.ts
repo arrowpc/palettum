@@ -2,7 +2,6 @@ const LOOP = true;
 
 import type { LibAV as LibAVInstance } from "@libav.js/variant-webcodecs";
 import type * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
-import { type Player } from "./interface";
 import { initLibAV } from "../libav";
 import { getRenderer } from "../core/renderer";
 import { BufferStream } from "../utils/buffer-stream";
@@ -79,7 +78,7 @@ function createFrameModifier(config: Config) {
   };
 }
 
-export class VideoPlayer implements Player {
+export class VideoHandler {
   private playing = true;
   private disposed = false;
   private frameQueue = new BufferStream<VideoFrame>();

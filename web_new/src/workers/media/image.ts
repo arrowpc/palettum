@@ -1,9 +1,8 @@
-import { type Player } from "./interface";
 import { getRenderer } from "../core/renderer";
 
 import type { Config } from "palettum";
 
-export class ImagePlayer implements Player {
+export class ImageHandler {
   private disposed = false;
   private file: Blob;
 
@@ -16,9 +15,7 @@ export class ImagePlayer implements Player {
     r.draw(await createImageBitmap(this.file));
   }
 
-  play() { }
-  pause() { }
-  seek() { }
+  
 
   async dispose() {
     if (this.disposed) return;

@@ -1,24 +1,24 @@
-import { type Player } from "./interface";
 import { getRenderer } from "../core/renderer";
 import type { Config, Gif } from "palettum";
 
 const LOOP = true;
 
-export class GifPlayer implements Player {
+export class GifHandler {
   private gif: Gif | null = null;
   private frames: { bmp: ImageBitmap; dur: number }[] = [];
   private idx = 0;
   private playing = true;
   private loopHandle: number | undefined;
-  private buffer: ArrayBuffer;
+  private file: File;
 
-  constructor(buffer: ArrayBuffer) {
-    this.buffer = buffer;
+  constructor(file: File) {
+    this.file = file;
   }
 
   async init() {
     const { Gif } = await import("palettum");
-    this.gif = new Gif(new Uint8Array(this.buffer));
+    const buffer = await this.file.arrayBuffer();
+    this.gif = new Gif(new Uint8Array(buffer));
     await this.reinitializeFrames();
     this.loop();
   }

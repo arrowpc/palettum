@@ -1,9 +1,9 @@
 import { expose, proxy } from "comlink";
 import { getRenderer, disposeRenderer } from "./core/renderer";
-import { createPlayerForFile, type Player } from "./players";
+import { createMediaHandlerForFile } from "./media";
 import type { Config } from "palettum";
 
-let player: Player | null = null;
+let mediaHandler: any | null = null;
 
 type CanvasId = string;
 
@@ -44,41 +44,57 @@ const api = {
   },
 
   async load(file: Blob) {
-    if (player) await player.dispose();
-    player = await createPlayerForFile(file);
-    await player.init();
+    if (mediaHandler) await mediaHandler.dispose();
+    mediaHandler = await createMediaHandlerForFile(file);
+    await mediaHandler.init();
+
+    const mediaInfo: MediaInfo = {
+      canPlay: typeof mediaHandler.play === "function",
+      canPause: typeof mediaHandler.pause === "function",
+      canSeek: typeof mediaHandler.seek === "function",
+      // Add other media-specific info here if needed, e.g., duration, dimensions
+      // For now, we'll just include the capabilities.
+    };
+    return mediaInfo;
   },
 
   play() {
-    player?.play();
+    mediaHandler?.play?.();
   },
 
   pause() {
-    player?.pause();
+    mediaHandler?.pause?.();
   },
 
   seek(ms: number) {
-    player?.seek(ms);
+    mediaHandler?.seek?.(ms);
   },
 
   dispose() {
-    player?.dispose();
+    mediaHandler?.dispose?.();
     disposeRenderer();
-    player = null;
+    mediaHandler = null;
   },
 
   async export(config: Config, onProgress?: (progress: number, message: string) => void): Promise<Blob> {
-    if (!player) {
-      throw new Error("No player loaded to export");
+    if (!mediaHandler) {
+      throw new Error("No media handler loaded to export");
     }
     
     const proxiedOnProgress = onProgress ? proxy(onProgress) : undefined;
-    return player.export(config, proxiedOnProgress);
+    return mediaHandler.export(config, proxiedOnProgress);
   },
 };
 
-export type RendererAPI = Omit<typeof api, "export"> & {
+export interface MediaInfo {
+  canPlay: boolean;
+  canPause: boolean;
+  canSeek: boolean;
+}
+
+export type RendererAPI = Omit<typeof api, "export" | "load"> & {
   export: (config: Config, onProgress?: (progress: number, message: string) => void) => Promise<Blob>;
+  load: (file: Blob) => Promise<MediaInfo>;
 };
 
 expose(api);

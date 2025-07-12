@@ -31,7 +31,7 @@ export interface ToggleSwitchProps
 
 const container = cva([
   "relative inline-flex select-none overflow-hidden",
-  "rounded-full border-2 border-foreground bg-muted/70 backdrop-blur-md",
+  "rounded-xl border-2 border-foreground bg-muted/70 backdrop-blur-md",
 ]);
 
 const labelBase =
@@ -113,7 +113,7 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
         const nearest = centres.reduce(
           (best, c, i) =>
             Math.abs(c - (pos + widths[activeIdx] / 2)) <
-              Math.abs(centres[best] - (pos + widths[activeIdx] / 2))
+            Math.abs(centres[best] - (pos + widths[activeIdx] / 2))
               ? i
               : best,
           0,
@@ -241,7 +241,7 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
         <motion.div
           aria-hidden
           className={cn(
-            "absolute top-0 h-full rounded-full bg-primary",
+            "absolute top-0 h-full rounded-md bg-primary",
             thumbShadow,
           )}
           style={{
@@ -251,16 +251,7 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
             transformOrigin: "center",
             willChange: "transform",
           }}
-        >
-          {/* floating index indicator */}
-          <motion.span
-            className="absolute inset-0 flex items-center justify-center select-none
-                     text-xs font-semibold text-primary-foreground pointer-events-none"
-            style={{ opacity: moved.current ? 1 : 0 }}
-          >
-            {options[hintIdx]?.label}
-          </motion.span>
-        </motion.div>
+        />
 
         {/* Labels --------------------------------------------------------------- */}
         {options.map((o, i) => (
@@ -271,7 +262,8 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
             aria-checked={o.value === value}
             className={cn(labelBase, {
               "text-primary-foreground": i === activeIdx,
-              "text-muted-foreground": i !== activeIdx,
+              "text-muted-foreground": i !== activeIdx && i !== hintIdx,
+              "text-foreground/80": i === hintIdx && i !== activeIdx,
               "scale-105": i === hintIdx,
             })}
           >

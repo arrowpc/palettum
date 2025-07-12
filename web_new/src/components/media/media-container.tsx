@@ -48,7 +48,7 @@ export default function MediaContainer() {
         {file ? (
           <CanvasPreview
             file={file}
-            onClick={() => setShowViewer(true)}
+            onCanvasClick={() => setShowViewer(true)}
             borderRadius={BORDER_RADIUS}
           />
         ) : (

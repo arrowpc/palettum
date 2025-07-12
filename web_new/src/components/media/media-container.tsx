@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { cn, checkAlphaChannel } from "@/lib/utils";
 import InputArea from "./input-area";
 import CanvasPreview, { MEDIA_CANVAS_ID } from "./canvas-preview";
@@ -8,6 +8,7 @@ import { useRenderer } from "@/providers/renderer-provider";
 import { CircleX } from "lucide-react";
 import type { Mapping } from "palettum";
 import { useConfigStore, useMediaStore } from "@/store";
+import DashedBorder from "@/components/ui/dashed-border";
 
 const BORDER_RADIUS = "6vw";
 const OFFSET_FACTOR = 1 - 1 / Math.SQRT2;
@@ -38,22 +39,33 @@ export default function MediaContainer() {
   };
 
   const frameClass = cn(
-    "absolute inset-0 overflow-hidden border-2 transition-colors",
-    file ? "border-solid border-foreground" : "border-dashed border-primary/70",
-    dragging && "border-primary bg-primary/5",
+    "absolute inset-0 overflow-hidden transition-colors text-foreground/70",
+    dragging && "text-primary bg-primary/5",
   );
 
   return (
     <div className="relative w-full aspect-[16/9] group">
-      <div className={frameClass} style={{ borderRadius: BORDER_RADIUS }}>
+      <div
+        className={frameClass}
+        style={{ borderRadius: BORDER_RADIUS }}
+      >
         {file ? (
-          <CanvasPreview
-            file={file}
-            onCanvasClick={() => setShowViewer(true)}
-            borderRadius={BORDER_RADIUS}
-          />
+          <div className="w-full h-full border-2 border-solid border-foreground" style={{ borderRadius: BORDER_RADIUS }}>
+            <CanvasPreview
+              file={file}
+              onCanvasClick={() => setShowViewer(true)}
+              borderRadius={BORDER_RADIUS}
+            />
+          </div>
         ) : (
-          <InputArea onFile={handleFile} onDragStateChange={setDragging} />
+          <DashedBorder
+            dash={30}
+            gap={22}
+            strokeWidth={2}
+            borderRadius={BORDER_RADIUS}
+          >
+            <InputArea onFile={handleFile} onDragStateChange={setDragging} />
+          </DashedBorder>
         )}
       </div>
 
@@ -73,7 +85,7 @@ export default function MediaContainer() {
           <ToggleSwitch
             className="absolute bottom-0 left-0 z-30"
             value={value ?? "Smoothed"}
-            onChange={(v) => setConfig(setting, v as Mapping)}
+            onChange={(v) => setConfig(setting, v)}
             options={[
               { label: "Blend", value: "Smoothed" },
               { label: "Match", value: "Palettized" },
@@ -93,3 +105,4 @@ export default function MediaContainer() {
     </div>
   );
 }
+

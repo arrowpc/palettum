@@ -72,7 +72,6 @@ const api = {
 
   dispose() {
     mediaHandler?.dispose?.();
-    disposeRenderer();
     mediaHandler = null;
   },
 

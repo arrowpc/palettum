@@ -28,6 +28,7 @@ export default function MediaContainer() {
     setFile(file);
     const hasAlpha = await checkAlphaChannel(file);
     setHasAlpha(hasAlpha);
+    renderer.init();
   };
 
   const clear = () => {

@@ -58,6 +58,8 @@ pub struct Renderer {
 
     config: Option<Config>,
     resize_mode: ResizeMode,
+
+    last_bmp: Option<ImageBitmap>,
 }
 
 #[wasm_bindgen]
@@ -79,6 +81,7 @@ impl Renderer {
             config_buf: None,
             config: None,
             resize_mode: ResizeMode::default(),
+            last_bmp: None,
         }
     }
 
@@ -117,6 +120,16 @@ impl Renderer {
             }
         } else {
             // WebGL: per-canvas context
+            if self.context.is_some() {
+                log::debug!(
+                    "New canvas registration is replacing an old context. Invalidating resources."
+                );
+                self.full_tex = None;
+                self.work_tex = None;
+                self.work_bg = None;
+                self.present_buf = None;
+                self.config_buf = None;
+            }
             let ctx: Arc<Context> = Arc::new(self.create_context(&surface).await?);
             self.context_cache.insert(canvas_id.clone(), ctx.clone());
             self.context = Some(ctx.clone());
@@ -136,7 +149,6 @@ impl Renderer {
 
         Ok(())
     }
-
     pub fn switch_canvas(&mut self, canvas_id: &str) -> Result<(), JsValue> {
         let canvas = self
             .canvas_cache
@@ -144,11 +156,23 @@ impl Renderer {
             .ok_or_else(|| JsValue::from_str("Canvas not found"))?
             .clone();
 
-        // For WebGPU, always use the global context
-        // For WebGL, switch to the context for this canvas
         if !self.instance.as_ref().using_webgpu {
-            if let Some(ctx) = self.context_cache.get(canvas_id) {
-                self.context = Some(ctx.clone());
+            if let Some(new_ctx) = self.context_cache.get(canvas_id) {
+                let is_switching_context = self
+                    .context
+                    .as_ref()
+                    .map_or(true, |current_ctx| !Arc::ptr_eq(current_ctx, new_ctx));
+
+                if is_switching_context {
+                    log::info!("Switching WebGL context, invalidating GPU resources.");
+                    self.context = Some(new_ctx.clone());
+
+                    self.full_tex = None;
+                    self.work_tex = None;
+                    self.work_bg = None;
+                    self.present_buf = None;
+                    self.config_buf = None;
+                }
             } else {
                 return Err(JsValue::from_str("Context for canvas not found"));
             }
@@ -160,7 +184,15 @@ impl Renderer {
         Ok(())
     }
 
+    pub fn drop_canvas(&mut self, canvas_id: &str) -> Result<(), JsValue> {
+        self.canvas_cache
+            .remove(canvas_id)
+            .ok_or_else(|| JsValue::from_str("Could not find canvas in registry to drop"))?;
+        Ok(())
+    }
+
     pub fn draw(&mut self, bmp: ImageBitmap) -> Result<(), JsValue> {
+        self.last_bmp = Some(bmp.clone());
         self.upload_full_texture(&bmp)?;
         self.ensure_work_tex_size()?;
         self.blit_full_to_work()?;
@@ -168,9 +200,17 @@ impl Renderer {
     }
 
     pub fn try_draw(&mut self) -> Result<(), JsValue> {
+        if self.last_bmp.is_none() {
+            return Err(JsValue::from_str("draw() has not been called yet"));
+        }
+        let bitmap = self.last_bmp.as_ref().unwrap().clone();
+        if bitmap.width() == 0 || bitmap.height() == 0 {
+            return Err(JsValue::from_str(
+                "last_bitmap is invalid (closed or zero size)",
+            ));
+        }
         if self.full_tex.is_none() {
-            log::debug!("Nothing to draw");
-            return Ok(());
+            self.upload_full_texture(&bitmap)?;
         }
         self.ensure_work_tex_size()?;
         self.blit_full_to_work()?;

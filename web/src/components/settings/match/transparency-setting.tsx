@@ -7,36 +7,42 @@ export default function TransparencySetting() {
   const hasAlpha = useMediaStore((state) => state.hasAlpha);
   const setConfig = useConfigStore((state) => state.setConfig);
 
-  const isTransparencyEnabled = transparencyThreshold < 255;
+  const isTransparencyEnabled = transparencyThreshold > 0;
 
   const handleCheckedChange = (checked: boolean) => {
-    setConfig("transparencyThreshold", checked ? 128 : 255);
+    if (checked) {
+      if (transparencyThreshold === 0) {
+        setConfig("transparencyThreshold", 128);
+      }
+    } else {
+      setConfig("transparencyThreshold", 0);
+    }
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <label htmlFor="transparency-switch">Transparency</label>
+    <div className="flex flex-col gap-2 px-4">
+      <div className="flex items-center justify-center mb-2">
+        <label htmlFor="transparency-switch" className="text-base mr-2">Transparency</label>
         <Switch
           id="transparency-switch"
-          checked={isTransparencyEnabled}
+          checked={isTransparencyEnabled && hasAlpha}
           onCheckedChange={handleCheckedChange}
           disabled={!hasAlpha}
         />
       </div>
-      {isTransparencyEnabled && hasAlpha && (
-        <>
-          <Slider
-            defaultValue={[transparencyThreshold]}
-            max={255}
-            step={1}
-            onValueChange={([v]) => setConfig("transparencyThreshold", v)}
-          />
-          <div className="text-center text-sm text-muted-foreground">
-            {transparencyThreshold}
-          </div>
-        </>
-      )}
+      <Slider
+        value={[transparencyThreshold]}
+        max={255}
+        step={1}
+        onValueChange={([v]) => {
+          setConfig("transparencyThreshold", v);
+        }}
+        className="w-full"
+        disabled={!hasAlpha}
+      />
+      <div className="text-center text-sm text-muted-foreground">
+        {transparencyThreshold === 0 ? "Off" : transparencyThreshold}
+      </div>
       {!hasAlpha && (
         <div className="text-center text-sm text-muted-foreground">
           No Alpha detected in media

@@ -3,7 +3,7 @@ import TransparencySetting from "./transparency-setting";
 
 export default function MatchSettings() {
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-10 mx-8">
       <DitheringSetting />
       <TransparencySetting />
     </div>

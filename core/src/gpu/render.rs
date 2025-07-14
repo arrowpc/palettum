@@ -618,7 +618,7 @@ impl Renderer {
 
         wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: format.remove_srgb_suffix(),
+            format,
             width: canvas.width(),
             height: canvas.height(),
             present_mode: wgpu::PresentMode::Fifo,

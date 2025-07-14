@@ -14,6 +14,7 @@ struct Context {
     palettized_pipeline: wgpu::ComputePipeline,
     smoothed_pipeline: wgpu::ComputePipeline,
     mapping_layout: wgpu::BindGroupLayout,
+    blue_noise_bind_group: wgpu::BindGroup,
 }
 
 pub struct Processor {
@@ -61,7 +62,98 @@ impl Processor {
             .map_err(|e| Error::Gpu(format!("Device request failed: {}", e)))?;
 
         let mapping_layout = Self::create_bind_group_layout(&device);
-        let palettized_pipeline = Self::create_palettized_pipeline(&device, &mapping_layout);
+
+        let blue_noise_size = wgpu::Extent3d {
+            width: 64,
+            height: 64,
+            depth_or_array_layers: 1,
+        };
+
+        let blue_noise_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Blue Noise Texture"),
+            size: blue_noise_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                texture: &blue_noise_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &crate::palettized::BLUE_NOISE_64X64,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(64),
+                rows_per_image: Some(64),
+            },
+            blue_noise_size,
+        );
+
+        let blue_noise_texture_view =
+            blue_noise_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let blue_noise_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("Blue Noise Sampler"),
+            address_mode_u: wgpu::AddressMode::Repeat,
+            address_mode_v: wgpu::AddressMode::Repeat,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let blue_noise_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("Blue Noise Bind Group Layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::COMPUTE,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                        count: None,
+                    },
+                ],
+            });
+
+        let blue_noise_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Blue Noise Bind Group"),
+            layout: &blue_noise_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&blue_noise_texture_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&blue_noise_sampler),
+                },
+            ],
+        });
+
+        let palettized_pipeline = Self::create_palettized_pipeline(
+            &device,
+            &mapping_layout,
+            &blue_noise_bind_group_layout,
+        );
         let smoothed_pipeline = Self::create_smoothed_pipeline(&device, &mapping_layout);
 
         Ok(Context {
@@ -70,6 +162,7 @@ impl Processor {
             palettized_pipeline,
             smoothed_pipeline,
             mapping_layout,
+            blue_noise_bind_group,
         })
     }
 
@@ -217,7 +310,19 @@ impl Processor {
                             Dithering::Fs => {
                                 compute_pass.dispatch_workgroups(1, 1, 1);
                             }
-                            Dithering::Bn | Dithering::None => {
+                            Dithering::Bn => {
+                                compute_pass.set_bind_group(
+                                    1,
+                                    &self.context.blue_noise_bind_group,
+                                    &[],
+                                );
+                                let dispatch_x =
+                                    gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
+                                let dispatch_y =
+                                    gpu_chunk_config.image_height.div_ceil(WORKGROUP_SIZE_Y);
+                                compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+                            }
+                            Dithering::None => {
                                 let dispatch_x =
                                     gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
                                 let dispatch_y =
@@ -330,7 +435,8 @@ impl Processor {
 
     fn create_palettized_pipeline(
         device: &wgpu::Device,
-        layout: &wgpu::BindGroupLayout,
+        mapping_layout: &wgpu::BindGroupLayout,
+        blue_noise_layout: &wgpu::BindGroupLayout,
     ) -> wgpu::ComputePipeline {
         let mut shaders = HashMap::new();
         shaders.insert(
@@ -351,7 +457,7 @@ impl Processor {
 
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Palettized Pipeline Layout"),
-            bind_group_layouts: &[layout],
+            bind_group_layouts: &[mapping_layout, blue_noise_layout],
             push_constant_ranges: &[],
         });
 

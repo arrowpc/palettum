@@ -236,7 +236,9 @@ impl Renderer {
 
     pub fn set_config(&mut self, config: Config) -> Result<(), JsValue> {
         self.config = Some(config);
-        self.try_draw()?;
+        if self.full_tex.is_some() {
+            self.try_draw()?;
+        }
         Ok(())
     }
 }

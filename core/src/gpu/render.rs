@@ -118,6 +118,7 @@ impl Renderer {
             // WebGL: per-canvas context
             let ctx: Arc<Context> = Arc::new(self.create_context(&surface).await?);
             self.context_cache.insert(canvas_id.clone(), ctx.clone());
+            self.context = Some(ctx.clone());
             ctx
         };
 
@@ -293,8 +294,8 @@ impl Renderer {
     }
 
     fn desired_work_dims(&self) -> Option<(u32, u32)> {
-        let full = self.full_tex.as_ref()?;
-        let ctx = self.canvas.as_ref()?;
+        let full = self.full_tex.as_ref().unwrap();
+        let ctx = self.canvas.as_ref().unwrap();
         let scale = (ctx.config.width as f32 / full.size().width as f32)
             .min(ctx.config.height as f32 / full.size().height as f32)
             .clamp(0.0, 1.0);
@@ -608,6 +609,12 @@ impl Renderer {
             wgpu::CompositeAlphaMode::Opaque
         };
 
+        let view_formats = if self.instance.as_ref().using_webgpu {
+            vec![format.add_srgb_suffix()]
+        } else {
+            vec![]
+        };
+
         wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: format.remove_srgb_suffix(),
@@ -615,7 +622,7 @@ impl Renderer {
             height: canvas.height(),
             present_mode: wgpu::PresentMode::Fifo,
             alpha_mode,
-            view_formats: vec![format.add_srgb_suffix()],
+            view_formats,
             desired_maximum_frame_latency: 2,
         }
     }

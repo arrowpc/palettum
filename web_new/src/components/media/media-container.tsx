@@ -1,7 +1,7 @@
 import { useState, useRef, useLayoutEffect } from "react";
 import { cn, checkAlphaChannel } from "@/lib/utils";
 import InputArea from "./input-area";
-import CanvasPreview, { MEDIA_CANVAS_ID } from "./canvas-preview";
+import CanvasPreview from "./canvas-preview";
 import CanvasViewer from "./canvas-viewer";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
 import { useRenderer } from "@/providers/renderer-provider";
@@ -10,6 +10,7 @@ import { type Mapping } from "palettum";
 
 import { useConfigStore, useMediaStore } from "@/store";
 import DashedBorder from "@/components/ui/dashed-border";
+import { MEDIA_CANVAS_ID } from "@/lib/constants";
 
 const BORDER_RADIUS_SCALE = 0.15;
 
@@ -47,7 +48,6 @@ export default function MediaContainer() {
   };
 
   const clear = () => {
-    renderer.disposeCanvas(MEDIA_CANVAS_ID).catch(console.error);
     renderer.dispose();
     setFile(null);
   };
@@ -116,7 +116,7 @@ export default function MediaContainer() {
         <CanvasViewer
           onClose={() => {
             setShowViewer(false);
-            renderer.useCanvas(MEDIA_CANVAS_ID);
+            renderer.switchCanvas(MEDIA_CANVAS_ID);
           }}
         />
       )}

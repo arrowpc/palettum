@@ -3,8 +3,7 @@ import { transfer } from "comlink";
 import { useRenderer } from "@/providers/renderer-provider";
 import { Maximize, Play, Pause } from "lucide-react";
 import { type MediaInfo } from "@/workers/render";
-
-export const MEDIA_CANVAS_ID = "preview";
+import { MEDIA_CANVAS_ID } from "@/lib/constants";
 
 interface Props {
   file: File;
@@ -35,6 +34,7 @@ export default function CanvasPreview({ file, onCanvasClick, borderRadius }: Pro
     (async () => {
       try {
         await renderer.registerCanvas(MEDIA_CANVAS_ID, transfer(off, [off]));
+        renderer.switchCanvas(MEDIA_CANVAS_ID);
         const info = await renderer.load(file);
         setMediaInfo(info);
         if (info.canPlay) {

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { useRenderer } from "@/providers/renderer-provider";
 import { transfer } from "comlink";
+import { VIEWER_CANVAS_ID } from "@/lib/constants";
 
 function useContinuousTap(
   singleTap: (e: ReactMouseEvent | ReactTouchEvent) => void,
@@ -188,8 +189,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
 
   const ZOOM_STEP = 1.2;
   const TARGET_MAX_PIXEL_SIZE = 256;
-
-  const VIEWER_CANVAS_ID = "viewer";
 
   const calculateZoomLimits = useCallback(() => {
     if (!viewportRef.current || !canvasSize.width || !canvasSize.height)

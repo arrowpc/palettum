@@ -14,7 +14,7 @@ const Slider = React.forwardRef<
   SliderProps
 >(
   (
-    { className, gradient, style, thumbSize = 16, trackWidth = 4, ...props },
+    { className, gradient, style, thumbSize = 16, trackWidth = 8, ...props },
     ref,
   ) => {
     // Calculate offset for proper thumb centering

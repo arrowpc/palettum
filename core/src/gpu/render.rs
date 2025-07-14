@@ -88,10 +88,11 @@ impl Renderer {
         canvas: OffscreenCanvas,
     ) -> Result<(), JsValue> {
         if self.canvas_cache.contains_key(&canvas_id) {
-            return Err(JsValue::from_str(&format!(
+            log::warn!(
                 "A canvas with id: {} has already been registered",
                 canvas_id
-            )));
+            );
+            return Ok(());
         }
 
         let instance = self.instance.as_ref();
@@ -723,6 +724,9 @@ impl Renderer {
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/blit_fs.wgsl").into()),
         });
 
+        let base_surface_format = surface.get_capabilities(adapter).formats[0];
+        let present_render_target_format = base_surface_format.add_srgb_suffix();
+
         let blit_pipeline = {
             let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("blit"),
@@ -791,8 +795,6 @@ impl Renderer {
             source: wgpu::ShaderSource::Wgsl(Cow::Owned(smoothed_fs_code)),
         });
 
-        let format = surface.get_capabilities(adapter).formats[0];
-
         let make = |fs: &wgpu::ShaderModule, mapping: Mapping| {
             let layout = [mapping_frag_bgl, uni_bgl];
             let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -813,8 +815,8 @@ impl Renderer {
                     module: fs,
                     entry_point: Some("fs_main"),
                     targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: Some(wgpu::BlendState::REPLACE),
+                        format: present_render_target_format,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                     compilation_options: Default::default(),
@@ -834,6 +836,10 @@ impl Renderer {
         );
         present_pipelines.insert(Mapping::Smoothed, make(&smoothed_fs, Mapping::Smoothed));
 
-        (blit_pipeline, present_pipelines, format.add_srgb_suffix())
+        (
+            blit_pipeline,
+            present_pipelines,
+            present_render_target_format,
+        )
     }
 }

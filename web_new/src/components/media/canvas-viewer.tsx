@@ -298,7 +298,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
           VIEWER_CANVAS_ID,
           transfer(offscreenCanvas, [offscreenCanvas]),
         );
-
+        renderer.switchCanvas(VIEWER_CANVAS_ID);
         setCanvasReady(true);
       } catch (error) {
         console.error("Failed to initialize canvas or renderer:", error);
@@ -310,7 +310,6 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
 
     return () => {
       cancelAnimationFrame(frameId);
-      renderer.disposeCanvas(VIEWER_CANVAS_ID);
     };
   }, [renderer]);
 

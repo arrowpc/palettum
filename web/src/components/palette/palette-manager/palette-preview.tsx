@@ -1,92 +1,173 @@
 import React, { useRef, useLayoutEffect, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Edit2, Trash2 } from "lucide-react";
 import { rgbToHex, cn } from "@/lib/utils";
 import { type Palette } from "palettum";
 import { useColorCycle } from "@/hooks/use-color-cycle";
+import TooltipWrapper from "./tooltip-wrapper";
 
 interface Props {
   palette: Palette;
   isOpen: boolean;
   onToggle: () => void;
+  onPrevious: () => void;
+  onNext: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onExport: () => void;
+  onDelete: () => void;
+  canCycle: boolean;
 }
 
-const CHIP_WIDTH = 16; 
-const CHIP_GAP = 0;    
-const COLOR_RING = "";
-const COLOR_BASE = `${COLOR_RING} w-6 h-6`;
-
-const PalettePreview: React.FC<Props> = ({ palette, isOpen, onToggle }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+const PalettePreview: React.FC<Props> = ({
+  palette,
+  isOpen,
+  onToggle,
+  onPrevious,
+  onNext,
+  onEdit,
+  onDuplicate,
+  onExport,
+  onDelete,
+  canCycle,
+}) => {
+  const colorsRef = useRef<HTMLDivElement>(null);
   const [maxVisible, setMaxVisible] = useState<number>(palette.colors.length);
 
   useLayoutEffect(() => {
     const update = () => {
-      if (!containerRef.current) return;
-      const width = containerRef.current.offsetWidth;
-      let chips = palette.colors.length;
-      let total = chips * CHIP_WIDTH + (chips - 1) * CHIP_GAP;
-      while (chips > 1 && total > width) {
-        chips--;
-        total = (chips + 1) * CHIP_WIDTH + chips * CHIP_GAP;
-      }
-      setMaxVisible(chips);
+      if (!colorsRef.current) return;
+      const containerWidth = colorsRef.current.offsetWidth;
+      const colorSize = 32; // 8 * 4 = 32px for w-8 h-8
+      const maxColors = Math.floor(containerWidth / colorSize);
+      setMaxVisible(Math.max(1, maxColors));
     };
+    
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
   }, [palette.colors.length]);
 
-  const index = useColorCycle(
+  const colorCycleIndex = useColorCycle(
     palette.colors.length,
-    palette.colors.length > maxVisible
+    palette.colors.length > maxVisible,
+    150
   );
 
-  const visible =
-    palette.colors.length > maxVisible
-      ? [...Array(maxVisible).keys()].map(
-          (i) => palette.colors[(index + i) % palette.colors.length]
-        )
-      : palette.colors;
+  const visibleColors = palette.colors.length > maxVisible
+    ? [...Array(maxVisible - 1).keys()].map(
+        (i) => palette.colors[(colorCycleIndex + i) % palette.colors.length]
+      )
+    : palette.colors;
 
-  const hiddenCount =
-    palette.colors.length > maxVisible
-      ? palette.colors.length - maxVisible
-      : 0;
+  const hiddenCount = palette.colors.length > maxVisible 
+    ? palette.colors.length - maxVisible + 1 
+    : 0;
+
+  const actions = [
+    { icon: Copy, onClick: onDuplicate, label: "Duplicate" },
+    { icon: Download, onClick: onExport, label: "Export" },
+    { icon: Edit2, onClick: onEdit, label: "Edit", disabled: palette.kind === "Default" },
+    { icon: Trash2, onClick: onDelete, label: "Delete", disabled: palette.kind === "Default" },
+  ];
 
   return (
-    <button
-      onClick={onToggle}
-      className="w-full flex items-center p-3 bg-background border border-border rounded-md shadow-sm hover:bg-secondary"
-    >
-      <span className="truncate mr-2">{palette.id}</span>
-      <div
-        className="flex-1 flex items-center justify-end gap-2 min-w-0"
-        ref={containerRef}
-      >
-        <div className="flex min-w-0">
-          {visible.map((c, i) => (
-            <div
-              key={i}
-              className={COLOR_BASE}
-              style={{ backgroundColor: rgbToHex(c) }}
-            />
-          ))}
-          {hiddenCount > 0 && (
-            <div
-              className={`${COLOR_BASE} bg-secondary flex items-center justify-center`}
-            >
-              <span className="text-xs font-medium">+{hiddenCount}</span>
+    <div className="bg-card rounded-lg overflow-hidden shadow-sm">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 pb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <h3 className="font-medium text-foreground truncate">
+            {palette.id}
+          </h3>
+          {palette.kind === "Default" && (
+            <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded">
+              Default
+            </span>
+          )}
+        </div>
+        
+        <div className="flex items-center gap-1">
+          {/* Desktop Actions */}
+          <div className="hidden sm:flex items-center gap-1">
+            {actions.map(({ icon: Icon, onClick, label, disabled }) => (
+              <TooltipWrapper key={label} content={label}>
+                <button
+                  onClick={onClick}
+                  disabled={disabled}
+                  className={cn(
+                    "p-2 rounded-md transition-colors",
+                    disabled 
+                      ? "text-muted-foreground cursor-not-allowed"
+                      : "text-foreground hover:bg-muted"
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                </button>
+              </TooltipWrapper>
+            ))}
+          </div>
+
+          {/* Palette Navigation */}
+          {canCycle && (
+            <div className="flex items-center gap-1 ml-2">
+              <TooltipWrapper content="Previous palette">
+                <button
+                  onClick={onPrevious}
+                  className="p-1.5 rounded-md hover:bg-muted text-foreground transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+              </TooltipWrapper>
+              <TooltipWrapper content="Next palette">
+                <button
+                  onClick={onNext}
+                  className="p-1.5 rounded-md hover:bg-muted text-foreground transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </TooltipWrapper>
             </div>
           )}
         </div>
-        <ChevronDown
-          className={cn(
-            "w-4 h-4 shrink-0 transition-transform",
-            isOpen && "rotate-180"
-          )}
-        />
       </div>
-    </button>
+
+      {/* Colors and Dropdown */}
+      <div className="px-4 pb-4">
+        <div className="flex items-center gap-2">
+          <div ref={colorsRef} className="flex-1">
+            <div className="flex rounded-md overflow-hidden shadow-sm">
+              {visibleColors.map((color, i) => (
+                <div
+                  key={i}
+                  className="h-8 flex-1 min-w-0"
+                  style={{ backgroundColor: rgbToHex(color) }}
+                />
+              ))}
+              {hiddenCount > 0 && (
+                <div className="h-8 w-8 bg-muted flex items-center justify-center">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    +{hiddenCount}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <TooltipWrapper content="Browse palettes">
+            <button
+              onClick={onToggle}
+              className="p-2 rounded-md hover:bg-muted text-foreground transition-colors"
+            >
+              <ChevronDown
+                className={cn(
+                  "w-4 h-4 transition-transform",
+                  isOpen && "rotate-180"
+                )}
+              />
+            </button>
+          </TooltipWrapper>
+        </div>
+      </div>
+    </div>
   );
 };
 

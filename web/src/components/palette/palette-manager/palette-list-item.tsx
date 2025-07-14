@@ -1,185 +1,141 @@
 import React, { useMemo } from "react";
-import {
-  Copy,
-  Download,
-  Edit2,
-  ExternalLink,
-  MoreVertical,
-  Trash2,
-} from "lucide-react";
-
-import TooltipWrapper from "./tooltip-wrapper";
+import { Copy, Download, Edit2, ExternalLink, MoreVertical, Trash2 } from "lucide-react";
 import { rgbToHex, cn, getDisplayedColors } from "@/lib/utils";
 import { useColorCycle } from "@/hooks/use-color-cycle";
-import { type Palette, type Rgb } from "palettum";
-
-const COLOR_SIZE = "w-6 h-6";
-const COLOR_RING = "";
-const COLOR_BASE = `rounded-xs ${COLOR_RING} ${COLOR_SIZE}`;
+import { type Palette } from "palettum";
+import TooltipWrapper from "./tooltip-wrapper";
 
 interface Props {
   palette: Palette;
   selected: boolean;
-  hovered: boolean;
   onSelect: () => void;
   onDuplicate: () => void;
   onExport: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onMobileMenu: () => void;
-  onHoverOn: () => void;
-  onHoverOff: () => void;
 }
 
-const PaletteCard: React.FC<Props> = ({
+const PaletteListItem: React.FC<Props> = ({
   palette,
-  hovered,
+  selected,
   onSelect,
   onDuplicate,
   onExport,
   onEdit,
   onDelete,
   onMobileMenu,
-  onHoverOn,
-  onHoverOff,
 }) => {
-  const startIndex = useColorCycle(
+  const [isHovered, setIsHovered] = React.useState(false);
+  
+  const colorCycleIndex = useColorCycle(
     palette.colors.length,
-    hovered && palette.colors.length > 3,
-    200,
+    isHovered && palette.colors.length > 4,
+    200
   );
 
-  const colours = useMemo(
-    () =>
-      getDisplayedColors(palette, 3, startIndex).map(
-        (c: Rgb, i: number) => (
-          <div
-            key={i}
-            className={COLOR_BASE}
-            style={{ backgroundColor: rgbToHex(c) }}
-          />
-        ),
-      ),
-    [palette, startIndex],
-  );
+  const displayedColors = useMemo(() => {
+    return getDisplayedColors(palette, 4, colorCycleIndex);
+  }, [palette, colorCycleIndex]);
 
-  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  const actions = [
+    { icon: Copy, onClick: onDuplicate, label: "Duplicate" },
+    { icon: Download, onClick: onExport, label: "Export" },
+    { icon: Edit2, onClick: onEdit, label: "Edit", disabled: palette.kind === "Default" },
+    { icon: Trash2, onClick: onDelete, label: "Delete", disabled: palette.kind === "Default" },
+  ];
 
-  const desktopActions = [
-    {
-      label: "Duplicate",
-      icon: Copy,
-      onClick: onDuplicate,
-      disabled: false,
-    },
-    {
-      label: "Export",
-      icon: Download,
-      onClick: onExport,
-      disabled: false,
-    },
-    {
-      label: "Edit",
-      icon: Edit2,
-      onClick: onEdit,
-      disabled: palette.kind === "Default",
-    },
-    {
-      label: "Delete",
-      icon: Trash2,
-      onClick: onDelete,
-      disabled: palette.kind === "Default",
-    },
-  ] as const;
+  const handleAction = (e: React.MouseEvent, action: () => void) => {
+    e.stopPropagation();
+    action();
+  };
 
   return (
-    <li
-  onClick={onSelect}
-  onMouseEnter={onHoverOn}
-  onMouseLeave={onHoverOff}
-  className={cn(
-    "relative isolate overflow-hidden rounded-md",
-    "cursor-pointer transition-colors duration-150",
-    "hover:bg-secondary/40",
-  )}
->
-  <div
-    className={cn(
-      "grid grid-cols-[1fr_auto] items-center",
-      "gap-x-4 px-4 py-3",
-    )}
-  >
-    <header className="min-w-[9rem]">
-      <div className="truncate font-medium leading-none">
-        {palette.id}
-      </div>
-      {palette.kind === "Default" && (
-        <span className="text-xs text-muted-foreground">
-          (default)
-        </span>
+    <div
+      onClick={onSelect}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={cn(
+        "group relative flex items-center gap-3 p-3 cursor-pointer transition-colors",
+        selected 
+          ? "bg-primary/10 border-r-2 border-primary" 
+          : "hover:bg-muted/50"
       )}
-      {palette.source && (
-        <TooltipWrapper enabled={hovered} content="View source">
-          <a
-            href={palette.source}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={stop}
-            className="ml-1 inline-block align-middle"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </a>
-        </TooltipWrapper>
-      )}
-    </header>
-
-    <div className="flex items-center gap-3">
-      <div className="flex -space-x-1">
-        {colours}
-      </div>
-      <aside className="hidden sm:flex items-center gap-1">
-        {desktopActions.map(
-          ({ label, icon: Icon, onClick, disabled }) => (
-            <TooltipWrapper
-              key={label}
-              enabled={hovered}
-              content={label}
-            >
-              <button
-                disabled={disabled}
-                onClick={(e) => {
-                  stop(e);
-                  if (!disabled) onClick();
-                }}
-                className={cn(
-                  "grid place-items-center p-1.5",
-                  disabled
-                    ? "cursor-not-allowed opacity-40"
-                    : "hover:bg-accent rounded",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-              </button>
-            </TooltipWrapper>
-          ),
+    >
+      {/* Colors */}
+      <div className="flex rounded overflow-hidden shadow-sm">
+        {displayedColors.map((color, i) => (
+          <div
+            key={i}
+            className="w-6 h-6"
+            style={{ backgroundColor: rgbToHex(color) }}
+          />
+        ))}
+        {palette.colors.length > 4 && (
+          <div className="w-6 h-6 bg-muted flex items-center justify-center">
+            <span className="text-xs font-medium text-muted-foreground">
+              +{palette.colors.length - 4}
+            </span>
+          </div>
         )}
-      </aside>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-foreground truncate">
+            {palette.id}
+          </span>
+          {palette.kind === "Default" && (
+            <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded">
+              Default
+            </span>
+          )}
+          {palette.source && (
+            <TooltipWrapper content="View source">
+              <a
+                href={palette.source}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </TooltipWrapper>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop Actions */}
+      <div className="hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {actions.map(({ icon: Icon, onClick, label, disabled }) => (
+          <TooltipWrapper key={label} content={label}>
+            <button
+              onClick={(e) => handleAction(e, onClick)}
+              disabled={disabled}
+              className={cn(
+                "p-1.5 rounded transition-colors",
+                disabled 
+                  ? "text-muted-foreground cursor-not-allowed"
+                  : "text-foreground hover:bg-background"
+              )}
+            >
+              <Icon className="w-4 h-4" />
+            </button>
+          </TooltipWrapper>
+        ))}
+      </div>
+
+      {/* Mobile Menu Button */}
+      <button
+        onClick={(e) => handleAction(e, onMobileMenu)}
+        className="sm:hidden p-2 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <MoreVertical className="w-4 h-4" />
+      </button>
     </div>
-  </div>
-
-  <button
-    onClick={(e) => {
-      stop(e);
-      onMobileMenu();
-    }}
-    className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center sm:hidden"
-    aria-label="Show actions"
-  >
-    <MoreVertical className="h-5 w-5" />
-  </button>
-</li>
-
   );
 };
 
-export default React.memo(PaletteCard);
+export default React.memo(PaletteListItem);

@@ -9,11 +9,8 @@ interface Props {
   search: string;
   onSearch: (s: string) => void;
   palettes: Palette[];
-  hoveredId: string | null;
   selectedId: string;
   onSelect: (p: Palette) => void;
-  onHoverOn: (id: string) => void;
-  onHoverOff: () => void;
   onDuplicate: (p: Palette) => void;
   onExport: (p: Palette) => void;
   onEdit: (p: Palette) => void;
@@ -30,64 +27,78 @@ const PaletteDropdown: React.FC<Props> = ({
   search,
   onSearch,
   palettes,
-  hoveredId,
   selectedId,
-  ...actions
+  onSelect,
+  onDuplicate,
+  onExport,
+  onEdit,
+  onDelete,
+  onMobileMenu,
+  onNewPalette,
+  onImport,
+  close,
 }) => {
-  useOutsideClick(anchorRef, actions.close, open);
+  useOutsideClick(anchorRef, close, open);
 
   if (!open) return null;
 
   return (
-    <div className="absolute z-10 w-full mt-2 bg-background border border-border rounded-md shadow-md flex flex-col">
-      {/* search */}
-      <div className="p-2 border-b border-border">
+    <div className="absolute z-50 w-full mt-2 bg-card rounded-lg shadow-lg border border-border overflow-hidden">
+      {/* Search */}
+      <div className="p-3 border-b border-border">
         <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Search palettes…"
+            placeholder="Search palettes..."
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring text-base"
+            className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
           />
-          <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2" />
         </div>
       </div>
 
-      {/* list */}
-      <div className="overflow-y-auto max-h-[175px]">
-        {palettes.map((p) => (
-          <PaletteListItem
-            key={p.id}
-            palette={p}
-            selected={p.id === selectedId}
-            hovered={p.id === hoveredId}
-            onSelect={() => actions.onSelect(p)}
-            onDuplicate={() => actions.onDuplicate(p)}
-            onExport={() => actions.onExport(p)}
-            onEdit={() => actions.onEdit(p)}
-            onDelete={() => actions.onDelete(p.id)}
-            onMobileMenu={() => actions.onMobileMenu(p.id)}
-            onHoverOn={() => actions.onHoverOn(p.id)}
-            onHoverOff={actions.onHoverOff}
-          />
-        ))}
+      {/* Palette List */}
+      <div className="max-h-64 overflow-y-auto">
+        {palettes.length === 0 ? (
+          <div className="p-4 text-center text-muted-foreground">
+            No palettes found
+          </div>
+        ) : (
+          palettes.map((palette) => (
+            <PaletteListItem
+              key={palette.id}
+              palette={palette}
+              selected={palette.id === selectedId}
+              onSelect={() => onSelect(palette)}
+              onDuplicate={() => onDuplicate(palette)}
+              onExport={() => onExport(palette)}
+              onEdit={() => onEdit(palette)}
+              onDelete={() => onDelete(palette.id)}
+              onMobileMenu={() => onMobileMenu(palette.id)}
+            />
+          ))
+        )}
       </div>
 
-      {/* footer */}
-      <div className="border-t border-border p-2 flex justify-between">
-        <button
-          className="flex items-center px-3 py-1.5 hover:bg-secondary rounded"
-          onClick={actions.onNewPalette}
-        >
-          <Plus className="w-4 h-4 mr-1.5" /> New Palette
-        </button>
-        <button
-          className="flex items-center px-3 py-1.5 hover:bg-secondary rounded"
-          onClick={actions.onImport}
-        >
-          <Upload className="w-4 h-4 mr-1.5" /> Import
-        </button>
+      {/* Footer */}
+      <div className="p-3 border-t border-border bg-muted/30">
+        <div className="flex gap-2">
+          <button
+            onClick={onNewPalette}
+            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            New Palette
+          </button>
+          <button
+            onClick={onImport}
+            className="flex items-center justify-center gap-2 px-3 py-2 bg-background border border-border rounded-md hover:bg-muted transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Import
+          </button>
+        </div>
       </div>
     </div>
   );

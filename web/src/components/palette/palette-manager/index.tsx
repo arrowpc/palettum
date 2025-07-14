@@ -5,7 +5,7 @@ import MobileActionSheet from "./mobile-action-sheet";
 import PaletteEditor from "@/components/palette/palette-editor";
 import { useConfigStore } from "@/store";
 import { generateUniqueId } from "@/lib/utils";
-import { type Palette } from "palettum"; 
+import { type Palette } from "palettum";
 
 const PaletteManager: React.FC = () => {
   const {
@@ -18,27 +18,17 @@ const PaletteManager: React.FC = () => {
     deletePalette,
   } = useConfigStore();
 
-  /* ---------- UI state ---------- */
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
-  // REMOVED: hoveredStartIndices and setHoveredStart as it's now internal to PaletteListItem
   const [mobilePalette, setMobilePalette] = useState<Palette | null>(null);
-
-  // State for PaletteEditor modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
 
-  /* ---------- refs ---------- */
   const anchorRef = useRef<HTMLDivElement>(null);
   const importInput = useRef<HTMLInputElement>(null);
 
-  /* ---------- memo ---------- */
-  const list = useMemo(() => {
-    const lower = search.toLowerCase();
-    const filtered = palettes.filter((p) => p.id.toLowerCase().includes(lower));
-
-    return filtered.sort((a, b) => {
+  const sortedPalettes = useMemo(() => {
+    return [...palettes].sort((a, b) => {
       const indexA = paletteSelectionOrder.indexOf(a.id);
       const indexB = paletteSelectionOrder.indexOf(b.id);
       if (indexA !== -1 && indexB !== -1) return indexA - indexB;
@@ -47,17 +37,32 @@ const PaletteManager: React.FC = () => {
       if (a.kind !== b.kind) return a.kind === "Default" ? -1 : 1;
       return a.id.localeCompare(b.id);
     });
-  }, [palettes, search, paletteSelectionOrder]);
+  }, [palettes, paletteSelectionOrder]);
 
-  /* ---------- Handlers for PaletteEditor ---------- */
+  const filteredPalettes = useMemo(() => {
+    const lower = search.toLowerCase();
+    return sortedPalettes.filter((p) => p.id.toLowerCase().includes(lower));
+  }, [sortedPalettes, search]);
+
+  const currentIndex = useMemo(() => {
+    return sortedPalettes.findIndex(p => p.id === selectedPalette.id);
+  }, [sortedPalettes, selectedPalette.id]);
+
+  const cyclePalette = useCallback((direction: 'prev' | 'next') => {
+    if (sortedPalettes.length <= 1) return;
+    
+    const newIndex = direction === 'next' 
+      ? (currentIndex + 1) % sortedPalettes.length
+      : (currentIndex - 1 + sortedPalettes.length) % sortedPalettes.length;
+    
+    setSelectedPalette(sortedPalettes[newIndex]);
+  }, [sortedPalettes, currentIndex, setSelectedPalette]);
+
   const handleSavePalette = useCallback(
-    // FIX 3: Make it async to match PaletteEditor's onSave prop type
     async (updatedPalette: Palette) => {
-      // If editing an existing palette (editingPalette was set when modal opened)
       if (editingPalette) {
         updatePalette(editingPalette.id, updatedPalette);
       } else {
-        // It's a brand new palette
         addPalette(updatedPalette);
       }
       setSelectedPalette(updatedPalette);
@@ -83,18 +88,17 @@ const PaletteManager: React.FC = () => {
     };
     setEditingPalette(newPalette);
     setIsEditModalOpen(true);
-    setDropdownOpen(false); // Close dropdown if opened via 'New Palette' button
+    setDropdownOpen(false);
   }, [palettes]);
 
   const handleEditPalette = useCallback((palette: Palette) => {
-    if (palette.kind === "Default") return; // Should be handled by disabled prop in UI
-    setEditingPalette({ ...palette }); // Pass a copy to avoid direct mutation
+    if (palette.kind === "Default") return;
+    setEditingPalette({ ...palette });
     setIsEditModalOpen(true);
-    setDropdownOpen(false); // Close dropdown if opened via 'Edit' button
-    setMobilePalette(null); // Close mobile menu if opened via 'Edit' button
+    setDropdownOpen(false);
+    setMobilePalette(null);
   }, []);
 
-  /* ---------- General Handlers ---------- */
   const selectPalette = (p: Palette) => {
     setSelectedPalette(p);
     setDropdownOpen(false);
@@ -107,10 +111,11 @@ const PaletteManager: React.FC = () => {
       new Set(palettes.map((x) => x.id)),
     );
 
-    addPalette({ ...p, id, kind: "Custom" });
-    setSelectedPalette({ ...p, id });
-    setDropdownOpen(false); // Close dropdown after duplication
-    setMobilePalette(null); // Close mobile menu after duplication
+    const newPalette = { ...p, id, kind: "Custom" as const };
+    addPalette(newPalette);
+    setSelectedPalette(newPalette);
+    setDropdownOpen(false);
+    setMobilePalette(null);
   };
 
   const exportPalette = (p: Palette) => {
@@ -123,11 +128,12 @@ const PaletteManager: React.FC = () => {
     a.download = `${p.id.replace(/[<>:"/\\|?*]+/g, "_")}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
-    setDropdownOpen(false); // Close dropdown after export
-    setMobilePalette(null); // Close mobile menu after export
+    setDropdownOpen(false);
+    setMobilePalette(null);
   };
 
   const onImport = () => importInput.current?.click();
+
   const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -143,13 +149,15 @@ const PaletteManager: React.FC = () => {
           file.name.replace(/\.json$/, ""),
           new Set(palettes.map((p) => p.id)),
         );
-        addPalette({
+        const newPalette = {
           id,
           colors: json.colors,
           source: json.source,
-          kind: "Custom",
-        });
-        setDropdownOpen(false); // Close dropdown after import
+          kind: "Custom" as const,
+        };
+        addPalette(newPalette);
+        setSelectedPalette(newPalette);
+        setDropdownOpen(false);
       } catch (err) {
         console.error("Failed to import palette:", err);
         alert(
@@ -159,13 +167,13 @@ const PaletteManager: React.FC = () => {
       }
     };
     reader.readAsText(file);
-    e.target.value = ""; // Clear file input
+    e.target.value = "";
   };
 
   const handleDeletePalette = useCallback(
     (paletteId: string) => {
       deletePalette(paletteId);
-      setMobilePalette(null); // Close mobile menu after deletion
+      setMobilePalette(null);
     },
     [deletePalette],
   );
@@ -177,22 +185,27 @@ const PaletteManager: React.FC = () => {
     [palettes],
   );
 
-  /* ---------- render ---------- */
   return (
     <div ref={anchorRef} className="relative">
       <PalettePreview
         palette={selectedPalette}
         isOpen={dropdownOpen}
         onToggle={() => setDropdownOpen((o) => !o)}
+        onPrevious={() => cyclePalette('prev')}
+        onNext={() => cyclePalette('next')}
+        onEdit={() => handleEditPalette(selectedPalette)}
+        onDuplicate={() => duplicatePalette(selectedPalette)}
+        onExport={() => exportPalette(selectedPalette)}
+        onDelete={() => handleDeletePalette(selectedPalette.id)}
+        canCycle={sortedPalettes.length > 1}
       />
 
       <PaletteDropdown
         open={dropdownOpen}
-        anchorRef={anchorRef as React.RefObject<HTMLDivElement>}
+        anchorRef={anchorRef}
         search={search}
         onSearch={setSearch}
-        palettes={list}
-        hoveredId={hoveredId}
+        palettes={filteredPalettes}
         selectedId={selectedPalette.id}
         onSelect={selectPalette}
         onDuplicate={duplicatePalette}
@@ -200,8 +213,6 @@ const PaletteManager: React.FC = () => {
         onEdit={handleEditPalette}
         onDelete={handleDeletePalette}
         onMobileMenu={handleShowMobileMenu}
-        onHoverOn={(id) => setHoveredId(id)}
-        onHoverOff={() => setHoveredId(null)}
         onNewPalette={handleCreatePalette}
         onImport={onImport}
         close={() => setDropdownOpen(false)}
@@ -228,7 +239,7 @@ const PaletteManager: React.FC = () => {
         <PaletteEditor
           palette={editingPalette}
           onClose={handleCloseEditor}
-          onSave={handleSavePalette} // This now returns Promise<void>
+          onSave={handleSavePalette}
         />
       )}
     </div>

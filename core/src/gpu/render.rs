@@ -1,11 +1,11 @@
 use super::utils::{get_gpu_instance, preprocess, GpuConfig, GpuInstance};
 use crate::{Config, Mapping};
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use wasm_bindgen::JsValue;
 use web_sys::{ImageBitmap, OffscreenCanvas};
-use std::path::PathBuf;
-use std::borrow::Cow;
 
 const PRESENT_UNIFORM_BYTES: u64 = 16; // two vec2<f32>
 const CONFIG_UNIFORM_BYTES: u64 = std::mem::size_of::<GpuConfig>() as u64;
@@ -117,12 +117,7 @@ impl Renderer {
             ctx
         };
 
-        let config = configure_surface(
-            &context,
-            &surface,
-            &canvas,
-            self.instance.as_ref().using_webgpu,
-        );
+        let config = self.configure_surface(&context, &surface, &canvas);
         surface.configure(&context.device, &config);
 
         let canvas_handle = Arc::new(Canvas {
@@ -226,11 +221,11 @@ impl Renderer {
             ..Default::default()
         });
 
-        let tex_bgl = build_tex_bgl(&device);
-        let uni_bgl = build_uni_bgl(&device);
-        let mapping_frag_bgl = build_mapping_frag_bgl(&device);
+        let tex_bgl = self.build_tex_bgl(&device);
+        let uni_bgl = self.build_uni_bgl(&device);
+        let mapping_frag_bgl = self.build_mapping_frag_bgl(&device);
 
-        let (blit_pipeline, present_pipelines, present_fmt) = build_pipelines(
+        let (blit_pipeline, present_pipelines, present_fmt) = self.build_pipelines(
             &device,
             &adapter,
             surface,
@@ -593,246 +588,241 @@ impl Renderer {
             view_formats: &[],
         }
     }
-}
 
-fn configure_surface(
-    ctx: &Arc<Context>,
-    surface: &wgpu::Surface,
-    canvas: &OffscreenCanvas,
-    using_webgpu: bool,
-) -> wgpu::SurfaceConfiguration {
-    let caps = surface.get_capabilities(&ctx.adapter);
-    let format = caps.formats[0];
+    fn configure_surface(
+        &self,
+        ctx: &Arc<Context>,
+        surface: &wgpu::Surface,
+        canvas: &OffscreenCanvas,
+    ) -> wgpu::SurfaceConfiguration {
+        let caps = surface.get_capabilities(&ctx.adapter);
+        let format = caps.formats[0];
 
-    let alpha_mode = if using_webgpu {
-        wgpu::CompositeAlphaMode::PreMultiplied
-    } else {
-        wgpu::CompositeAlphaMode::Opaque
-    };
+        let alpha_mode = if self.instance.as_ref().using_webgpu {
+            wgpu::CompositeAlphaMode::PreMultiplied
+        } else {
+            wgpu::CompositeAlphaMode::Opaque
+        };
 
-    wgpu::SurfaceConfiguration {
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-        format: format.remove_srgb_suffix(),
-        width: canvas.width(),
-        height: canvas.height(),
-        present_mode: wgpu::PresentMode::Fifo,
-        alpha_mode,
-        view_formats: vec![format.add_srgb_suffix()],
-        desired_maximum_frame_latency: 2,
+        wgpu::SurfaceConfiguration {
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            format: format.remove_srgb_suffix(),
+            width: canvas.width(),
+            height: canvas.height(),
+            present_mode: wgpu::PresentMode::Fifo,
+            alpha_mode,
+            view_formats: vec![format.add_srgb_suffix()],
+            desired_maximum_frame_latency: 2,
+        }
     }
-}
 
-fn build_tex_bgl(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("tex_bgl"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+    fn build_tex_bgl(&self, device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("tex_bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
                 },
-                count: None,
-            },
-        ],
-    })
-}
-
-fn build_uni_bgl(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("uniform_bgl"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::VERTEX,
-            ty: wgpu::BindingType::Buffer {
-                ty: wgpu::BufferBindingType::Uniform,
-                has_dynamic_offset: false,
-                min_binding_size: wgpu::BufferSize::new(PRESENT_UNIFORM_BYTES),
-            },
-            count: None,
-        }],
-    })
-}
-
-fn build_mapping_frag_bgl(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("mapping_frag_bgl"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    multisampled: false,
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
                 },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 2,
-                visibility: wgpu::ShaderStages::FRAGMENT,
+            ],
+        })
+    }
+
+    fn build_uni_bgl(&self, device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("uniform_bgl"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
                 ty: wgpu::BindingType::Buffer {
                     ty: wgpu::BufferBindingType::Uniform,
                     has_dynamic_offset: false,
-                    min_binding_size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
+                    min_binding_size: wgpu::BufferSize::new(PRESENT_UNIFORM_BYTES),
                 },
                 count: None,
-            },
-        ],
-    })
-}
-
-fn build_pipelines(
-    device: &wgpu::Device,
-    adapter: &wgpu::Adapter,
-    surface: &wgpu::Surface,
-    tex_bgl: &wgpu::BindGroupLayout,
-    uni_bgl: &wgpu::BindGroupLayout,
-    mapping_frag_bgl: &wgpu::BindGroupLayout,
-) -> (
-    wgpu::RenderPipeline,
-    HashMap<Mapping, wgpu::RenderPipeline>,
-    wgpu::TextureFormat,
-) {
-    let quad_vs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("quad_vs"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shaders/quad_vs.wgsl").into()),
-    });
-    let blit_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("blit_fs"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shaders/blit_fs.wgsl").into()),
-    });
-
-    let blit_pipeline = {
-        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("blit"),
-            bind_group_layouts: &[tex_bgl],
-            push_constant_ranges: &[],
-        });
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("blit"),
-            layout: Some(&pl),
-            vertex: wgpu::VertexState {
-                module: &quad_vs,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &blit_fs,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: Default::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            multiview: None,
-            cache: None,
+            }],
         })
-    };
+    }
 
-    let vs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("present_vs"),
-        source: wgpu::ShaderSource::Wgsl(include_str!("shaders/present_vs.wgsl").into()),
-    });
+    fn build_mapping_frag_bgl(&self, device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("mapping_frag_bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
+                    },
+                    count: None,
+                },
+            ],
+        })
+    }
 
-    let mut shaders = HashMap::new();
-    shaders.insert(
-        PathBuf::from("common.wgsl"),
-        include_str!("shaders/common.wgsl").to_string(),
-    );
+    fn build_pipelines(
+        &self,
+        device: &wgpu::Device,
+        adapter: &wgpu::Adapter,
+        surface: &wgpu::Surface,
+        tex_bgl: &wgpu::BindGroupLayout,
+        uni_bgl: &wgpu::BindGroupLayout,
+        mapping_frag_bgl: &wgpu::BindGroupLayout,
+    ) -> (
+        wgpu::RenderPipeline,
+        HashMap<Mapping, wgpu::RenderPipeline>,
+        wgpu::TextureFormat,
+    ) {
+        let quad_vs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("quad_vs"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/quad_vs.wgsl").into()),
+        });
+        let blit_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("blit_fs"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/blit_fs.wgsl").into()),
+        });
 
-    shaders.insert(
-        PathBuf::from("palettized_fs.wgsl"),
-        include_str!("shaders/palettized_fs.wgsl").to_string(),
-    );
+        let blit_pipeline = {
+            let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("blit"),
+                bind_group_layouts: &[tex_bgl],
+                push_constant_ranges: &[],
+            });
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some("blit"),
+                layout: Some(&pl),
+                vertex: wgpu::VertexState {
+                    module: &quad_vs,
+                    entry_point: Some("vs_main"),
+                    buffers: &[],
+                    compilation_options: Default::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &blit_fs,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: Default::default(),
+                }),
+                primitive: Default::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                multiview: None,
+                cache: None,
+            })
+        };
 
-    let palettized_fs_code = preprocess(&shaders, "palettized_fs.wgsl").unwrap();
+        let vs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("present_vs"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/present_vs.wgsl").into()),
+        });
 
-    let palettized_fs = self.
-        .context.as_ref().unwrap()
-        .device
-        .create_shader_module(wgpu::ShaderModuleDescriptor {
+        let mut shaders = HashMap::new();
+        shaders.insert(
+            PathBuf::from("common.wgsl"),
+            include_str!("shaders/common.wgsl").to_string(),
+        );
+
+        shaders.insert(
+            PathBuf::from("palettized_fs.wgsl"),
+            include_str!("shaders/palettized_fs.wgsl").to_string(),
+        );
+
+        let palettized_fs_code = preprocess(&shaders, "palettized_fs.wgsl").unwrap();
+
+        let palettized_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("present_palettized_fs"),
             source: wgpu::ShaderSource::Wgsl(Cow::Owned(palettized_fs_code)),
         });
 
-    shaders.insert(
-        PathBuf::from("smoothed_fs.wgsl"),
-        include_str!("shaders/smoothed_fs.wgsl").to_string(),
-    );
+        shaders.insert(
+            PathBuf::from("smoothed_fs.wgsl"),
+            include_str!("shaders/smoothed_fs.wgsl").to_string(),
+        );
 
-    let smoothed_fs_code = preprocess(&shaders, "smoothed_fs.wgsl").unwrap();
+        let smoothed_fs_code = preprocess(&shaders, "smoothed_fs.wgsl").unwrap();
 
-    let smoothed_fs = self
-        .context.as_ref().unwrap()
-        .device
-        .create_shader_module(wgpu::ShaderModuleDescriptor {
+        let smoothed_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("present_smoothed_fs"),
             source: wgpu::ShaderSource::Wgsl(Cow::Owned(smoothed_fs_code)),
         });
 
-    let format = surface.get_capabilities(adapter).formats[0];
+        let format = surface.get_capabilities(adapter).formats[0];
 
-    let make = |fs: &wgpu::ShaderModule, mapping: Mapping| {
-        let layout = [mapping_frag_bgl, uni_bgl];
-        let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some(&format!("present_{:?}_layout", mapping)),
-            bind_group_layouts: &layout,
-            push_constant_ranges: &[],
-        });
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(&format!("present_{:?}_pipe", mapping)),
-            layout: Some(&pl),
-            vertex: wgpu::VertexState {
-                module: &vs,
-                entry_point: Some("vs_main"),
-                buffers: &[],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: fs,
-                entry_point: Some("fs_main"),
-                targets: &[Some(wgpu::ColorTargetState {
-                    format,
-                    blend: Some(wgpu::BlendState::REPLACE),
-                    write_mask: wgpu::ColorWrites::ALL,
-                })],
-                compilation_options: Default::default(),
-            }),
-            primitive: Default::default(),
-            depth_stencil: None,
-            multisample: Default::default(),
-            multiview: None,
-            cache: None,
-        })
-    };
+        let make = |fs: &wgpu::ShaderModule, mapping: Mapping| {
+            let layout = [mapping_frag_bgl, uni_bgl];
+            let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some(&format!("present_{:?}_layout", mapping)),
+                bind_group_layouts: &layout,
+                push_constant_ranges: &[],
+            });
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(&format!("present_{:?}_pipe", mapping)),
+                layout: Some(&pl),
+                vertex: wgpu::VertexState {
+                    module: &vs,
+                    entry_point: Some("vs_main"),
+                    buffers: &[],
+                    compilation_options: Default::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: fs,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format,
+                        blend: Some(wgpu::BlendState::REPLACE),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: Default::default(),
+                }),
+                primitive: Default::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                multiview: None,
+                cache: None,
+            })
+        };
 
-    let mut present_pipelines = HashMap::new();
-    present_pipelines.insert(
-        Mapping::Palettized,
-        make(&palettized_fs, Mapping::Palettized),
-    );
-    present_pipelines.insert(Mapping::Smoothed, make(&smoothed_fs, Mapping::Smoothed));
+        let mut present_pipelines = HashMap::new();
+        present_pipelines.insert(
+            Mapping::Palettized,
+            make(&palettized_fs, Mapping::Palettized),
+        );
+        present_pipelines.insert(Mapping::Smoothed, make(&smoothed_fs, Mapping::Smoothed));
 
-    (blit_pipeline, present_pipelines, format.add_srgb_suffix())
+        (blit_pipeline, present_pipelines, format.add_srgb_suffix())
+    }
 }

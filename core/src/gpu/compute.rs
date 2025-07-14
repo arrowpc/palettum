@@ -4,82 +4,7 @@ use wgpu::util::DeviceExt;
 
 use crate::{config::Config, error::Result, palettized::Dithering, Mapping};
 
-use super::context::GpuContext;
-
-const MAX_PALETTE_SIZE: usize = 256;
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GpuRgba {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-    pub a: u8,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GpuConfig {
-    pub transparency_threshold: u32,
-    pub diff_formula: u32,
-    pub smooth_formula: u32,
-    pub palette_size: u32,
-    pub palette: [u32; MAX_PALETTE_SIZE],
-    pub smooth_strength: f32,
-    pub dither_algorithm: u32,
-    pub dither_strength: f32,
-    pub image_width: u32,
-    pub image_height: u32,
-    pub _padding1: u32,
-    pub _padding2: u32,
-    pub _padding3: u32,
-}
-
-impl GpuConfig {
-    pub fn from_config(config: &Config, processing_width: u32, processing_height: u32) -> Self {
-        let mut palette = [0u32; MAX_PALETTE_SIZE];
-        for (i, rgb_color) in config.palette.colors.iter().enumerate() {
-            if i >= MAX_PALETTE_SIZE {
-                break;
-            }
-            let r = rgb_color.0[0] as u32;
-            let g = rgb_color.0[1] as u32;
-            let b = rgb_color.0[2] as u32;
-            let a = 255u32;
-            palette[i] = r | (g << 8) | (b << 16) | (a << 24);
-        }
-
-        Self {
-            transparency_threshold: config.transparency_threshold as u32,
-            diff_formula: match config.diff_formula {
-                crate::color_difference::Formula::CIE76 => 0,
-                crate::color_difference::Formula::CIE94 => 1,
-                crate::color_difference::Formula::CIEDE2000 => 2,
-            },
-            smooth_formula: match config.smooth_formula {
-                crate::smoothed::Formula::Idw => 0,
-                crate::smoothed::Formula::Gaussian => 1,
-                crate::smoothed::Formula::Rq => 2,
-            },
-            palette_size: config.palette.colors.len() as u32,
-            palette,
-            smooth_strength: config.smooth_strength,
-            dither_algorithm: match config.dither_algorithm {
-                Dithering::None => 0,
-                Dithering::Fs => 1,
-                Dithering::Bn => 2,
-            },
-            dither_strength: config.dither_strength,
-            image_width: processing_width,
-            image_height: processing_height,
-            _padding1: 0,
-            _padding2: 0,
-            _padding3: 0,
-        }
-    }
-}
-
-pub struct GpuImageProcessor {
+pub struct Processor {
     context: Arc<GpuContext>,
     palettized_pipeline: wgpu::ComputePipeline,
     smoothed_pipeline: wgpu::ComputePipeline,
@@ -89,7 +14,7 @@ pub struct GpuImageProcessor {
 const WORKGROUP_SIZE_X: u32 = 16;
 const WORKGROUP_SIZE_Y: u32 = 16;
 
-impl GpuImageProcessor {
+impl Processor {
     pub fn new(context: Arc<GpuContext>) -> Self {
         let mapping_layout = Self::create_bind_group_layout(&context.device);
         let palettized_pipeline =
@@ -434,17 +359,15 @@ impl GpuImageProcessor {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-static GPU_IMAGE_PROCESSOR_INSTANCE: async_once_cell::OnceCell<Arc<GpuImageProcessor>> =
+static GPU_IMAGE_PROCESSOR_INSTANCE: async_once_cell::OnceCell<Arc<Processor>> =
     async_once_cell::OnceCell::new();
 
 #[cfg(target_arch = "wasm32")]
 thread_local! {
-    static GPU_IMAGE_PROCESSOR_INSTANCE: std::cell::RefCell<Option<Arc<GpuImageProcessor>>> = std::cell::RefCell::new(None);
+    static GPU_IMAGE_PROCESSOR_INSTANCE: std::cell::RefCell<Option<Arc<Processor>>> = std::cell::RefCell::new(None);
 }
 
-pub async fn get_gpu_image_processor(
-    context: Arc<GpuContext>,
-) -> Result<Option<Arc<GpuImageProcessor>>> {
+pub async fn get_gpu_image_processor(context: Arc<GpuContext>) -> Result<Option<Arc<Processor>>> {
     #[cfg(target_arch = "wasm32")]
     {
         let mut result = None;
@@ -456,7 +379,7 @@ pub async fn get_gpu_image_processor(
         if result.is_some() {
             return Ok(result);
         }
-        let arc = Arc::new(GpuImageProcessor::new(context));
+        let arc = Arc::new(Processor::new(context));
         GPU_IMAGE_PROCESSOR_INSTANCE.with(|cell| {
             *cell.borrow_mut() = Some(arc.clone());
         });
@@ -467,7 +390,7 @@ pub async fn get_gpu_image_processor(
     {
         let result = GPU_IMAGE_PROCESSOR_INSTANCE
             .get_or_try_init(async {
-                let arc = Arc::new(GpuImageProcessor::new(context));
+                let arc = Arc::new(Processor::new(context));
                 log::debug!("GPU Image Processor initialized and cached");
                 Ok(arc)
             })

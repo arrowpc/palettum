@@ -1,67 +1,71 @@
-import React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
-interface CircularProgressProps extends React.HTMLAttributes<HTMLDivElement> {
+interface CircularProgressProps {
   progress: number; // 0-100
   size?: number;
   strokeWidth?: number;
   className?: string;
+  showPercentage?: boolean;
 }
 
-const CircularProgress: React.FC<CircularProgressProps> = ({
+export function CircularProgress({
   progress,
-  size = 24,
+  size = 16,
   strokeWidth = 2,
   className,
-  ...props
-}) => {
+  showPercentage = true
+}: CircularProgressProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   return (
-    <div
-      className={cn("relative flex items-center justify-center", className)}
-      style={{ width: size, height: size }}
-      {...props}
-    >
-      <svg
-        className="absolute"
-        width={size}
-        height={size}
-        viewBox={`0 0 ${size} ${size}`}
-      >
-        <circle
-          className="text-gray-200 dark:text-gray-700"
-          stroke="currentColor"
-          fill="none"
-          strokeWidth={strokeWidth}
-          r={radius}
-          cx={size / 2}
-          cy={size / 2}
-        />
-        <circle
-          className="text-primary transition-all duration-300 ease-in-out"
-          stroke="currentColor"
-          fill="none"
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
-          strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          r={radius}
-          cx={size / 2}
-          cy={size / 2}
-        />
-      </svg>
-      <span
-        className="text-xs font-medium text-foreground"
-        style={{ fontSize: size * 0.35 }}
-      >
-        {Math.round(progress)}%
-      </span>
+    <div className={cn("inline-flex items-center justify-center flex-shrink-0", className)}>
+      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+        <svg
+          className="transform -rotate-90"
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{ width: size, height: size }}
+        >
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            className="opacity-20"
+          />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            className="transition-all duration-300 ease-in-out"
+          />
+        </svg>
+
+        {showPercentage && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span
+              className="font-medium tabular-nums leading-none"
+              style={{
+                fontSize: `${size * 0.20}px`,
+                lineHeight: 1
+              }}
+            >
+              {Math.round(progress)}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
-};
-
-export { CircularProgress };
+}

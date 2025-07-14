@@ -60,25 +60,33 @@ export function ExportButton() {
   };
 
   return (
-    <Button onClick={handleExport} disabled={exportState !== "idle"}>
-      {exportState === "idle" && (
-        <>
-          <Download className="mr-2 h-4 w-4" />
-          Export
-        </>
-      )}
-      {exportState === "loading" && (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Exporting...
-        </>
-      )}
-      {exportState === "progress" && (
-        <>
-          <CircularProgress progress={exportProgress} className="mr-2" />
-          {exportMessage}
-        </>
-      )}
-    </Button>
+    <div className="self-center">
+      <Button onClick={handleExport} disabled={exportState !== "idle"} className="flex items-center">
+        {exportState === "idle" && (
+          <>
+            <Download className="mr-2 h-4 w-4 flex-shrink-0" />
+            Export
+          </>
+        )}
+        {exportState === "loading" && (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin flex-shrink-0" />
+            Exporting...
+          </>
+        )}
+        {exportState === "progress" && (
+          <>
+            <CircularProgress 
+              progress={exportProgress} 
+              size={30}
+              strokeWidth={3.5}
+              showPercentage={true}
+              className="text-xs" 
+            />
+            {exportMessage}
+          </>
+        )}
+      </Button>
+    </div>
   );
 }

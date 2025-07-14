@@ -27,13 +27,11 @@ export default function DitheringSetting() {
     <SettingItemWrapper
       label="Dithering"
       control={
-        <div className="flex items-center justify-center mb-2">
         <Switch
           id="dithering-switch"
           checked={isDitheringEnabled}
           onCheckedChange={handleCheckedChange}
         />
-      </div>
       }
     >
       <Slider

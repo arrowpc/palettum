@@ -48,6 +48,7 @@ pub struct Renderer {
 
     full_tex: Option<wgpu::Texture>,
     work_tex: Option<wgpu::Texture>,
+    work_bg: Option<wgpu::BindGroup>,
 
     present_buf: Option<wgpu::Buffer>,
     config_buf: Option<wgpu::Buffer>,
@@ -150,6 +151,7 @@ impl Renderer {
     pub fn try_draw(&mut self) -> Result<(), JsValue> {
         if self.full_tex.is_none() {
             log::debug!("Nothing to draw");
+            return Ok(());
         }
         self.ensure_work_tex_size()?;
         self.blit_full_to_work()?;
@@ -175,7 +177,9 @@ impl Renderer {
         self.try_draw()?;
         Ok(())
     }
+}
 
+impl Renderer {
     async fn create_context(&self, surface: &wgpu::Surface<'static>) -> Result<Context, JsValue> {
         let adapter = self
             .instance
@@ -227,6 +231,347 @@ impl Renderer {
             present_pipelines,
             present_fmt,
         })
+    }
+
+    fn upload_full_texture(&mut self, bmp: &ImageBitmap) -> Result<(), JsValue> {
+        let (w, h) = (bmp.width() as u32, bmp.height() as u32);
+        if self
+            .full_tex
+            .as_ref()
+            .map(|t| t.size().width != w || t.size().height != h)
+            .unwrap_or(true)
+        {
+            self.full_tex = Some(
+                self.context
+                    .as_ref()
+                    .unwrap()
+                    .device
+                    .create_texture(&Self::linear_tex("full_tex", w, h)),
+            );
+        }
+
+        self.context
+            .as_ref()
+            .unwrap()
+            .queue
+            .copy_external_image_to_texture(
+                &wgpu::CopyExternalImageSourceInfo {
+                    source: wgpu::ExternalImageSource::ImageBitmap(bmp.clone()),
+                    origin: wgpu::Origin2d::ZERO,
+                    flip_y: false,
+                },
+                wgpu::CopyExternalImageDestInfo {
+                    texture: self.full_tex.as_ref().unwrap(),
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                    color_space: wgpu::PredefinedColorSpace::Srgb,
+                    premultiplied_alpha: false,
+                },
+                self.full_tex.as_ref().unwrap().size(),
+            );
+        Ok(())
+    }
+
+    fn desired_work_dims(&self) -> Option<(u32, u32)> {
+        let full = self.full_tex.as_ref()?;
+        let ctx = self.canvas.as_ref()?;
+        let scale = (ctx.config.width as f32 / full.size().width as f32)
+            .min(ctx.config.height as f32 / full.size().height as f32)
+            .clamp(0.0, 1.0);
+        Some((
+            (full.size().width as f32 * scale).max(1.0).round() as u32,
+            (full.size().height as f32 * scale).max(1.0).round() as u32,
+        ))
+    }
+
+    fn ensure_work_tex_size(&mut self) -> Result<(), JsValue> {
+        let (w, h) = self
+            .desired_work_dims()
+            .ok_or(JsValue::from_str("no canvas / full_tex"))?;
+        if self
+            .work_tex
+            .as_ref()
+            .map(|t| t.size().width != w || t.size().height != h)
+            .unwrap_or(true)
+        {
+            let context = self.context.as_ref().unwrap();
+            self.work_tex = Some(
+                context
+                    .device
+                    .create_texture(&Self::linear_tex("work_tex", w, h)),
+            );
+            let view = self
+                .work_tex
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default());
+            self.work_bg = Some(
+                context
+                    .device
+                    .create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("work_bg"),
+                        layout: &self.context.as_ref().unwrap().tex_bgl,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::Sampler(&context.sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::TextureView(&view),
+                            },
+                        ],
+                    }),
+            );
+        }
+        Ok(())
+    }
+
+    fn blit_full_to_work(&mut self) -> Result<(), JsValue> {
+        let src_view = self
+            .full_tex
+            .as_ref()
+            .unwrap()
+            .create_view(&Default::default());
+        let dst_view = self
+            .work_tex
+            .as_ref()
+            .unwrap()
+            .create_view(&Default::default());
+
+        let context = self.context.as_ref().unwrap();
+
+        let tmp_bg = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("blit_bg"),
+                layout: &context.tex_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Sampler(&context.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&src_view),
+                    },
+                ],
+            });
+
+        let mut enc = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("blit_enc"),
+            });
+        {
+            let mut rpass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("blit_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &dst_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+            rpass.set_pipeline(&context.blit_pipeline);
+            rpass.set_bind_group(0, &tmp_bg, &[]);
+            rpass.draw(0..6, 0..1);
+        }
+        context.queue.submit(Some(enc.finish()));
+
+        Ok(())
+    }
+
+    fn present(&mut self) -> Result<(), JsValue> {
+        let ctx = self.canvas.as_ref().ok_or("canvas missing")?;
+        let work_tex = self.work_tex.as_ref().ok_or("work_tex missing")?;
+
+        let (img_w, img_h) = { (work_tex.size().width as f32, work_tex.size().height as f32) };
+        let (can_w, can_h) = (ctx.config.width as f32, ctx.config.height as f32);
+
+        let img_ar = img_w / img_h;
+        let can_ar = can_w / can_h;
+
+        let mut scale = [1.0f32, 1.0];
+        let offset = [0.0f32, 0.0];
+        match self.resize_mode {
+            ResizeMode::Fit => {
+                if img_ar > can_ar {
+                    scale[1] = can_ar / img_ar;
+                } else {
+                    scale[0] = img_ar / can_ar;
+                }
+            }
+            ResizeMode::Fill => {
+                if img_ar > can_ar {
+                    scale[0] = img_ar / can_ar;
+                } else {
+                    scale[1] = can_ar / img_ar;
+                }
+            }
+            ResizeMode::Stretch => {}
+        }
+
+        let context = self.context.as_ref().unwrap();
+
+        if self.present_buf.is_none() {
+            self.present_buf = Some(context.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("present_buf"),
+                size: PRESENT_UNIFORM_BYTES,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            }));
+        }
+        let data: [f32; 4] = [scale[0], scale[1], offset[0], offset[1]];
+        context.queue.write_buffer(
+            self.present_buf.as_ref().unwrap(),
+            0,
+            bytemuck::cast_slice(&data),
+        );
+
+        let uni_bg = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("uni_bg"),
+                layout: &context.uni_bgl,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                        buffer: self.present_buf.as_ref().unwrap(),
+                        offset: 0,
+                        size: wgpu::BufferSize::new(PRESENT_UNIFORM_BYTES),
+                    }),
+                }],
+            });
+
+        let mapping = self.config.as_ref().map(|c| c.mapping).unwrap_or_default();
+
+        let mapping_frag_bg_to_use: Option<wgpu::BindGroup> = match mapping {
+            Mapping::Smoothed | Mapping::Palettized => {
+                let gpu_config_data = GpuConfig::from_config(
+                    self.config.as_ref().unwrap(),
+                    work_tex.size().width,
+                    work_tex.size().height,
+                );
+
+                if self.config_buf.is_none() {
+                    self.config_buf = Some(context.device.create_buffer(&wgpu::BufferDescriptor {
+                        label: Some("config_buf"),
+                        size: CONFIG_UNIFORM_BYTES,
+                        usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                        mapped_at_creation: false,
+                    }));
+                }
+                context.queue.write_buffer(
+                    self.config_buf.as_ref().unwrap(),
+                    0,
+                    bytemuck::cast_slice(&[gpu_config_data]),
+                );
+
+                Some(
+                    context
+                        .device
+                        .create_bind_group(&wgpu::BindGroupDescriptor {
+                            label: Some("mapping_frag_bg"),
+                            layout: &context.mapping_frag_bgl,
+                            entries: &[
+                                wgpu::BindGroupEntry {
+                                    binding: 0,
+                                    resource: wgpu::BindingResource::Sampler(&context.sampler),
+                                },
+                                wgpu::BindGroupEntry {
+                                    binding: 1,
+                                    resource: wgpu::BindingResource::TextureView(
+                                        &work_tex.create_view(&Default::default()),
+                                    ),
+                                },
+                                wgpu::BindGroupEntry {
+                                    binding: 2,
+                                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                        buffer: self.config_buf.as_ref().unwrap(),
+                                        offset: 0,
+                                        size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
+                                    }),
+                                },
+                            ],
+                        }),
+                )
+            }
+        };
+
+        // ------------ render -----------------------------------
+        let frame = ctx
+            .surface
+            .get_current_texture()
+            .map_err(|e| JsValue::from_str(&format!("frame: {:?}", e)))?;
+
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(context.present_fmt),
+            ..Default::default()
+        });
+
+        let mut enc = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("present_enc"),
+            });
+        {
+            let mut rpass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("present_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+
+            let pipe = context.present_pipelines.get(&mapping).unwrap();
+            rpass.set_pipeline(pipe);
+
+            match mapping {
+                Mapping::Smoothed | Mapping::Palettized => {
+                    rpass.set_bind_group(0, mapping_frag_bg_to_use.as_ref().unwrap(), &[]);
+                }
+            }
+            rpass.set_bind_group(1, &uni_bg, &[]);
+
+            rpass.draw(0..6, 0..1);
+        }
+
+        context.queue.submit(Some(enc.finish()));
+        frame.present();
+        Ok(())
+    }
+
+    fn linear_tex<'a>(label: &'a str, w: u32, h: u32) -> wgpu::TextureDescriptor<'a> {
+        wgpu::TextureDescriptor {
+            label: Some(label),
+            size: wgpu::Extent3d {
+                width: w,
+                height: h,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING
+                | wgpu::TextureUsages::COPY_DST
+                | wgpu::TextureUsages::RENDER_ATTACHMENT,
+            view_formats: &[],
+        }
     }
 }
 

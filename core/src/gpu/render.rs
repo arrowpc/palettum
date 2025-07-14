@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use web_sys::{ImageBitmap, OffscreenCanvas};
 
@@ -38,6 +39,7 @@ struct Context {
     pub present_fmt: wgpu::TextureFormat,
 }
 
+#[wasm_bindgen]
 pub struct Renderer {
     instance: Arc<GpuInstance>,
 
@@ -58,7 +60,9 @@ pub struct Renderer {
     resize_mode: ResizeMode,
 }
 
+#[wasm_bindgen]
 impl Renderer {
+    #[wasm_bindgen(constructor)]
     pub async fn new() -> Renderer {
         let instance = get_gpu_instance().await.expect("Failed to get GPU context");
 
@@ -150,7 +154,7 @@ impl Renderer {
 
         self.canvas = Some(canvas);
 
-        self.try_draw();
+        self.try_draw()?;
         Ok(())
     }
 

@@ -15,6 +15,70 @@ use rayon::{prelude::*, ThreadPoolBuilder};
 
 use std::collections::HashMap;
 
+use crate::gpu::compute::Processor;
+use std::sync::Arc;
+
+#[cfg(not(target_arch = "wasm32"))]
+use async_once_cell::OnceCell;
+#[cfg(target_arch = "wasm32")]
+use std::cell::RefCell;
+
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static GPU_PROCESSOR: RefCell<Option<Arc<Processor>>> = RefCell::new(None);
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+static GPU_PROCESSOR: OnceCell<Arc<Processor>> = OnceCell::new();
+
+async fn get_gpu_processor() -> Result<Arc<Processor>> {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let mut result = None;
+        GPU_PROCESSOR.with(|cell| {
+            if let Some(p_arc) = cell.borrow().as_ref() {
+                result = Some(p_arc.clone());
+            }
+        });
+        if let Some(arc) = result {
+            return Ok(arc);
+        }
+        match Processor::new().await {
+            Ok(proc) => {
+                let arc = Arc::new(proc);
+                GPU_PROCESSOR.with(|cell| {
+                    *cell.borrow_mut() = Some(arc.clone());
+                });
+                Ok(arc)
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to initialize GPU processor: {:?}. Will fallback to CPU",
+                    e
+                );
+                Err(e)
+            }
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let result = GPU_PROCESSOR
+            .get_or_try_init(async {
+                Processor::new().await.map(Arc::new).map_err(|e| {
+                    log::warn!(
+                        "Failed to initialize GPU Processor: {:?}. Will fallback to CPU",
+                        e
+                    );
+                    e
+                })
+            })
+            .await;
+
+        result.map(Arc::clone).map_err(|e| e)
+    }
+}
+
 #[derive(Debug)]
 pub struct ThreadLocalCache {
     cache: HashMap<Rgba<u8>, Rgba<u8>>,
@@ -315,8 +379,6 @@ pub(crate) fn process_pixels_cpu(
     }
 }
 
-use crate::gpu::{compute::{GpuImageProcessor, get_gpu_image_processor}, context::get_gpu_context};
-
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub async fn process_pixels(
     image_data: &mut [u8],
@@ -324,32 +386,30 @@ pub async fn process_pixels(
     height: u32,
     config: Config,
 ) -> Result<()> {
+    if let Ok(gpu_processor) = get_gpu_processor().await {
+        log::debug!("Processing with GPU");
+        let result = gpu_processor
+            .process_image(image_data, width, height, &config)
+            .await?;
+
+        if image_data.len() == result.len() {
+            image_data.copy_from_slice(&result);
+        } else {
+            log::error!("GPU output buffer size mismatch.");
+            return Err(Error::Internal(
+                "GPU output buffer size mismatch".to_string(),
+            ));
+        }
+        return Ok(());
+    }
+
+    log::debug!("Processing with CPU as fallback.");
     let lab_colors = config
         .palette
         .colors
         .iter()
         .map(|rgb| rgb.to_lab())
         .collect::<Vec<Lab>>();
-
-    if let Ok(context) = get_gpu_context().await {
-        if let Some(gpu_processor_arc) = get_gpu_image_processor(context).await? {
-            let gpu_processor_ref: &GpuImageProcessor = &gpu_processor_arc;
-
-            let result = gpu_processor_ref
-                .process_image(image_data, width, height, &config)
-                .await?;
-
-            if image_data.len() == result.len() {
-                image_data.copy_from_slice(&result);
-            } else {
-                log::error!("GPU output buffer size mismatch.");
-                return Err(Error::Internal(
-                    "GPU output buffer size mismatch".to_string(),
-                ));
-            }
-            return Ok(());
-        }
-    }
 
     let lookup_table = if config.quant_level > 0 {
         let img_size = width as usize * height as usize;

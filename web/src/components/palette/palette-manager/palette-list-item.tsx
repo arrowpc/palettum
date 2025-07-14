@@ -64,7 +64,7 @@ const PaletteListItem: React.FC<ItemProps> = ({
         <div className="flex flex-col">
           <span className="truncate max-w-[180px]">{palette.id}</span>
           {palette.kind === "Default" && (
-            <span className="text-xs text-foreground-muted">(default)</span>
+            <span className="text-xs text-muted-foreground">(default)</span>
           )}
         </div>
         {palette.source && (

@@ -12,7 +12,7 @@ export const PaletteEditorActions: React.FC<PaletteEditorActionsProps> =
   React.memo(({ paletteColorCount, onClose, onSave, canSave }) => {
     return (
       <div className="flex justify-between items-center gap-3 mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-border">
-        <div className="text-sm text-foreground-muted">
+        <div className="text-sm text-muted-foreground">
           {paletteColorCount} / {LIMITS.MAX_COLORS} colors
         </div>
         <div className="flex gap-2 sm:gap-3">

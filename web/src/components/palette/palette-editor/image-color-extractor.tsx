@@ -86,7 +86,7 @@ export const ImageColorExtractor: React.FC<ImageColorExtractorProps> =
                 </button>
                 <label
                   htmlFor="numColorsToExtract"
-                  className="text-xs text-foreground-muted sr-only"
+                  className="text-xs text-muted-foreground sr-only"
                 >
                   Number of colors
                 </label>
@@ -124,7 +124,7 @@ export const ImageColorExtractor: React.FC<ImageColorExtractorProps> =
                 />
                 <span
                   className={cn(
-                    "text-xs text-foreground-muted",
+                    "text-xs text-muted-foreground",
                     (!uploadedImageFile || !canExtractMore) && "opacity-60",
                   )}
                 >

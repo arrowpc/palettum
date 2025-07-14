@@ -13,7 +13,7 @@ use web_time::Instant;
 #[wasm_bindgen(start)]
 pub fn wasm_init() {
     console_error_panic_hook::set_once();
-    wasm_logger::init(wasm_logger::Config::default());
+    wasm_logger::init(wasm_logger::Config::new(log::Level::Info));
     log::info!("palettum WASM module initialized");
 }
 

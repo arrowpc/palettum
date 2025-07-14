@@ -10,7 +10,7 @@ import { type Mapping } from "palettum";
 
 import { useConfigStore, useMediaStore } from "@/store";
 import DashedBorder from "@/components/ui/dashed-border";
-import { MEDIA_CANVAS_ID } from "@/lib/constants";
+import { MEDIA_CANVAS_ID, VIEWER_CANVAS_ID } from "@/lib/constants";
 
 const BORDER_RADIUS_SCALE = 0.15;
 
@@ -49,6 +49,7 @@ export default function MediaContainer() {
 
   const clear = () => {
     renderer.dispose();
+    renderer.dropCanvas(MEDIA_CANVAS_ID);
     setFile(null);
   };
 
@@ -116,6 +117,7 @@ export default function MediaContainer() {
         <CanvasViewer
           onClose={() => {
             setShowViewer(false);
+            renderer.dropCanvas(VIEWER_CANVAS_ID);
             renderer.switchCanvas(MEDIA_CANVAS_ID);
           }}
         />

@@ -21,6 +21,11 @@ const api = {
     await renderer.switch_canvas(id);
   },
 
+  async dropCanvas(id: string) {
+    const renderer = await getRenderer();
+    renderer.drop_canvas(id);
+  },
+
   async setConfig(cfg: Config) {
     const renderer = await getRenderer();
     renderer.set_config(cfg);

@@ -133,6 +133,8 @@
     @apply bg-background text-foreground;
     font-family: "8-bit HUD", sans-serif;
     font-size: 0.75rem;
+    margin-right: 1rem;
+    margin-left: 1rem;
   }
   button {
     @apply cursor-pointer;

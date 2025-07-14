@@ -13,7 +13,7 @@
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
-    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
@@ -21,25 +21,13 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    /* Path aliases */
     "baseUrl": ".",
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "@/assets/*": [
-        "./src/assets/*"
-      ],
-      "@/components/*": [
-        "./src/components/*"
-      ],
-      "@/services/*": [
-        "./src/services/*"
-      ],
-      "@/config/*": [
-        "./src/config/*"
       ],
       "palettum": [
         "./src/wasm/pkg/wasm"

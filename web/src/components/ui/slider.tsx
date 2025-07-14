@@ -68,7 +68,7 @@ const Slider = React.forwardRef<
         </SliderPrimitive.Track>
         <SliderPrimitive.Thumb
           className={cn(
-            "block rounded-full border border-primary/50 bg-background shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+            "block full border border-primary/50 bg-background shadow-md focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             "disabled:pointer-events-none disabled:opacity-50",
             props.disabled ? "" : "hover:border-primary",
           )}

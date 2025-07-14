@@ -48,7 +48,7 @@ const PaletteDropdown: React.FC<Props> = ({
             placeholder="Search palettes…"
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+            className="w-full pl-8 pr-3 py-1.5 border border-border rounded-md bg-background focus:outline-none focus:ring-1 focus:ring-ring text-base"
           />
           <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2" />
         </div>

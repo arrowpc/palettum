@@ -59,7 +59,7 @@ export default function InputArea({ onFile, onDragStateChange }: Props) {
       onDragLeave={dragLeave}
       onDrop={drop}
     >
-      <div className="flex flex-col items-center gap-3 w-full max-w-[15rem]">
+      <div className="flex flex-col items-center gap-3 w-full max-w-[15rem] text-xl">
         <div className="flex items-center w-full gap-2">
           <span className="text-muted-foreground">Drag</span>
           <Separator className="flex-1" />
@@ -71,7 +71,7 @@ export default function InputArea({ onFile, onDragStateChange }: Props) {
           <Separator className="flex-1" />
         </div>
         <Button
-          className="py-3 cursor-pointer"
+          className="py-6 cursor-pointer text-xl"
           onClick={() => picker.current?.click()}
         >
           Choose Media

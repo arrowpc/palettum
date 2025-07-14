@@ -141,7 +141,7 @@ export const ColorTile = React.memo(function ColorTile({
         </TooltipTrigger>
         <TooltipContent
           side="top"
-          className="bg-gray-900 text-white px-2 py-1 text-sm rounded shadow-lg"
+          className="bg-popover text-popover-foreground px-2 py-1 text-sm rounded shadow-lg"
         >
           {color.r}, {color.g}, {color.b}
         </TooltipContent>

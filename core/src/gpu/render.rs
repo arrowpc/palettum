@@ -31,9 +31,12 @@ struct Context {
     pub queue: wgpu::Queue,
 
     pub sampler: wgpu::Sampler,
+    pub nearest_sampler: wgpu::Sampler,
     pub tex_bgl: wgpu::BindGroupLayout,
     pub uni_bgl: wgpu::BindGroupLayout,
     pub mapping_frag_bgl: wgpu::BindGroupLayout,
+    pub blue_noise_bgl: wgpu::BindGroupLayout,
+    pub blue_noise_tex: wgpu::Texture,
     pub blit_pipeline: wgpu::RenderPipeline,
     pub present_pipelines: HashMap<Mapping, wgpu::RenderPipeline>,
     pub present_fmt: wgpu::TextureFormat,
@@ -260,6 +263,37 @@ impl Renderer {
             .await
             .map_err(|e| JsValue::from_str(&format!("Device request failed: {:?}", e)))?;
 
+        let blue_noise_size = wgpu::Extent3d {
+            width: 64,
+            height: 64,
+            depth_or_array_layers: 1,
+        };
+        let blue_noise_tex = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("blue_noise_tex"),
+            size: blue_noise_size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::R8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &blue_noise_tex,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &crate::palettized::BLUE_NOISE_64X64,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(64),
+                rows_per_image: None,
+            },
+            blue_noise_size,
+        );
+
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("linear_sampler"),
             mag_filter: wgpu::FilterMode::Nearest,
@@ -267,9 +301,17 @@ impl Renderer {
             ..Default::default()
         });
 
+        let nearest_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            label: Some("nearest_sampler"),
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
         let tex_bgl = self.build_tex_bgl(&device);
         let uni_bgl = self.build_uni_bgl(&device);
         let mapping_frag_bgl = self.build_mapping_frag_bgl(&device);
+        let blue_noise_bgl = self.build_blue_noise_bgl(&device);
 
         let (blit_pipeline, present_pipelines, present_fmt) = self.build_pipelines(
             &device,
@@ -278,6 +320,7 @@ impl Renderer {
             &tex_bgl,
             &uni_bgl,
             &mapping_frag_bgl,
+            &blue_noise_bgl,
         );
 
         Ok(Context {
@@ -285,9 +328,12 @@ impl Renderer {
             device,
             queue,
             sampler,
+            nearest_sampler,
             tex_bgl,
             uni_bgl,
             mapping_frag_bgl,
+            blue_noise_bgl,
+            blue_noise_tex,
             blit_pipeline,
             present_pipelines,
             present_fmt,
@@ -566,6 +612,31 @@ impl Renderer {
             }
         };
 
+        let blue_noise_bg_to_use: Option<wgpu::BindGroup> = if mapping == Mapping::Palettized {
+            Some(
+                context
+                    .device
+                    .create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("blue_noise_bg"),
+                        layout: &context.blue_noise_bgl,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(
+                                    &context.blue_noise_tex.create_view(&Default::default()),
+                                ),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(&context.nearest_sampler),
+                            },
+                        ],
+                    }),
+            )
+        } else {
+            None
+        };
+
         // ------------ render -----------------------------------
         let frame = ctx
             .surface
@@ -607,6 +678,10 @@ impl Renderer {
                 }
             }
             rpass.set_bind_group(1, &uni_bg, &[]);
+
+            if let Some(bg) = blue_noise_bg_to_use.as_ref() {
+                rpass.set_bind_group(2, bg, &[]);
+            }
 
             rpass.draw(0..6, 0..1);
         }
@@ -742,6 +817,30 @@ impl Renderer {
         })
     }
 
+    fn build_blue_noise_bgl(&self, device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("blue_noise_bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        multisampled: false,
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        })
+    }
+
     fn build_pipelines(
         &self,
         device: &wgpu::Device,
@@ -750,6 +849,7 @@ impl Renderer {
         tex_bgl: &wgpu::BindGroupLayout,
         uni_bgl: &wgpu::BindGroupLayout,
         mapping_frag_bgl: &wgpu::BindGroupLayout,
+        blue_noise_bgl: &wgpu::BindGroupLayout,
     ) -> (
         wgpu::RenderPipeline,
         HashMap<Mapping, wgpu::RenderPipeline>,
@@ -836,7 +936,11 @@ impl Renderer {
         });
 
         let make = |fs: &wgpu::ShaderModule, mapping: Mapping| {
-            let layout = [mapping_frag_bgl, uni_bgl];
+            let mut layout = vec![mapping_frag_bgl, uni_bgl];
+            if mapping == Mapping::Palettized {
+                layout.push(blue_noise_bgl);
+            }
+
             let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(&format!("present_{:?}_layout", mapping)),
                 bind_group_layouts: &layout,

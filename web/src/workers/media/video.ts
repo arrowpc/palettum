@@ -226,7 +226,7 @@ export class VideoHandler {
             return; // Not looping, so stop drawing
           }
         }
-        nextFrame = value;
+        nextFrame = value || null;
       }
       if (!nextFrame) return;
       const bmp = await createImageBitmap(nextFrame);

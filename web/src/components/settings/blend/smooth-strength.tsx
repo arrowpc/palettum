@@ -9,14 +9,14 @@ export default function SmoothStrength() {
   return (
     <SettingItemWrapper label="Strength">
       <Slider
-        value={[value]}
+        value={[value ?? 0]}
         max={1}
         step={0.01}
         onValueChange={([v]) => setConfig(setting, v)}
         className="w-full"
       />
       <div className={`text-center text-sm ${value === 0 ? "text-muted-foreground" : ""}`}>
-        {value.toFixed(2)}
+        {(value ?? 0).toFixed(2)}
       </div>
     </SettingItemWrapper>
   );

@@ -9,6 +9,7 @@ interface Props {
   file: File;
   onCanvasClick: (event: React.MouseEvent<HTMLElement, MouseEvent>, mediaInfo: MediaInfo) => void;
   borderRadius: string;
+  className?: string;
 }
 
 export default function CanvasPreview({ file, onCanvasClick, borderRadius }: Props) {
@@ -56,7 +57,7 @@ export default function CanvasPreview({ file, onCanvasClick, borderRadius }: Pro
     setIsPlaying(!isPlaying);
   };
 
-  const handleInspectClick = (e: React.MouseEvent) => {
+  const handleInspectClick = (e: React.MouseEvent<HTMLElement, MouseEvent>) => {
     e.stopPropagation();
     if (mediaInfo) {
       onCanvasClick(e, mediaInfo);

@@ -35,7 +35,7 @@ export default function DitheringSetting() {
       }
     >
       <Slider
-        value={[isDitheringEnabled ? ditherStrength : 0]}
+        value={[isDitheringEnabled ? ditherStrength ?? 0 : 0]}
         max={1}
         step={0.01}
         onValueChange={([v]) => {
@@ -49,9 +49,9 @@ export default function DitheringSetting() {
         className="w-full"
       />
       <div
-        className={`text-center text-sm ${ditherStrength === 0 ? "text-muted-foreground" : ""}`}
+        className={`text-center text-sm ${(ditherStrength ?? 0) === 0 ? "text-muted-foreground" : ""}`}
       >
-        {ditherStrength === 0 ? "Off" : ditherStrength.toFixed(2)}
+        {(ditherStrength ?? 0) === 0 ? "Off" : (ditherStrength ?? 0).toFixed(2)}
       </div>
     </SettingItemWrapper>
   );

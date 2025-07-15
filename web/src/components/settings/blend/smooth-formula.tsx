@@ -16,7 +16,7 @@ export default function SmoothFormula() {
           { label: "Gaus", value: "Gaussian" },
           { label: "Rq", value: "Rq" },
         ]}
-        value={value}
+        value={value ?? "Idw"}
         onChange={(v) => setConfig(setting, v as SmoothFormula)}
       />
     </SettingItemWrapper>

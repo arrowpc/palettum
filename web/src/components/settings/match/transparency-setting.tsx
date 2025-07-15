@@ -16,7 +16,7 @@ export default function TransparencySetting() {
     }
   }, [hasAlpha, transparencyThreshold, setConfig]);
 
-  const isTransparencyEnabled = transparencyThreshold > 0;
+  const isTransparencyEnabled = (transparencyThreshold ?? 0) > 0;
 
   const handleCheckedChange = (checked: boolean) => {
     if (checked) {
@@ -43,7 +43,7 @@ export default function TransparencySetting() {
       {hasAlpha ? (
         <>
           <Slider
-            value={[transparencyThreshold]}
+            value={[transparencyThreshold ?? 0]}
             max={255}
             step={1}
             onValueChange={([v]) => {

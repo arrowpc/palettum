@@ -1,7 +1,5 @@
 import { getRenderer } from "../core/renderer";
 
-import type { Config } from "palettum";
-
 export class ImageHandler {
   private disposed = false;
   private file: Blob;
@@ -19,8 +17,6 @@ export class ImageHandler {
     this.height = bmp.height;
     r.draw(bmp);
   }
-
-  
 
   async dispose() {
     if (this.disposed) return;

@@ -16,7 +16,7 @@ export default function QualitySetting() {
           { label: "Med", value: "CIE94" },
           { label: "Low", value: "CIE76" },
         ]}
-        value={value}
+        value={value ?? "CIEDE2000"}
         onChange={(v) => setConfig(setting, v as DiffFormula)}
       />
     </SettingItemWrapper>

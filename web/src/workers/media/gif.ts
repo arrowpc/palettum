@@ -1,5 +1,5 @@
 import { getRenderer } from "../core/renderer";
-import type { Config, Gif } from "palettum";
+import type { Gif } from "palettum";
 
 const LOOP = true;
 

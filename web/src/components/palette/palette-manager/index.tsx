@@ -3,7 +3,7 @@ import PalettePreview from "./palette-preview";
 import PaletteDropdown from "./palette-dropdown";
 import MobileActionSheet from "./mobile-action-sheet";
 import PaletteEditor from "@/components/palette/palette-editor";
-import { useConfigStore, usePaletteStore } from "@/stores";
+import { usePaletteStore } from "@/stores";
 import { generateUniqueId } from "@/lib/utils";
 import { type Palette } from "palettum";
 
@@ -24,7 +24,7 @@ const PaletteManager: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPalette, setEditingPalette] = useState<Palette | null>(null);
 
-  const anchorRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null!);
   const importInput = useRef<HTMLInputElement>(null);
 
   const sortedPalettes = useMemo(() => {

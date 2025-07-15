@@ -22,7 +22,8 @@ const ListActionButton = React.memo<{
   label: string;
   disabled?: boolean;
   showTooltip: boolean;
-}>(({ icon: Icon, onClick, label, disabled, showTooltip }) => (
+  isParentHovered: boolean; // New prop to control visibility
+}>(({ icon: Icon, onClick, label, disabled, showTooltip, isParentHovered }) => (
   <TooltipWrapper content={label} shouldRender={showTooltip}>
     <button
       onClick={onClick}
@@ -31,7 +32,8 @@ const ListActionButton = React.memo<{
         "p-1.5 rounded transition-colors",
         disabled
           ? "text-muted-foreground cursor-not-allowed"
-          : "text-foreground hover:bg-background"
+          : "text-foreground hover:bg-background",
+        isParentHovered ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
       )}
     >
       <Icon className="w-4 h-4" />
@@ -139,7 +141,7 @@ const PaletteListItem: React.FC<Props> = ({
       </div>
 
       {/* Desktop Actions */}
-      <div className="hidden sm:flex items-center gap-1">
+      <div className="hidden sm:flex items-center gap-1 min-h-[36px]">
         {actions.map(({ icon, onClick, label, disabled }) => (
           <ListActionButton
             key={label}
@@ -148,6 +150,7 @@ const PaletteListItem: React.FC<Props> = ({
             label={label}
             disabled={disabled}
             showTooltip={isHovered}
+            isParentHovered={isHovered}
           />
         ))}
       </div>

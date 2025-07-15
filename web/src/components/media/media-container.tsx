@@ -11,10 +11,13 @@ import { type Mapping } from "palettum";
 import { useConfigStore, useMediaStore } from "@/stores";
 import DashedBorder from "@/components/ui/dashed-border";
 import { MEDIA_CANVAS_ID, VIEWER_CANVAS_ID } from "@/lib/constants";
+import { useSyncConfigToWorker } from "@/hooks/use-sync-config-to-worker";
 
 const BORDER_RADIUS_SCALE = 0.15;
 
 export default function MediaContainer() {
+  useSyncConfigToWorker();
+  
   const [dragging, setDragging] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
   const [borderRadius, setBorderRadius] = useState(0);

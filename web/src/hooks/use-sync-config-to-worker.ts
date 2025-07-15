@@ -1,14 +1,21 @@
 import { useEffect } from "react";
-import { useConfigStore } from "@/stores";
 import { useRenderer } from "@/providers/renderer-provider";
+import { useConfigStore } from "@/stores";
 
 export function useSyncConfigToWorker() {
-  const config = useConfigStore((state) => state.config);
   const renderer = useRenderer();
 
   useEffect(() => {
-    if (renderer) {
-      renderer.setConfig(config);
-    }
-  }, [config, renderer]);
+    if (!renderer) return;
+
+    // Sync initial config
+    renderer.setConfig(useConfigStore.getState().config);
+
+    // Subscribe to any store change, pull out config manually
+    const unsubscribe = useConfigStore.subscribe((state) => {
+      renderer.setConfig(state.config);
+    });
+
+    return unsubscribe;
+  }, [renderer]);
 }

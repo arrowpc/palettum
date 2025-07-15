@@ -1,5 +1,4 @@
 import MediaContainer from "@/components/media/media-container";
-import { useSyncConfigToWorker } from "@/hooks/use-sync-config-to-worker";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { GitHubButton } from "@/components/buttons/github-button";
 import { ThemeToggle } from "@/components/buttons/theme-toggle";
@@ -14,7 +13,6 @@ import("react-scan").then(({ scan }) => {
 });
 
 function App() {
-  useSyncConfigToWorker();
   const file = useMediaStore((state) => state.file);
 
   return (

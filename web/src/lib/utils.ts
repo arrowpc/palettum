@@ -148,7 +148,12 @@ export const getDisplayedColors = (
   return displayed;
 };
 
+// TODO: A media type should be passed here that can
+// retrieve type much easier in sync with the rest of the app
 export async function checkAlphaChannel(file: File): Promise<boolean> {
+  if (file.type.startsWith("video/")) {
+    return false;
+  }
   const image = await createImageBitmap(file);
   const canvas = new OffscreenCanvas(image.width, image.height);
   const ctx = canvas.getContext("2d");

@@ -138,7 +138,7 @@ export class VideoHandler {
         const READ_LIMIT = 64 * 1024;
 
         while (!this.disposed) {
-          // Implement back-pressure: pause demuxing if frameQueue is too full
+          // Pause demuxing if frameQueue is too full
           while (this.frameQueue.size() > 30 && !this.disposed) {
             await new Promise((resolve) => setTimeout(resolve, 100)); // Wait a bit
           }
@@ -231,7 +231,8 @@ export class VideoHandler {
       if (!nextFrame) return;
       const bmp = await createImageBitmap(nextFrame);
       r.draw(bmp);
-      bmp.close();
+      // Maybe after a refactor bmp can be closed after a draw call but for now it's not possible
+      // bmp.close();
       const durMs =
         typeof nextFrame.duration === "number" ? nextFrame.duration / 1000 : 33;
       nextFrame.close();

@@ -1,6 +1,7 @@
 import { create } from "zustand";
-import { type Config, type Palette } from "palettum";
+import { type Palette } from "palettum";
 import { LIMITS } from "@/lib/utils";
+import { useConfigStore } from "./config";
 
 const paletteModules = import.meta.glob<{ default: Palette }>(
   "palettes/*.json",
@@ -181,152 +182,118 @@ interface PaletteState {
   deletePalette: (paletteId: string) => void;
 }
 
-interface ConfigState {
-  config: Config;
-  setConfig: <K extends keyof Config>(key: K, value: Config[K]) => void;
-}
+export const usePaletteStore = create<PaletteState>((set, get) => ({
+  palettes: allInitialPalettes,
+  selectedPalette: initialSelectedPalette!,
+  paletteSelectionOrder: initialPaletteSelectionOrder,
+  setPalettes: (palettes) => {
+    set({ palettes });
+    savePalettes(palettes);
+  },
+  setSelectedPalette: (palette) => {
+    set((state) => ({
+      selectedPalette: palette,
+    }));
+    saveSelectedPaletteId(palette.id);
+    useConfigStore.getState().setSelectedPalette(palette);
 
-interface MediaState {
-  file: File | null;
-  hasAlpha: boolean;
-  setFile: (file: File | null) => void;
-  setHasAlpha: (hasAlpha: boolean) => void;
-}
+    const currentOrder = get().paletteSelectionOrder;
+    if (currentOrder[0] !== palette.id) {
+      const newOrder = [
+        palette.id,
+        ...currentOrder.filter((id) => id !== palette.id),
+      ];
+      set({ paletteSelectionOrder: newOrder });
+      savePaletteSelectionOrder(newOrder);
+    }
+  },
+  addPalette: (palette) => {
+    const palettes = [...get().palettes, palette];
+    set({ palettes });
+    savePalettes(palettes);
+  },
+  updatePalette: (originalId, updatedPalette) => {
+    set((state) => {
+      const newPalettes = [...state.palettes];
+      const originalIndex = newPalettes.findIndex((p) => p.id === originalId);
 
-export const useMediaStore = create<MediaState>((set) => ({
-  file: null,
-  hasAlpha: false,
-  setFile: (file) => set({ file }),
-  setHasAlpha: (hasAlpha) => set({ hasAlpha }),
+      if (originalIndex !== -1) {
+        // If the ID has changed, we remove the old entry.
+        if (originalId !== updatedPalette.id) {
+          newPalettes.splice(originalIndex, 1);
+        }
+      }
+
+      const existingIndexForNewId = newPalettes.findIndex(
+        (p) => p.id === updatedPalette.id,
+      );
+      if (existingIndexForNewId !== -1) {
+        newPalettes[existingIndexForNewId] = updatedPalette;
+      } else {
+        // If it's a new ID (from a rename), it might not exist, so push.
+        // Or if it was a new palette to begin with.
+        // The original logic in handleSavePalette is a bit ambiguous.
+        // This logic handles both creating and updating.
+        newPalettes.push(updatedPalette);
+      }
+
+      savePalettes(newPalettes);
+
+      // If the updated palette is the selected one, update the config
+      if (state.selectedPalette.id === originalId) {
+        useConfigStore.getState().setSelectedPalette(updatedPalette);
+        return {
+          palettes: newPalettes,
+          selectedPalette: updatedPalette,
+        };
+      }
+
+      return { palettes: newPalettes };
+    });
+  },
+  deletePalette: (paletteId) => {
+    const palettes = get().palettes.filter((p) => p.id !== paletteId);
+    const order = get().paletteSelectionOrder.filter(
+      (id) => id !== paletteId,
+    );
+    set({ palettes, paletteSelectionOrder: order });
+    savePalettes(palettes);
+    savePaletteSelectionOrder(order);
+
+    if (get().selectedPalette.id === paletteId) {
+      let nextSelected: Palette | undefined;
+      if (order.length > 0) {
+        nextSelected = palettes.find((p) => p.id === order[0]);
+      }
+
+      if (!nextSelected) {
+        nextSelected =
+          palettes.find((p) => p.kind === "Default") || palettes[0];
+      }
+
+      if (nextSelected) {
+        set((state) => ({
+          selectedPalette: nextSelected,
+        }));
+        saveSelectedPaletteId(nextSelected.id);
+        useConfigStore.getState().setSelectedPalette(nextSelected);
+      } else {
+        const defaultPalettes = loadDefaultPalettes();
+        if (defaultPalettes.length > 0) {
+          const newSelected = defaultPalettes[0];
+          set((state) => ({
+            selectedPalette: newSelected,
+          }));
+          saveSelectedPaletteId(newSelected.id);
+          useConfigStore.getState().setSelectedPalette(newSelected);
+        } else {
+          // All palettes are gone, this is a critical state.
+          // For now, the UI will break, which is a sign of a problem.
+        }
+      }
+    }
+  },
 }));
 
-export const useConfigStore = create<ConfigState & PaletteState>(
-  (set, get) => ({
-    config: {
-      palette: initialSelectedPalette!,
-      mapping: "Smoothed",
-      diffFormula: "CIEDE2000",
-      smoothFormula: "Idw",
-      smoothStrength: 0.5,
-      transparencyThreshold: 128,
-      ditherAlgorithm: "None",
-      ditherStrength: 0.5,
-      quantLevel: 0,
-      filter: "Nearest",
-    },
-    setConfig: (key, value) =>
-      set((state) => ({
-        config: { ...state.config, [key]: value },
-      })),
-    palettes: allInitialPalettes,
-    selectedPalette: initialSelectedPalette!,
-    paletteSelectionOrder: initialPaletteSelectionOrder,
-    setPalettes: (palettes) => {
-      set({ palettes });
-      savePalettes(palettes);
-    },
-    setSelectedPalette: (palette) => {
-      set((state) => ({
-        selectedPalette: palette,
-        config: { ...state.config, palette },
-      }));
-      saveSelectedPaletteId(palette.id);
-
-      const currentOrder = get().paletteSelectionOrder;
-      if (currentOrder[0] !== palette.id) {
-        const newOrder = [
-          palette.id,
-          ...currentOrder.filter((id) => id !== palette.id),
-        ];
-        set({ paletteSelectionOrder: newOrder });
-        savePaletteSelectionOrder(newOrder);
-      }
-    },
-    addPalette: (palette) => {
-      const palettes = [...get().palettes, palette];
-      set({ palettes });
-      savePalettes(palettes);
-    },
-    updatePalette: (originalId, updatedPalette) => {
-      set((state) => {
-        const newPalettes = [...state.palettes];
-        const originalIndex = newPalettes.findIndex((p) => p.id === originalId);
-
-        if (originalIndex !== -1) {
-          // If the ID has changed, we remove the old entry.
-          if (originalId !== updatedPalette.id) {
-            newPalettes.splice(originalIndex, 1);
-          }
-        }
-
-        const existingIndexForNewId = newPalettes.findIndex(
-          (p) => p.id === updatedPalette.id,
-        );
-        if (existingIndexForNewId !== -1) {
-          newPalettes[existingIndexForNewId] = updatedPalette;
-        } else {
-          // If it's a new ID (from a rename), it might not exist, so push.
-          // Or if it was a new palette to begin with.
-          // The original logic in handleSavePalette is a bit ambiguous.
-          // This logic handles both creating and updating.
-          newPalettes.push(updatedPalette);
-        }
-
-        savePalettes(newPalettes);
-
-        // If the updated palette is the selected one, update the config
-        if (state.selectedPalette.id === originalId) {
-          return {
-            palettes: newPalettes,
-            selectedPalette: updatedPalette,
-            config: { ...state.config, palette: updatedPalette },
-          };
-        }
-
-        return { palettes: newPalettes };
-      });
-    },
-    deletePalette: (paletteId) => {
-      const palettes = get().palettes.filter((p) => p.id !== paletteId);
-      const order = get().paletteSelectionOrder.filter(
-        (id) => id !== paletteId,
-      );
-      set({ palettes, paletteSelectionOrder: order });
-      savePalettes(palettes);
-      savePaletteSelectionOrder(order);
-
-      if (get().selectedPalette.id === paletteId) {
-        let nextSelected: Palette | undefined;
-        if (order.length > 0) {
-          nextSelected = palettes.find((p) => p.id === order[0]);
-        }
-
-        if (!nextSelected) {
-          nextSelected =
-            palettes.find((p) => p.kind === "Default") || palettes[0];
-        }
-
-        if (nextSelected) {
-          set((state) => ({
-            selectedPalette: nextSelected,
-            config: { ...state.config, palette: nextSelected },
-          }));
-          saveSelectedPaletteId(nextSelected.id);
-        } else {
-          const defaultPalettes = loadDefaultPalettes();
-          if (defaultPalettes.length > 0) {
-            const newSelected = defaultPalettes[0];
-            set((state) => ({
-              selectedPalette: newSelected,
-              config: { ...state.config, palette: newSelected },
-            }));
-            saveSelectedPaletteId(newSelected.id);
-          } else {
-            // All palettes are gone, this is a critical state.
-            // For now, the UI will break, which is a sign of a problem.
-          }
-        }
-      }
-    },
-  }),
-);
+// Initialize config store with the initial selected palette
+useConfigStore.getState().setSelectedPalette(initialSelectedPalette!);

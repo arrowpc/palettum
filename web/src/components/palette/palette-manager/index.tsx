@@ -3,7 +3,7 @@ import PalettePreview from "./palette-preview";
 import PaletteDropdown from "./palette-dropdown";
 import MobileActionSheet from "./mobile-action-sheet";
 import PaletteEditor from "@/components/palette/palette-editor";
-import { useConfigStore } from "@/store";
+import { useConfigStore, usePaletteStore } from "@/stores";
 import { generateUniqueId } from "@/lib/utils";
 import { type Palette } from "palettum";
 
@@ -16,7 +16,7 @@ const PaletteManager: React.FC = () => {
     addPalette,
     updatePalette,
     deletePalette,
-  } = useConfigStore();
+  } = usePaletteStore();
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [search, setSearch] = useState("");

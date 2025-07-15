@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useConfigStore } from "@/store";
+import { useConfigStore } from "@/stores";
 import { useRenderer } from "@/providers/renderer-provider";
 
 export function useSyncConfigToWorker() {
@@ -8,7 +8,6 @@ export function useSyncConfigToWorker() {
 
   useEffect(() => {
     if (renderer) {
-      console.log(config);
       renderer.setConfig(config);
     }
   }, [config, renderer]);

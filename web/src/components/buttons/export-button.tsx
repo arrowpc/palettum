@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useConfigStore } from "@/store";
+import { useConfigStore } from "@/stores";
 import { useRenderer } from "@/providers/renderer-provider";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";

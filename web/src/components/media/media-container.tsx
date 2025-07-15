@@ -8,7 +8,7 @@ import { useRenderer } from "@/providers/renderer-provider";
 import { CircleX } from "lucide-react";
 import { type Mapping } from "palettum";
 
-import { useConfigStore, useMediaStore } from "@/store";
+import { useConfigStore, useMediaStore } from "@/stores";
 import DashedBorder from "@/components/ui/dashed-border";
 import { MEDIA_CANVAS_ID, VIEWER_CANVAS_ID } from "@/lib/constants";
 

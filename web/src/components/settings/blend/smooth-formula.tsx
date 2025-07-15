@@ -1,4 +1,4 @@
-import { useConfigStore } from "@/store";
+import { useConfigStore } from "@/stores";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
 import { type SmoothFormula } from "palettum";
 import SettingItemWrapper from "../setting-item-wrapper";

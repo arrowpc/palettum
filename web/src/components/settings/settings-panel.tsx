@@ -1,4 +1,4 @@
-import { useConfigStore } from "@/store";
+import { useConfigStore } from "@/stores";
 import QualitySetting from "./general/quality-setting";
 import SmoothFormula from "./blend/smooth-formula";
 import SmoothStrength from "./blend/smooth-strength";

@@ -1,6 +1,6 @@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { useConfigStore, useMediaStore } from "@/store";
+import { useConfigStore, useMediaStore } from "@/stores";
 import SettingItemWrapper from "../setting-item-wrapper";
 import React from "react";
 

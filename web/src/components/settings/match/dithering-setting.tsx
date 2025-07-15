@@ -1,6 +1,6 @@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
-import { useConfigStore } from "@/store";
+import { useConfigStore } from "@/stores";
 import SettingItemWrapper from "../setting-item-wrapper";
 
 export default function DitheringSetting() {

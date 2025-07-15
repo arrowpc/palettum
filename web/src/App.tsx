@@ -6,7 +6,7 @@ import { ThemeToggle } from "@/components/buttons/theme-toggle";
 import PaletteManager from "@/components/palette/palette-manager";
 import SettingsPanel from "@/components/settings/settings-panel";
 import { ExportButton } from "@/components/buttons/export-button";
-import { useMediaStore } from "@/store";
+import { useMediaStore } from "@/stores";
 import Footer from "@/components/footer";
 
 import("react-scan").then(({ scan }) => {

@@ -61,9 +61,20 @@ const enableCOEP: PluginOption = {
   },
 };
 
+const ReactCompilerConfig = {
+  target: '19'
+};
+
+
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      babel: {
+        plugins: [
+          ["babel-plugin-react-compiler", ReactCompilerConfig],
+        ],
+      },
+    }),
     tailwindcss(),
     wasm(),
     topLevelAwait(),

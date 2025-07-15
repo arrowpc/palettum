@@ -1,4 +1,4 @@
-import React, { useRef, useLayoutEffect, useState } from "react";
+import React, { useRef, useLayoutEffect, useState, useMemo, useCallback } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Edit2, Trash2 } from "lucide-react";
 import { rgbToHex, cn } from "@/lib/utils";
 import { type Palette } from "palettum";
@@ -17,6 +17,43 @@ interface Props {
   onDelete: () => void;
   canCycle: boolean;
 }
+
+const ActionButton = React.memo<{
+  icon: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
+  label: string;
+  disabled?: boolean;
+}>(({ icon: Icon, onClick, label, disabled }) => (
+  <TooltipWrapper content={label}>
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "p-2 rounded-md transition-colors",
+        disabled
+          ? "text-muted-foreground cursor-not-allowed"
+          : "text-foreground hover:bg-muted"
+      )}
+    >
+      <Icon className="w-4 h-4" />
+    </button>
+  </TooltipWrapper>
+));
+
+const NavButton = React.memo<{
+  icon: React.ComponentType<{ className?: string }>;
+  onClick: () => void;
+  label: string;
+}>(({ icon: Icon, onClick, label }) => (
+  <TooltipWrapper content={label}>
+    <button
+      onClick={onClick}
+      className="p-1.5 rounded-md hover:bg-muted text-foreground transition-colors"
+    >
+      <Icon className="w-4 h-4" />
+    </button>
+  </TooltipWrapper>
+));
 
 const PalettePreview: React.FC<Props> = ({
   palette,
@@ -41,7 +78,7 @@ const PalettePreview: React.FC<Props> = ({
       const maxColors = Math.floor(containerWidth / colorSize);
       setMaxVisible(Math.max(1, maxColors));
     };
-    
+
     update();
     window.addEventListener("resize", update);
     return () => window.removeEventListener("resize", update);
@@ -50,25 +87,35 @@ const PalettePreview: React.FC<Props> = ({
   const colorCycleIndex = useColorCycle(
     palette.colors.length,
     palette.colors.length > maxVisible,
-    150
+    300
   );
 
-  const visibleColors = palette.colors.length > maxVisible
-    ? [...Array(maxVisible - 1).keys()].map(
+  const visibleColors = useMemo(() => {
+    return palette.colors.length > maxVisible
+      ? [...Array(maxVisible - 1).keys()].map(
         (i) => palette.colors[(colorCycleIndex + i) % palette.colors.length]
       )
-    : palette.colors;
+      : palette.colors;
+  }, [palette.colors, maxVisible, colorCycleIndex]);
 
-  const hiddenCount = palette.colors.length > maxVisible 
-    ? palette.colors.length - maxVisible + 1 
-    : 0;
+  const hiddenCount = useMemo(() => {
+    return palette.colors.length > maxVisible
+      ? palette.colors.length - maxVisible + 1
+      : 0;
+  }, [palette.colors.length, maxVisible]);
 
-  const actions = [
+  const actions = useMemo(() => [
     { icon: Copy, onClick: onDuplicate, label: "Duplicate" },
     { icon: Download, onClick: onExport, label: "Export" },
     { icon: Edit2, onClick: onEdit, label: "Edit", disabled: palette.kind === "Default" },
     { icon: Trash2, onClick: onDelete, label: "Delete", disabled: palette.kind === "Default" },
-  ];
+  ], [onDuplicate, onExport, onEdit, onDelete, palette.kind]);
+
+  const handleToggle = useCallback(() => {
+    requestAnimationFrame(() => {
+      onToggle();
+    });
+  }, [onToggle]);
 
   return (
     <div className="bg-card rounded-lg overflow-hidden shadow-sm">
@@ -84,47 +131,34 @@ const PalettePreview: React.FC<Props> = ({
             </span>
           )}
         </div>
-        
+
         <div className="flex items-center gap-1">
           {/* Desktop Actions */}
           <div className="hidden sm:flex items-center gap-1">
-            {actions.map(({ icon: Icon, onClick, label, disabled }) => (
-              <TooltipWrapper key={label} content={label}>
-                <button
-                  onClick={onClick}
-                  disabled={disabled}
-                  className={cn(
-                    "p-2 rounded-md transition-colors",
-                    disabled 
-                      ? "text-muted-foreground cursor-not-allowed"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                >
-                  <Icon className="w-4 h-4" />
-                </button>
-              </TooltipWrapper>
+            {actions.map(({ icon, onClick, label, disabled }) => (
+              <ActionButton
+                key={label}
+                icon={icon}
+                onClick={onClick}
+                label={label}
+                disabled={disabled}
+              />
             ))}
           </div>
 
           {/* Palette Navigation */}
           {canCycle && (
             <div className="flex items-center gap-1 ml-2">
-              <TooltipWrapper content="Previous palette">
-                <button
-                  onClick={onPrevious}
-                  className="p-1.5 rounded-md hover:bg-muted text-foreground transition-colors"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-              </TooltipWrapper>
-              <TooltipWrapper content="Next palette">
-                <button
-                  onClick={onNext}
-                  className="p-1.5 rounded-md hover:bg-muted text-foreground transition-colors"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </TooltipWrapper>
+              <NavButton
+                icon={ChevronLeft}
+                onClick={onPrevious}
+                label="Previous palette"
+              />
+              <NavButton
+                icon={ChevronRight}
+                onClick={onNext}
+                label="Next palette"
+              />
             </div>
           )}
         </div>
@@ -151,10 +185,10 @@ const PalettePreview: React.FC<Props> = ({
               )}
             </div>
           </div>
-          
+
           <TooltipWrapper content="Browse palettes">
             <button
-              onClick={onToggle}
+              onClick={handleToggle}
               className="p-2 rounded-md hover:bg-muted text-foreground transition-colors"
             >
               <ChevronDown
@@ -171,4 +205,4 @@ const PalettePreview: React.FC<Props> = ({
   );
 };
 
-export default PalettePreview;
+export default React.memo(PalettePreview);

@@ -1,3 +1,4 @@
+import React, { useMemo, useCallback } from "react";
 import { Search, Plus, Upload } from "lucide-react";
 import { useOutsideClick } from "@/hooks/use-outside-click";
 import { type Palette } from "palettum";
@@ -40,6 +41,32 @@ const PaletteDropdown: React.FC<Props> = ({
 }) => {
   useOutsideClick(anchorRef, close, open);
 
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onSearch(e.target.value);
+  }, [onSearch]);
+
+  const emptyState = useMemo(() => (
+    <div className="p-4 text-center text-muted-foreground">
+      No palettes found
+    </div>
+  ), []);
+
+  const paletteList = useMemo(() => {
+    return palettes.map((palette) => (
+      <PaletteListItem
+        key={palette.id}
+        palette={palette}
+        selected={palette.id === selectedId}
+        onSelect={() => onSelect(palette)}
+        onDuplicate={() => onDuplicate(palette)}
+        onExport={() => onExport(palette)}
+        onEdit={() => onEdit(palette)}
+        onDelete={() => onDelete(palette.id)}
+        onMobileMenu={() => onMobileMenu(palette.id)}
+      />
+    ));
+  }, [palettes, selectedId, onSelect, onDuplicate, onExport, onEdit, onDelete, onMobileMenu]);
+
   if (!open) return null;
 
   return (
@@ -52,7 +79,7 @@ const PaletteDropdown: React.FC<Props> = ({
             type="text"
             placeholder="Search palettes..."
             value={search}
-            onChange={(e) => onSearch(e.target.value)}
+            onChange={handleSearchChange}
             className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
           />
         </div>
@@ -60,25 +87,7 @@ const PaletteDropdown: React.FC<Props> = ({
 
       {/* Palette List */}
       <div className="max-h-64 overflow-y-auto">
-        {palettes.length === 0 ? (
-          <div className="p-4 text-center text-muted-foreground">
-            No palettes found
-          </div>
-        ) : (
-          palettes.map((palette) => (
-            <PaletteListItem
-              key={palette.id}
-              palette={palette}
-              selected={palette.id === selectedId}
-              onSelect={() => onSelect(palette)}
-              onDuplicate={() => onDuplicate(palette)}
-              onExport={() => onExport(palette)}
-              onEdit={() => onEdit(palette)}
-              onDelete={() => onDelete(palette.id)}
-              onMobileMenu={() => onMobileMenu(palette.id)}
-            />
-          ))
-        )}
+        {palettes.length === 0 ? emptyState : paletteList}
       </div>
 
       {/* Footer */}
@@ -104,4 +113,4 @@ const PaletteDropdown: React.FC<Props> = ({
   );
 };
 
-export default PaletteDropdown;
+export default React.memo(PaletteDropdown);

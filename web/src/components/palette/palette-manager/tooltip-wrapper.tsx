@@ -1,3 +1,4 @@
+import React from "react";
 import {
   Tooltip,
   TooltipContent,
@@ -7,23 +8,28 @@ import {
 interface Props {
   content: string;
   enabled?: boolean;
+  shouldRender?: boolean; 
   children: React.ReactElement;
 }
 
-const TooltipWrapper: React.FC<Props> = ({
+const TooltipWrapper: React.FC<Props> = React.memo(({
   enabled = true,
+  shouldRender = true,
   content,
   children,
-}) =>
-  enabled ? (
+}) => {
+  if (!enabled || !shouldRender) {
+    return children;
+  }
+
+  return (
     <Tooltip>
       <TooltipTrigger asChild>{children}</TooltipTrigger>
       <TooltipContent>
         <p>{content}</p>
       </TooltipContent>
     </Tooltip>
-  ) : (
-    children
   );
+});
 
 export default TooltipWrapper;

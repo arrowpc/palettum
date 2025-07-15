@@ -178,6 +178,7 @@ interface PaletteState {
   paletteSelectionOrder: string[];
   setPalettes: (palettes: Palette[]) => void;
   setSelectedPalette: (palette: Palette) => void;
+  cycleSelectedPalette: (palette: Palette) => void;
   addPalette: (palette: Palette) => void;
   updatePalette: (originalId: string, updatedPalette: Palette) => void;
   deletePalette: (paletteId: string) => void;
@@ -199,7 +200,7 @@ export const usePaletteStore = create<PaletteState>()(
         state.selectedPalette = palette;
       });
       saveSelectedPaletteId(palette.id);
-      useConfigStore.getState().setSelectedPalette(palette);
+      useConfigStore.getState().setSelectedPalette({ ...palette });
 
       const currentOrder = get().paletteSelectionOrder;
       if (currentOrder[0] !== palette.id) {
@@ -212,6 +213,13 @@ export const usePaletteStore = create<PaletteState>()(
         });
         savePaletteSelectionOrder(newOrder);
       }
+    },
+    cycleSelectedPalette: (palette) => {
+      set((state) => {
+        state.selectedPalette = palette;
+      });
+      saveSelectedPaletteId(palette.id);
+      useConfigStore.getState().setSelectedPalette({ ...palette });
     },
     addPalette: (palette) => {
       set((state) => {
@@ -249,7 +257,7 @@ export const usePaletteStore = create<PaletteState>()(
 
         // If the updated palette is the selected one, update the config
         if (state.selectedPalette.id === originalId) {
-          useConfigStore.getState().setSelectedPalette(updatedPalette);
+          useConfigStore.getState().setSelectedPalette({ ...updatedPalette });
           state.selectedPalette = updatedPalette;
         }
       });
@@ -264,13 +272,25 @@ export const usePaletteStore = create<PaletteState>()(
         savePaletteSelectionOrder(state.paletteSelectionOrder);
 
         if (state.selectedPalette.id === paletteId) {
+          const currentOrder = state.paletteSelectionOrder;
           let nextSelected: Palette | undefined;
-          if (state.paletteSelectionOrder.length > 0) {
-            nextSelected = state.palettes.find(
-              (p) => p.id === state.paletteSelectionOrder[0],
-            );
+
+          if (currentOrder.length > 0) {
+            const deletedIndex = currentOrder.indexOf(paletteId);
+            if (deletedIndex !== -1) {
+              // Find the next available palette in the order
+              for (let i = 1; i < currentOrder.length; i++) {
+                const nextIndex = (deletedIndex + i) % currentOrder.length;
+                const nextPaletteId = currentOrder[nextIndex];
+                nextSelected = state.palettes.find(
+                  (p) => p.id === nextPaletteId,
+                );
+                if (nextSelected) break;
+              }
+            }
           }
 
+          // Fallback if no palette from the order is available
           if (!nextSelected) {
             nextSelected =
               state.palettes.find((p) => p.kind === "Default") ||
@@ -280,17 +300,18 @@ export const usePaletteStore = create<PaletteState>()(
           if (nextSelected) {
             state.selectedPalette = nextSelected;
             saveSelectedPaletteId(nextSelected.id);
-            useConfigStore.getState().setSelectedPalette(nextSelected);
+            useConfigStore.getState().setSelectedPalette({ ...nextSelected });
           } else {
+            // This case should ideally not be reached if there are default palettes
             const defaultPalettes = loadDefaultPalettes();
             if (defaultPalettes.length > 0) {
               const newSelected = defaultPalettes[0];
               state.selectedPalette = newSelected;
               saveSelectedPaletteId(newSelected.id);
-              useConfigStore.getState().setSelectedPalette(newSelected);
+              useConfigStore.getState().setSelectedPalette({ ...newSelected });
             } else {
-              // All palettes are gone, this is a critical state.
-              // For now, the UI will break, which is a sign of a problem.
+              // Critical state: no palettes left
+              console.error("No palettes available to select.");
             }
           }
         }

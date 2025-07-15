@@ -97,7 +97,6 @@ const Toolbar: React.FC<ToolbarProps> = memo(
     resetView,
     handleZoom,
     isDefaultView,
-    onClose,
   }) => {
     const isMinZoom = Math.abs(zoomLevel - zoomLimits.min) < 0.001;
     const isMaxZoom = Math.abs(zoomLevel - zoomLimits.max) < 0.001;

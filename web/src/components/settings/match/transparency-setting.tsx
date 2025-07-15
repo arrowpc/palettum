@@ -4,10 +4,12 @@ import { useConfigStore, useMediaStore } from "@/stores";
 import SettingItemWrapper from "../setting-item-wrapper";
 import React from "react";
 
-export default function TransparencySetting() {
-  const { transparencyThreshold } = useConfigStore((state) => state.config);
-  const hasAlpha = useMediaStore((state) => state.hasAlpha);
+function TransparencySetting() {
+  const transparencyThreshold = useConfigStore(
+    (state) => state.config.transparencyThreshold,
+  );
   const setConfig = useConfigStore((state) => state.setConfig);
+  const hasAlpha = useMediaStore((state) => state.hasAlpha);
 
   // Force transparencyThreshold to 0 if no alpha is detected
   React.useEffect(() => {
@@ -66,3 +68,5 @@ export default function TransparencySetting() {
     </SettingItemWrapper>
   );
 }
+
+export default React.memo(TransparencySetting);

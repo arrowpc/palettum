@@ -2,11 +2,11 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useConfigStore } from "@/stores";
 import SettingItemWrapper from "../setting-item-wrapper";
+import React from "react";
 
-export default function DitheringSetting() {
-  const { ditherAlgorithm, ditherStrength } = useConfigStore(
-    (state) => state.config,
-  );
+function DitheringSetting() {
+  const ditherAlgorithm = useConfigStore((state) => state.config.ditherAlgorithm);
+  const ditherStrength = useConfigStore((state) => state.config.ditherStrength);
   const setConfig = useConfigStore((state) => state.setConfig);
 
   const isDitheringEnabled = ditherAlgorithm !== "None";
@@ -56,3 +56,5 @@ export default function DitheringSetting() {
     </SettingItemWrapper>
   );
 }
+
+export default React.memo(DitheringSetting);

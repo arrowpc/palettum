@@ -13,6 +13,7 @@ const PaletteManager: React.FC = () => {
     selectedPalette,
     paletteSelectionOrder,
     setSelectedPalette,
+    cycleSelectedPalette,
     addPalette,
     updatePalette,
     deletePalette,
@@ -55,8 +56,8 @@ const PaletteManager: React.FC = () => {
       ? (currentIndex + 1) % sortedPalettes.length
       : (currentIndex - 1 + sortedPalettes.length) % sortedPalettes.length;
     
-    setSelectedPalette(sortedPalettes[newIndex]);
-  }, [sortedPalettes, currentIndex, setSelectedPalette]);
+    cycleSelectedPalette(sortedPalettes[newIndex]);
+  }, [sortedPalettes, currentIndex, cycleSelectedPalette]);
 
   const handleSavePalette = useCallback(
     async (updatedPalette: Palette) => {

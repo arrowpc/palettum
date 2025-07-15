@@ -207,7 +207,7 @@ impl Renderer {
         let bitmap = self.last_bmp.as_ref().unwrap().clone();
         if bitmap.width() == 0 || bitmap.height() == 0 {
             return Err(JsValue::from_str(
-                "last_bitmap is invalid (closed or zero size)",
+                "last bitmap is invalid (closed or zero size)",
             ));
         }
         if self.full_tex.is_none() {
@@ -562,11 +562,8 @@ impl Renderer {
 
         let mapping_frag_bg_to_use: Option<wgpu::BindGroup> = match mapping {
             Mapping::Smoothed | Mapping::Palettized => {
-                let gpu_config_data = GpuConfig::from_config(
-                    &config,
-                    work_tex.size().width,
-                    work_tex.size().height,
-                );
+                let gpu_config_data =
+                    GpuConfig::from_config(&config, work_tex.size().width, work_tex.size().height);
 
                 if self.config_buf.is_none() {
                     self.config_buf = Some(context.device.create_buffer(&wgpu::BufferDescriptor {

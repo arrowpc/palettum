@@ -73,6 +73,10 @@ export class GifHandler {
     this.playing = false;
   }
 
+  isPlaying() {
+    return this.playing;
+  }
+
   seek(frameIndex: number) {
     if (this.gif && frameIndex >= 0 && frameIndex < this.gif.num_frames) {
       this.idx = frameIndex;

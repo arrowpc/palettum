@@ -245,9 +245,15 @@ export class VideoHandler {
   play() {
     this.playing = true;
   }
+
   pause() {
     this.playing = false;
   }
+
+  isPlaying() {
+    return this.playing;
+  }
+
   seek(_t: number) {
     console.warn("LibAVVideoPlayer.seek() not implemented.");
   }

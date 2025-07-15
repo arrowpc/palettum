@@ -4,30 +4,28 @@ import { createMediaHandlerForFile } from "./media";
 import type { Config } from "palettum";
 
 let mediaHandler: any | null = null;
+let renderer: any | null = null;
 
 const api = {
   async init() {
-    const renderer = await getRenderer();
+    renderer = await getRenderer();
     renderer.set_draw_mode("aspect-fit");
   },
 
   async registerCanvas(id: string, canvas: OffscreenCanvas) {
-    const renderer = await getRenderer();
     await renderer.register_canvas(id, canvas);
   },
 
-  async switchCanvas(id: string) {
-    const renderer = await getRenderer();
-    await renderer.switch_canvas(id);
+   switchCanvas(id: string) {
+     renderer.switch_canvas(id);
+
   },
 
-  async dropCanvas(id: string) {
-    const renderer = await getRenderer();
+  dropCanvas(id: string) {
     renderer.drop_canvas(id);
   },
 
-  async setConfig(cfg: Config) {
-    const renderer = await getRenderer();
+  setConfig(cfg: Config) {
     renderer.set_config(cfg);
   },
 

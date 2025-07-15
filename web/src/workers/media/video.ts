@@ -5,7 +5,6 @@ import type * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
 import { initLibAV } from "../libav";
 import { getRenderer } from "../core/renderer";
 import { BufferStream } from "../utils/buffer-stream";
-import type { Config } from "palettum";
 
 type LibAVFormatContext = number & {
   pb?: {
@@ -48,15 +47,12 @@ function createFrameModifier() {
       frame.codedHeight,
     );
 
-    const { process_pixels, get_gpu_instance } = await import("palettum");
-    const instance = await get_gpu_instance();
-    const config = instance.config.read();
+    const { palettify_frame } = await import("palettum");
 
-    await process_pixels(
+    await palettify_frame(
       new Uint8Array(imageData.data.buffer),
       frame.codedWidth,
       frame.codedHeight,
-      config,
     );
 
     ctx.putImageData(imageData, 0, 0);

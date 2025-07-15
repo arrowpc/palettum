@@ -13,6 +13,8 @@ pub use error::{Error, Result};
 pub use media::{Gif, Ico, Image, Media};
 pub mod gpu;
 
+pub use processing::process_pixels;
+
 pub use palette::{
     create_id, custom_palettes_dir, delete_custom_palette, find_palette, get_all_palettes,
     get_custom_palettes, get_default_palettes, palette_from_file_entry, palette_to_file,

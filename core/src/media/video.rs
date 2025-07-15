@@ -221,7 +221,7 @@ impl Video {
 
                 let mut img_buf = Self::frame_to_img_buf(&rgba_frame)?;
                 let (w, h) = (img_buf.width(), img_buf.height());
-                processing::process_pixels(img_buf.as_mut(), w, h, config.clone()).await?;
+                processing::process_pixels(img_buf.as_mut(), w, h, &config).await?;
                 let processed_rgba_frame = Self::img_buf_to_frame(&img_buf)?;
 
                 let mut output_frame =

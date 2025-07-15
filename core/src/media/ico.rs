@@ -197,7 +197,7 @@ impl Ico {
             let height = self.heights[i];
 
             log::debug!("Processing icon pixels {} ({}x{})", i, width, height);
-            processing::process_pixels(buffer.as_mut(), width, height, config.clone()).await?;
+            processing::process_pixels(buffer.as_mut(), width, height, &config).await?;
         }
 
         log::debug!("All icons in ico palettified.");

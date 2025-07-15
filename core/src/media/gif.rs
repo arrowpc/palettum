@@ -294,7 +294,7 @@ impl Gif {
         log::debug!("Processing gif pixels ({}x{})", self.width, self.height);
         for frame in &mut self.frames {
             let (w, h) = (frame.buffer().width(), frame.buffer().height());
-            processing::process_pixels(frame.buffer_mut().as_mut(), w, h, config.clone()).await?;
+            processing::process_pixels(frame.buffer_mut().as_mut(), w, h, &config).await?;
         }
         log::debug!("Pixel processing complete.");
 

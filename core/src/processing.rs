@@ -6,9 +6,6 @@ use crate::{
     smoothed, Mapping,
 };
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen::prelude::*;
-
 use image::{Rgb, Rgba, RgbaImage};
 
 use rayon::{prelude::*, ThreadPoolBuilder};
@@ -379,12 +376,11 @@ pub(crate) fn process_pixels_cpu(
     }
 }
 
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen)]
 pub async fn process_pixels(
     image_data: &mut [u8],
     width: u32,
     height: u32,
-    config: Config,
+    config: &Config,
 ) -> Result<()> {
     if let Ok(gpu_processor) = get_gpu_processor().await {
         log::debug!("Processing with GPU");

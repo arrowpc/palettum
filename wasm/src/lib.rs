@@ -3,7 +3,7 @@ use palettum::{
     error::Result,
     gpu::utils::get_gpu_instance,
     media::{load_media_from_memory, Gif as CoreGif},
-    Config, Filter, Palette,
+    process_pixels, Config, Filter, Palette,
 };
 use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
@@ -19,11 +19,11 @@ pub fn wasm_init() {
 }
 
 #[wasm_bindgen]
-pub async fn palettify(image_bytes: Vec<u8>) -> Result<Vec<u8>> {
+pub async fn palettify(bytes: Vec<u8>) -> Result<Vec<u8>> {
     let start_time = Instant::now();
     log::info!("Received image bytes for processing in WASM...");
 
-    let bytes = image_bytes.to_vec();
+    let bytes = bytes.to_vec();
     let mut media = load_media_from_memory(&bytes)?;
     let instance = get_gpu_instance().await?;
     let config = instance.config.read();
@@ -38,6 +38,13 @@ pub async fn palettify(image_bytes: Vec<u8>) -> Result<Vec<u8>> {
     log::info!("Palettification completed in {:?}", duration);
 
     media.write_to_memory()
+}
+
+#[wasm_bindgen]
+pub async fn palettify_frame(bytes: &mut [u8], width: u32, height: u32) -> Result<()> {
+    let instance = get_gpu_instance().await?;
+    let config = instance.config.read();
+    process_pixels(bytes, width, height, &config).await
 }
 
 #[wasm_bindgen]

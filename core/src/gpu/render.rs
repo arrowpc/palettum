@@ -59,7 +59,6 @@ pub struct Renderer {
     present_buf: Option<wgpu::Buffer>,
     config_buf: Option<wgpu::Buffer>,
 
-    config: Option<Config>,
     resize_mode: ResizeMode,
 
     last_bmp: Option<ImageBitmap>,
@@ -82,7 +81,6 @@ impl Renderer {
             work_bg: None,
             present_buf: None,
             config_buf: None,
-            config: None,
             resize_mode: ResizeMode::default(),
             last_bmp: None,
         }
@@ -235,7 +233,7 @@ impl Renderer {
     }
 
     pub fn set_config(&mut self, config: Config) -> Result<(), JsValue> {
-        self.config = Some(config);
+        *self.instance.config.write() = config;
         if self.full_tex.is_some() {
             self.try_draw()?;
         }
@@ -559,12 +557,13 @@ impl Renderer {
                 }],
             });
 
-        let mapping = self.config.as_ref().map(|c| c.mapping).unwrap_or_default();
+        let config = self.instance.config.read();
+        let mapping = config.mapping;
 
         let mapping_frag_bg_to_use: Option<wgpu::BindGroup> = match mapping {
             Mapping::Smoothed | Mapping::Palettized => {
                 let gpu_config_data = GpuConfig::from_config(
-                    self.config.as_ref().unwrap(),
+                    &config,
                     work_tex.size().width,
                     work_tex.size().height,
                 );

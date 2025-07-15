@@ -77,7 +77,6 @@ const api = {
   },
 
   async export(
-    config: Config,
     onProgress?: (progress: number, message: string) => void
   ): Promise<Blob> {
     if (!mediaHandler) {
@@ -85,7 +84,7 @@ const api = {
     }
 
     const proxiedOnProgress = onProgress ? proxy(onProgress) : undefined;
-    return mediaHandler.export(config, proxiedOnProgress);
+    return mediaHandler.export(proxiedOnProgress);
   },
 };
 
@@ -99,7 +98,6 @@ export interface MediaInfo {
 
 export type RendererAPI = Omit<typeof api, "export" | "load"> & {
   export: (
-    config: Config,
     onProgress?: (progress: number, message: string) => void
   ) => Promise<Blob>;
   load: (file: File) => Promise<MediaInfo>;

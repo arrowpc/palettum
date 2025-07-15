@@ -1,6 +1,7 @@
 use image::EncodableLayout;
 use palettum::{
     error::Result,
+    gpu::utils::get_gpu_instance,
     media::{load_media_from_memory, Gif as CoreGif},
     Config, Filter, Palette,
 };
@@ -18,14 +19,14 @@ pub fn wasm_init() {
 }
 
 #[wasm_bindgen]
-pub async fn palettify(image_bytes: Vec<u8>, config: Config) -> Result<Vec<u8>> {
+pub async fn palettify(image_bytes: Vec<u8>) -> Result<Vec<u8>> {
     let start_time = Instant::now();
     log::info!("Received image bytes for processing in WASM...");
 
-    log::info!("Using config: {}", config);
-
     let bytes = image_bytes.to_vec();
     let mut media = load_media_from_memory(&bytes)?;
+    let instance = get_gpu_instance().await?;
+    let config = instance.config.read();
     // media.resize(
     //     config.resize_width,
     //     config.resize_height,
@@ -83,7 +84,9 @@ impl Gif {
         self.gif.get_frame_delay(frame_idx)
     }
 
-    pub async fn palettify(&mut self, config: Config) -> Result<()> {
+    pub async fn palettify(&mut self) -> Result<()> {
+        let instance = get_gpu_instance().await?;
+        let config = instance.config.read();
         self.gif.palettify(&config).await?;
         Ok(())
     }

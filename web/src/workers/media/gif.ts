@@ -90,7 +90,6 @@ export class GifHandler {
   }
 
   async export(
-    config: Config,
     onProgress?: (progress: number, message: string) => void,
   ): Promise<Blob> {
     if (!this.gif) {
@@ -100,7 +99,7 @@ export class GifHandler {
     this.pause();
 
     onProgress?.(0, "palettifying...");
-    await this.gif.palettify(config);
+    await this.gif.palettify();
 
     onProgress?.(100, "");
     const palettizedBytes = this.gif.to_bytes();

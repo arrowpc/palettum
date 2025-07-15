@@ -8,9 +8,12 @@ use async_once_cell::OnceCell;
 #[cfg(target_arch = "wasm32")]
 use std::cell::RefCell;
 
+use parking_lot::RwLock;
+
 pub struct GpuInstance {
     pub instance: wgpu::Instance,
     pub using_webgpu: bool,
+    pub config: RwLock<Config>,
 }
 
 impl GpuInstance {
@@ -42,6 +45,7 @@ impl GpuInstance {
         Ok(Self {
             instance,
             using_webgpu,
+            config: RwLock::new(Config::default()),
         })
     }
 }

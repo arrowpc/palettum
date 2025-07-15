@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useConfigStore } from "@/stores";
 import { useRenderer } from "@/providers/renderer-provider";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
@@ -9,7 +8,6 @@ import { proxy } from "comlink";
 type ExportState = "idle" | "loading" | "progress";
 
 export function ExportButton() {
-  const { config } = useConfigStore();
   const renderer = useRenderer();
   const [exportState, setExportState] = useState<ExportState>("idle");
   const [exportProgress, setExportProgress] = useState(0);
@@ -27,7 +25,6 @@ export function ExportButton() {
 
     try {
       const blob = await renderer.export(
-        config,
         proxy((progress: number, message: string) => {
           setExportState("progress");
           setExportProgress(progress);

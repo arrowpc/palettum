@@ -1518,6 +1518,7 @@ dependencies = [
  "js-sys",
  "log",
  "num_cpus",
+ "parking_lot",
  "png",
  "rayon",
  "serde",

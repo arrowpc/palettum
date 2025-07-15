@@ -29,7 +29,7 @@ interface VideoEncoderEncodeOptions {
   };
 }
 
-function createFrameModifier(config: Config) {
+function createFrameModifier() {
   let canvas: OffscreenCanvas | null = null;
   let ctx: OffscreenCanvasRenderingContext2D | null = null;
   return async function palettify(frame: any): Promise<VideoFrame> {
@@ -48,7 +48,9 @@ function createFrameModifier(config: Config) {
       frame.codedHeight,
     );
 
-    const { process_pixels } = await import("palettum");
+    const { process_pixels, get_gpu_instance } = await import("palettum");
+    const instance = await get_gpu_instance();
+    const config = instance.config.read();
 
     await process_pixels(
       new Uint8Array(imageData.data.buffer),
@@ -279,7 +281,6 @@ export class VideoHandler {
   }
 
   async export(
-    config: Config,
     onProgress?: (progress: number, message: string) => void,
   ): Promise<Blob> {
     if (!this.libav || !this.bridge) {
@@ -472,7 +473,7 @@ export class VideoHandler {
       }
     })();
 
-    const modifyFrame = createFrameModifier(config);
+    const modifyFrame = createFrameModifier();
 
     const encoderPromises = encoders.map(({ encoder, config }, i) => {
       return (async () => {

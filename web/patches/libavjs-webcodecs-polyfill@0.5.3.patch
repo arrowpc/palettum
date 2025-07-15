@@ -1,0 +1,114 @@
+diff --git a/node_modules/libavjs-webcodecs-polyfill/.bun-tag-a2c5bd1135e89960 b/.bun-tag-a2c5bd1135e89960
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/node_modules/libavjs-webcodecs-polyfill/.bun-tag-e67722afc1cb264 b/.bun-tag-e67722afc1cb264
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/src/audio-data.ts b/src/audio-data.ts
+index c50959d2ae448253bbb2b3eaca7ba547b7a3d145..1f1abff9044eebd63285cada2f42dd5635951f4b 100644
+--- a/src/audio-data.ts
++++ b/src/audio-data.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/audio-decoder.ts b/src/audio-decoder.ts
+index 50acaf7c6dde0273f252ecb5b4b64c055312de37..52b97251f8600e474512ccf67370c72c3cc97ccc 100644
+--- a/src/audio-decoder.ts
++++ b/src/audio-decoder.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/audio-encoder.ts b/src/audio-encoder.ts
+index 3c91540d58c56821d894cd70faa0c9e14dfc1867..a7b730e406851b56d4e487258ef6becf19cb5d91 100644
+--- a/src/audio-encoder.ts
++++ b/src/audio-encoder.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/config.ts b/src/config.ts
+index 118e556ce4b5d16b1bc006f13947ecd441bdea2a..d083cfecfeb6c13ff3edb2f6fab8d2b300fde4aa 100644
+--- a/src/config.ts
++++ b/src/config.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/encoded-audio-chunk.ts b/src/encoded-audio-chunk.ts
+index a91e31bfb411554925570b5a81812a88923f8488..6f6943a1b0c64f711e0202e6ddddfc1db5417199 100644
+--- a/src/encoded-audio-chunk.ts
++++ b/src/encoded-audio-chunk.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/event-target.ts b/src/event-target.ts
+index d9bb2020d7be56294ae41693232b1a922b7f3355..d77fef6adbcbcd5e6bf92f5705e5080d69f1e62d 100644
+--- a/src/event-target.ts
++++ b/src/event-target.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/main.ts b/src/main.ts
+index 57a1d6740102c4095d1da54d062eda9472c43a20..a01ffd55082948edea832c15ecabe70b06b99f9b 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/misc.ts b/src/misc.ts
+index fce1a6acdb3c5c5c6416911710b0ffbcd2e3a659..1158e7d636e03e51d61e175c30e5ba35d99dbb42 100644
+--- a/src/misc.ts
++++ b/src/misc.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/rendering.ts b/src/rendering.ts
+index 3a7b6e421a866547292929a0d1c22be49ab83f05..c4680528a58e2648fa2358a8ec735b347bc35a94 100644
+--- a/src/rendering.ts
++++ b/src/rendering.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/video-decoder.ts b/src/video-decoder.ts
+index 40d1d48c4fa68962fd316cb22a8c2195be362208..d13948dba418ca590359dd2ce44ab08f13cc1287 100644
+--- a/src/video-decoder.ts
++++ b/src/video-decoder.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/video-encoder.ts b/src/video-encoder.ts
+index 03de03190d8090899ee2ccf36480585e1a1ecb6c..a737b4903cf08701749dee2b41929a4a337d23b3 100644
+--- a/src/video-encoder.ts
++++ b/src/video-encoder.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is
+diff --git a/src/video-frame.ts b/src/video-frame.ts
+index f973fb8a5f90e3a6f6670e89b4768698bdc59c15..5546f2c309c5616f30de264bb691d26887800378 100644
+--- a/src/video-frame.ts
++++ b/src/video-frame.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Polyfill implementation. The
+  * interface implemented is derived from the W3C standard. No attribution is

@@ -54,5 +54,9 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.30.1",
     "vite": "^6.3.5"
+  },
+  "patchedDependencies": {
+    "libavjs-webcodecs-polyfill@0.5.3": "patches/libavjs-webcodecs-polyfill@0.5.3.patch",
+    "libavjs-webcodecs-bridge@0.3.2": "patches/libavjs-webcodecs-bridge@0.3.2.patch"
   }
 }

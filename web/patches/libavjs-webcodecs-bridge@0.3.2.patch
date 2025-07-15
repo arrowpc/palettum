@@ -1,0 +1,30 @@
+diff --git a/node_modules/libavjs-webcodecs-bridge/.bun-tag-d4fcdc6488020f53 b/.bun-tag-d4fcdc6488020f53
+new file mode 100644
+index 0000000000000000000000000000000000000000..e69de29bb2d1d6434b8b29ae775ad8c2e48c5391
+diff --git a/src/demux.ts b/src/demux.ts
+index 3075e9d4bd97341f30674361f97cb43f1467bdf2..436dcd54cce79e84dc15f7d234a6a16665541ef7 100644
+--- a/src/demux.ts
++++ b/src/demux.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Bridge implementation.
+  *
+diff --git a/src/latowc.ts b/src/latowc.ts
+index 9eb640420dd438675a0943d8d3769e86ddab228d..23f295798c89e2a02527d71b7e09332b13077981 100644
+--- a/src/latowc.ts
++++ b/src/latowc.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Bridge implementation.
+  *
+diff --git a/src/mux.ts b/src/mux.ts
+index 39321dcdeae135edc840a01d5187af94c34aceea..a4961f4561409c5e69a8a293430c2e0c98be2013 100644
+--- a/src/mux.ts
++++ b/src/mux.ts
+@@ -1,3 +1,4 @@
++// @ts-nocheck
+ /*
+  * This file is part of the libav.js WebCodecs Bridge implementation.
+  *

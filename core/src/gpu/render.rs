@@ -181,7 +181,9 @@ impl Renderer {
 
         self.canvas = Some(canvas);
 
-        self.try_draw()?;
+        if self.last_bmp.is_some() {
+            self.try_draw()?;
+        }
         Ok(())
     }
 
@@ -202,7 +204,8 @@ impl Renderer {
 
     pub fn try_draw(&mut self) -> Result<(), JsValue> {
         if self.last_bmp.is_none() {
-            return Err(JsValue::from_str("draw() has not been called yet"));
+            log::warn!("draw() has not been called yet");
+            return Ok(());
         }
         let bitmap = self.last_bmp.as_ref().unwrap().clone();
         if bitmap.width() == 0 || bitmap.height() == 0 {

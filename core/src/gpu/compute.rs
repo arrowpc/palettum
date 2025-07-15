@@ -323,6 +323,11 @@ impl Processor {
                                 compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
                             }
                             Dithering::None => {
+                                compute_pass.set_bind_group(
+                                    1,
+                                    &self.context.blue_noise_bind_group,
+                                    &[],
+                                );
                                 let dispatch_x =
                                     gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
                                 let dispatch_y =

@@ -37,7 +37,6 @@ struct Context {
     pub mapping_frag_bgl: wgpu::BindGroupLayout,
     pub blue_noise_bgl: wgpu::BindGroupLayout,
     pub blue_noise_tex: wgpu::Texture,
-    pub blit_pipeline: wgpu::RenderPipeline,
     pub resize_pipelines: HashMap<Filter, wgpu::RenderPipeline>,
     pub present_pipelines: HashMap<Mapping, wgpu::RenderPipeline>,
     pub present_fmt: wgpu::TextureFormat,
@@ -319,7 +318,7 @@ impl Renderer {
         let mapping_frag_bgl = self.build_mapping_frag_bgl(&device);
         let blue_noise_bgl = self.build_blue_noise_bgl(&device);
 
-        let (blit_pipeline, resize_pipelines, present_pipelines, present_fmt) = self
+        let (resize_pipelines, present_pipelines, present_fmt) = self
             .build_pipelines(
                 &device,
                 &adapter,
@@ -341,7 +340,6 @@ impl Renderer {
             mapping_frag_bgl,
             blue_noise_bgl,
             blue_noise_tex,
-            blit_pipeline,
             resize_pipelines,
             present_pipelines,
             present_fmt,
@@ -473,11 +471,11 @@ impl Renderer {
                         entries: &[
                             wgpu::BindGroupEntry {
                                 binding: 0,
-                                resource: wgpu::BindingResource::Sampler(&context.sampler),
+                                resource: wgpu::BindingResource::TextureView(&view),
                             },
                             wgpu::BindGroupEntry {
                                 binding: 1,
-                                resource: wgpu::BindingResource::TextureView(&view),
+                                resource: wgpu::BindingResource::Sampler(&context.sampler),
                             },
                         ],
                     }),
@@ -510,11 +508,11 @@ impl Renderer {
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::Sampler(&context.sampler),
+                        resource: wgpu::BindingResource::TextureView(&src_view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&src_view),
+                        resource: wgpu::BindingResource::Sampler(&context.sampler),
                     },
                 ],
             });
@@ -561,16 +559,16 @@ impl Renderer {
         let tmp_bg = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("blit_bg"),
+                label: Some("work_blit_bg"),
                 layout: &context.tex_bgl,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::Sampler(&context.sampler),
+                        resource: wgpu::BindingResource::TextureView(&src_view),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(&src_view),
+                        resource: wgpu::BindingResource::Sampler(&context.sampler),
                     },
                 ],
             });
@@ -578,11 +576,11 @@ impl Renderer {
         let mut enc = context
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("blit_enc"),
+                label: Some("work_blit_enc"),
             });
         {
             let mut rpass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("blit_pass"),
+                label: Some("work_blit_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &dst_view,
                     resolve_target: None,
@@ -595,7 +593,7 @@ impl Renderer {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            rpass.set_pipeline(&context.blit_pipeline);
+            rpass.set_pipeline(context.resize_pipelines.get(&Filter::Nearest).unwrap());
             rpass.set_bind_group(0, &tmp_bg, &[]);
             rpass.draw(0..6, 0..1);
         }
@@ -857,17 +855,17 @@ impl Renderer {
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
                     visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry {
-                    binding: 1,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
                     ty: wgpu::BindingType::Texture {
                         multisampled: false,
                         view_dimension: wgpu::TextureViewDimension::D2,
                         sample_type: wgpu::TextureSampleType::Float { filterable: true },
                     },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                     count: None,
                 },
             ],
@@ -958,7 +956,6 @@ impl Renderer {
         mapping_frag_bgl: &wgpu::BindGroupLayout,
         blue_noise_bgl: &wgpu::BindGroupLayout,
     ) -> (
-        wgpu::RenderPipeline,
         HashMap<Filter, wgpu::RenderPipeline>,
         HashMap<Mapping, wgpu::RenderPipeline>,
         wgpu::TextureFormat,
@@ -967,46 +964,12 @@ impl Renderer {
             label: Some("quad_vs"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/quad_vs.wgsl").into()),
         });
-        let blit_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("blit_fs"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/blit_fs.wgsl").into()),
-        });
+        
 
         let base_surface_format = surface.get_capabilities(adapter).formats[0];
         let present_render_target_format = base_surface_format.add_srgb_suffix();
 
-        let blit_pipeline = {
-            let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("blit"),
-                bind_group_layouts: &[tex_bgl],
-                push_constant_ranges: &[],
-            });
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("blit"),
-                layout: Some(&pl),
-                vertex: wgpu::VertexState {
-                    module: &quad_vs,
-                    entry_point: Some("vs_main"),
-                    buffers: &[],
-                    compilation_options: Default::default(),
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &blit_fs,
-                    entry_point: Some("fs_main"),
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                    compilation_options: Default::default(),
-                }),
-                primitive: Default::default(),
-                depth_stencil: None,
-                multisample: Default::default(),
-                multiview: None,
-                cache: None,
-            })
-        };
+        
 
         let nearest_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("nearest_fs"),
@@ -1151,7 +1114,6 @@ impl Renderer {
         present_pipelines.insert(Mapping::Smoothed, make(&smoothed_fs, Mapping::Smoothed));
 
         (
-            blit_pipeline,
             resize_pipelines,
             present_pipelines,
             present_render_target_format,

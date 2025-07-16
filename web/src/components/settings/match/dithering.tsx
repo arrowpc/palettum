@@ -1,10 +1,10 @@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useConfigStore } from "@/stores";
-import SettingItemWrapper from "../setting-item-wrapper";
+import SettingWrapper from "../setting-wrapper";
 import React from "react";
 
-function DitheringSetting() {
+function Dithering() {
   const ditherAlgorithm = useConfigStore((state) => state.config.ditherAlgorithm);
   const ditherStrength = useConfigStore((state) => state.config.ditherStrength);
   const setConfig = useConfigStore((state) => state.setConfig);
@@ -24,7 +24,7 @@ function DitheringSetting() {
   };
 
   return (
-    <SettingItemWrapper
+    <SettingWrapper
       label="Dithering"
       control={
         <Switch
@@ -53,8 +53,8 @@ function DitheringSetting() {
       >
         {(ditherStrength ?? 0) === 0 ? "Off" : (ditherStrength ?? 0).toFixed(2)}
       </div>
-    </SettingItemWrapper>
+    </SettingWrapper>
   );
 }
 
-export default React.memo(DitheringSetting);
+export default React.memo(Dithering);

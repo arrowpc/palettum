@@ -1,7 +1,7 @@
 import { useConfigStore } from "@/stores";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
 import { type SmoothFormula } from "palettum";
-import SettingItemWrapper from "../setting-item-wrapper";
+import SettingWrapper from "../setting-wrapper";
 
 export default function SmoothFormula() {
   const setting = "smoothFormula";
@@ -9,7 +9,7 @@ export default function SmoothFormula() {
   const setConfig = useConfigStore((state) => state.setConfig);
 
   return (
-    <SettingItemWrapper label="Mode">
+    <SettingWrapper label="Mode">
       <ToggleSwitch
         options={[
           { label: "Idw", value: "Idw" },
@@ -19,6 +19,6 @@ export default function SmoothFormula() {
         value={value ?? "Idw"}
         onChange={(v) => setConfig(setting, v as SmoothFormula)}
       />
-    </SettingItemWrapper>
+    </SettingWrapper>
   );
 }

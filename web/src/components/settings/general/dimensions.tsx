@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { useMediaStore } from "@/stores/media"
 import { useConfigStore } from "@/stores/config"
-import SettingItemWrapper from "../setting-item-wrapper"
+import SettingWrapper from "../setting-wrapper"
 
 interface DraggableDimensionLabelProps {
   id: string
@@ -82,7 +82,7 @@ const DraggableDimensionLabel = ({
   )
 }
 
-export const DimensionsSetting: React.FC = () => {
+export const Dimensions: React.FC = () => {
   const {
     resizedWidth,
     resizedHeight,
@@ -309,7 +309,7 @@ export const DimensionsSetting: React.FC = () => {
 
 
   return (
-    <SettingItemWrapper label="Dimensions" control={
+    <SettingWrapper label="Dimensions" control={
       <button
         onClick={resetDimensions}
         disabled={isReset}
@@ -395,6 +395,6 @@ export const DimensionsSetting: React.FC = () => {
           )}
         </button>
       </div>
-    </SettingItemWrapper>
+    </SettingWrapper>
   );
 };

@@ -1,10 +1,10 @@
 import { useConfigStore } from "@/stores";
-import QualitySetting from "./general/quality-setting";
-import { DimensionsSetting } from "./general/dimensions-setting";
+import Quality from "./general/quality";
+import { Dimensions } from "./general/dimensions";
 import SmoothFormula from "./blend/smooth-formula";
 import SmoothStrength from "./blend/smooth-strength";
-import DitheringSetting from "./match/dithering-setting";
-import TransparencySetting from "./match/transparency-setting";
+import Dithering from "./match/dithering";
+import Transparency from "./match/transparency";
 
 export default function SettingsPanel() {
   const mapping = useConfigStore((state) => state.config.mapping);
@@ -12,8 +12,8 @@ export default function SettingsPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-row gap-4 px-4">
-        <QualitySetting />
-        <DimensionsSetting />
+        <Quality />
+        <Dimensions />
       </div>
       {mapping === "Smoothed" ? (
         <div className="flex flex-row gap-4 px-4">
@@ -26,8 +26,8 @@ export default function SettingsPanel() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-4 px-4">
-          <DitheringSetting />
-          <TransparencySetting />
+          <Dithering />
+          <Transparency />
         </div>
       )}
     </div>

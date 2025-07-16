@@ -6,7 +6,7 @@ interface SettingItemWrapperProps {
   children: React.ReactNode;
 }
 
-export default function SettingItemWrapper({ label, control, children }: SettingItemWrapperProps) {
+export default function SettingWrapper({ label, control, children }: SettingItemWrapperProps) {
   return (
     <div className="flex flex-col gap-5 items-center p-4">
       <div className="flex flex-row items-center justify-center w-full gap-8">

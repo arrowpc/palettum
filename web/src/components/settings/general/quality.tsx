@@ -1,15 +1,15 @@
 import { useConfigStore } from "@/stores";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
 import { type DiffFormula } from "palettum";
-import SettingItemWrapper from "../setting-item-wrapper";
+import SettingWrapper from "../setting-wrapper";
 
-export default function QualitySetting() {
+export default function Quality() {
   const setting = "diffFormula";
   const value = useConfigStore((state) => state.config[setting]);
   const setConfig = useConfigStore((state) => state.setConfig);
 
   return (
-    <SettingItemWrapper label="Quality">
+    <SettingWrapper label="Quality">
       <ToggleSwitch
         options={[
           { label: "High", value: "CIEDE2000" },
@@ -19,6 +19,6 @@ export default function QualitySetting() {
         value={value ?? "CIEDE2000"}
         onChange={(v) => setConfig(setting, v as DiffFormula)}
       />
-    </SettingItemWrapper>
+    </SettingWrapper>
   );
 }

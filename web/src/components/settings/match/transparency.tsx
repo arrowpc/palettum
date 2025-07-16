@@ -1,10 +1,10 @@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useConfigStore, useMediaStore } from "@/stores";
-import SettingItemWrapper from "../setting-item-wrapper";
+import SettingWrapper from "../setting-wrapper";
 import React from "react";
 
-function TransparencySetting() {
+function Transparency() {
   const transparencyThreshold = useConfigStore(
     (state) => state.config.transparencyThreshold,
   );
@@ -31,7 +31,7 @@ function TransparencySetting() {
   };
 
   return (
-    <SettingItemWrapper
+    <SettingWrapper
       label="Transparency"
       control={
         <Switch
@@ -65,8 +65,8 @@ function TransparencySetting() {
           No Alpha detected in media
         </div>
       )}
-    </SettingItemWrapper>
+    </SettingWrapper>
   );
 }
 
-export default React.memo(TransparencySetting);
+export default React.memo(Transparency);

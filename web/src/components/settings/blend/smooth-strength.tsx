@@ -1,13 +1,13 @@
 import { Slider } from "@/components/ui/slider";
 import { useConfigStore } from "@/stores";
-import SettingItemWrapper from "../setting-item-wrapper";
+import SettingWrapper from "../setting-wrapper";
 
 export default function SmoothStrength() {
   const setting = "smoothStrength";
   const value = useConfigStore((state) => state.config[setting]);
   const setConfig = useConfigStore((state) => state.setConfig);
   return (
-    <SettingItemWrapper label="Strength">
+    <SettingWrapper label="Strength">
       <Slider
         value={[value ?? 0]}
         max={1}
@@ -18,6 +18,6 @@ export default function SmoothStrength() {
       <div className={`text-center text-sm ${value === 0 ? "text-muted-foreground" : ""}`}>
         {(value ?? 0).toFixed(2)}
       </div>
-    </SettingItemWrapper>
+    </SettingWrapper>
   );
 }

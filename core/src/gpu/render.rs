@@ -606,11 +606,11 @@ impl Renderer {
     }
 
     fn present(&mut self) -> Result<(), JsValue> {
-        let ctx = self.canvas.as_ref().ok_or("canvas missing")?;
+        let canvas = self.canvas.as_ref().ok_or("canvas missing")?;
         let work_tex = self.work_tex.as_ref().ok_or("work_tex missing")?;
 
         let (img_w, img_h) = { (work_tex.size().width as f32, work_tex.size().height as f32) };
-        let (can_w, can_h) = (ctx.config.width as f32, ctx.config.height as f32);
+        let (can_w, can_h) = (canvas.config.width as f32, canvas.config.height as f32);
 
         let img_ar = img_w / img_h;
         let can_ar = can_w / can_h;
@@ -746,7 +746,7 @@ impl Renderer {
         };
 
         // ------------ render -----------------------------------
-        let frame = ctx
+        let frame = canvas
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("frame: {:?}", e)))?;

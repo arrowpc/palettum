@@ -133,6 +133,7 @@ impl Renderer {
                 self.work_bg = None;
                 self.present_buf = None;
                 self.config_buf = None;
+                self.resized_tex = None;
             }
             let ctx: Arc<Context> = Arc::new(self.create_context(&surface).await?);
             self.context_cache.insert(canvas_id.clone(), ctx.clone());
@@ -177,6 +178,7 @@ impl Renderer {
                     self.work_bg = None;
                     self.present_buf = None;
                     self.config_buf = None;
+                    self.resized_tex = None;
                 }
             } else {
                 return Err(JsValue::from_str("Context for canvas not found"));

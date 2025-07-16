@@ -3,26 +3,34 @@
 
 @fragment
 fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-    let src_size = uSizes.xy;
-    let dst_size = uSizes.zw;
-    let maxC:  vec2<f32>   = src_size - vec2<f32>(1.0);
+    let src_size   = uSizes.xy;
+    let dst_size   = uSizes.zw;
+    let ratio_x    = src_size.x / dst_size.x;
+    let sratio_x   = max(ratio_x, 1.0);
 
-    let pos_x:   f32   = uv.x * src_size.x - 0.5;
-    let base_x:  f32   = floor(pos_x);
-    let f_x:     f32   = pos_x - base_x;
+    let dstPx_x    = uv.x * dst_size.x;
+    let srcPx_x    = dstPx_x * ratio_x - 0.5;
 
-    let w0_x: f32 = (1.0 - f_x);
-    let w1_x: f32 =        f_x;
+    let rx         = i32(ceil(sratio_x));
+    let baseF_x    = floor(srcPx_x);
+    let maxI_x     = i32(textureDimensions(t, 0).x) - 1;
 
-    let p0_x: f32 = clamp(base_x, 0.0, maxC.x);
-    let p1_x: f32 = clamp(base_x + 1.0, 0.0, maxC.x);
+    var sumC      : vec4<f32> = vec4<f32>(0.0);
+    var wSum      : f32       = 0.0;
 
-    let y_coord = i32(uv.y * src_size.y - 0.5);
+    let y_coord   = i32(uv.y * src_size.y - 0.5);
 
-    let c0: vec4<f32> = textureLoad(t, vec2<i32>(i32(p0_x), y_coord), 0);
-    let c1: vec4<f32> = textureLoad(t, vec2<i32>(i32(p1_x), y_coord), 0);
+    for (var i: i32 = -rx; i <= rx; i = i + 1) {
+        let samplePos_x = baseF_x + f32(i);
+        let dx          = samplePos_x - srcPx_x;
+        let w           = max(0.0, 1.0 - abs(dx) / sratio_x);
+        if (w > 0.0) {
+            let ix     = clamp(i32(samplePos_x), 0, maxI_x);
+            let c      = textureLoad(t, vec2<i32>(ix, y_coord), 0);
+            sumC       = sumC + c * w;
+            wSum       = wSum + w;
+        }
+    }
 
-    let sum:      vec4<f32> = c0 * w0_x + c1 * w1_x;
-    let weightSum: f32      = w0_x + w1_x;
-    return sum / weightSum;
+    return sumC / wSum;
 }

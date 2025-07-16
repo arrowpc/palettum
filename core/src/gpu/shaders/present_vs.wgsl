@@ -22,6 +22,6 @@ fn vs_main(@builtin(vertex_index) i : u32) -> Out {
 
     var o : Out;
     o.pos = vec4<f32>(clip, 0.0, 1.0);
-    o.uv  = uv;
+    o.uv  = vec2<f32>(uv.x, 1.0 - uv.y);
     return o;
 }

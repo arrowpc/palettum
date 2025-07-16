@@ -327,7 +327,70 @@ impl Video {
 
             self.width = final_width;
             self.height = final_height;
-            todo!();
+
+            ffmpeg::init()?;
+
+            let decoder_ctx = ffmpeg::codec::Context::from_parameters(self.codec_params.clone())?;
+            let mut decoder = decoder_ctx.decoder().video()?;
+
+            let encoder_codec =
+                ffmpeg::encoder::find(self.codec_params.id()).ok_or(Error::StreamNotFound)?;
+            let encoder_ctx = ffmpeg::codec::Context::new_with_codec(encoder_codec);
+            let mut encoder = encoder_ctx.encoder().video()?;
+
+            encoder.set_width(self.width);
+            encoder.set_height(self.height);
+            let pix_fmt = decoder.format();
+            encoder.set_format(pix_fmt);
+            encoder.set_time_base(self.time_base);
+            encoder.set_frame_rate(Some(self.framerate));
+
+            let mut encoder = encoder.open_as(encoder_codec)?;
+
+            let flag = match filter {
+                Filter::Nearest => ffmpeg::software::scaling::flag::Flags::POINT,
+                Filter::Triangle => ffmpeg::software::scaling::flag::Flags::BILINEAR,
+                Filter::Lanczos3 => ffmpeg::software::scaling::flag::Flags::LANCZOS,
+            };
+
+            let mut scaler = ffmpeg::software::scaling::context::Context::get(
+                decoder.format(),
+                decoder.width(),
+                decoder.height(),
+                pix_fmt,
+                self.width,
+                self.height,
+                flag,
+            )?;
+
+            // Decode → scale → encode
+            let mut new_packets = Vec::new();
+            for packet in &self.packets {
+                decoder.send_packet(packet)?;
+                let mut decoded = ffmpeg::util::frame::video::Video::empty();
+                while decoder.receive_frame(&mut decoded).is_ok() {
+                    let mut frame =
+                        ffmpeg::util::frame::video::Video::new(pix_fmt, self.width, self.height);
+                    scaler.run(&decoded, &mut frame)?;
+                    frame.set_pts(decoded.pts());
+
+                    encoder.send_frame(&frame)?;
+                    let mut encoded = ffmpeg::codec::packet::Packet::empty();
+                    while encoder.receive_packet(&mut encoded).is_ok() {
+                        new_packets.push(encoded.clone());
+                    }
+                }
+            }
+
+            encoder.send_eof()?;
+            let mut encoded = ffmpeg::codec::packet::Packet::empty();
+            while encoder.receive_packet(&mut encoded).is_ok() {
+                new_packets.push(encoded.clone());
+            }
+
+            self.packets = new_packets;
+            self.codec_params = ffmpeg::codec::Parameters::from(&encoder);
+            self.time_base = encoder.time_base();
         } else {
             log::debug!("Skipping resize: Target dimensions match original.");
         }

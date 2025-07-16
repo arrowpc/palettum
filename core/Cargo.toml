@@ -43,5 +43,5 @@ parking_lot = { version = "0.12", optional = true }
 [features]
 serde = ["dep:serde"]
 wasm = ["serde", "dep:wasm-bindgen", "dep:tsify", "image/serde", "dep:parking_lot"]
-cli = ["dep:clap", "dep:tabled"]
+cli = ["dep:clap", "dep:tabled", "dep:parking_lot"]
 video = ["dep:ffmpeg-next"]

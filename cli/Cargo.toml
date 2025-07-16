@@ -10,7 +10,7 @@ name = "palettum"
 path = "src/main.rs"
 
 [dependencies]
-palettum = { path = "../core", features = ["cli"] }
+palettum = { path = "../core", features = ["cli", "video"] }
 clap.workspace = true
 log.workspace = true
 env_logger.workspace = true

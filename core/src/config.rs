@@ -16,8 +16,8 @@ use crate::{
 // validations
 //
 // TODO: Remove WASM hacks
-#[derive(Debug, Clone, Builder)]
-#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
+#[derive(Debug, Clone, Builder, Default)]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
 #[cfg_attr(feature = "wasm", serde(rename_all = "camelCase"))]
 #[cfg_attr(feature = "wasm", serde(default))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]

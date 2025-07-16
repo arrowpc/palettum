@@ -28,8 +28,8 @@ pub enum PaletteKind {
     Unset,
 }
 
-#[derive(Debug, Clone, Builder)]
-#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize, Default))]
+#[derive(Debug, Clone, Builder, Default)]
+#[cfg_attr(feature = "wasm", derive(Tsify, Serialize, Deserialize))]
 #[cfg_attr(feature = "wasm", tsify(into_wasm_abi, from_wasm_abi))]
 #[cfg_attr(feature = "cli", derive(Tabled))]
 pub struct Palette {

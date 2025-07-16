@@ -100,6 +100,7 @@ impl Renderer {
             );
             return Ok(());
         }
+        log::info!("Registering canvas with id: {}", canvas_id);
 
         let instance = self.instance.as_ref();
 
@@ -158,6 +159,7 @@ impl Renderer {
             .get(canvas_id)
             .ok_or_else(|| JsValue::from_str("Canvas not found"))?
             .clone();
+        log::info!("Switching to canvas with id: {}", canvas_id);
 
         if !self.instance.as_ref().using_webgpu {
             if let Some(new_ctx) = self.context_cache.get(canvas_id) {
@@ -318,16 +320,15 @@ impl Renderer {
         let mapping_frag_bgl = self.build_mapping_frag_bgl(&device);
         let blue_noise_bgl = self.build_blue_noise_bgl(&device);
 
-        let (resize_pipelines, present_pipelines, present_fmt) = self
-            .build_pipelines(
-                &device,
-                &adapter,
-                surface,
-                &tex_bgl,
-                &uni_bgl,
-                &mapping_frag_bgl,
-                &blue_noise_bgl,
-            );
+        let (resize_pipelines, present_pipelines, present_fmt) = self.build_pipelines(
+            &device,
+            &adapter,
+            surface,
+            &tex_bgl,
+            &uni_bgl,
+            &mapping_frag_bgl,
+            &blue_noise_bgl,
+        );
 
         Ok(Context {
             adapter,
@@ -964,12 +965,9 @@ impl Renderer {
             label: Some("quad_vs"),
             source: wgpu::ShaderSource::Wgsl(include_str!("shaders/quad_vs.wgsl").into()),
         });
-        
 
         let base_surface_format = surface.get_capabilities(adapter).formats[0];
         let present_render_target_format = base_surface_format.add_srgb_suffix();
-
-        
 
         let nearest_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("nearest_fs"),

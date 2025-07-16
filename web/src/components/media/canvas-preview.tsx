@@ -2,29 +2,41 @@ import { useEffect, useRef, useState } from "react";
 import { transfer } from "comlink";
 import { useRenderer } from "@/providers/renderer-provider";
 import { Maximize, Play, Pause } from "lucide-react";
-import { type MediaInfo } from "@/workers/render";
 import { MEDIA_CANVAS_ID } from "@/lib/constants";
+import { useMediaStore, type MediaMeta } from "@/stores/media";
 
 interface Props {
   file: File;
-  onCanvasClick: (event: React.MouseEvent<HTMLElement, MouseEvent>, mediaInfo: MediaInfo) => void;
+  onCanvasClick: () => void;
   borderRadius: string;
   className?: string;
 }
 
-export default function CanvasPreview({ file, onCanvasClick, borderRadius }: Props) {
-  const canvas = useRef<HTMLCanvasElement>(null);
+export default function CanvasPreview({
+  file,
+  onCanvasClick,
+  borderRadius,
+  className,
+}: Props) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const hasRun = useRef(false);
+
   const renderer = useRenderer();
-  const [mediaInfo, setMediaInfo] = useState<MediaInfo | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  const setMediaMeta = useMediaStore((s) => s.setMediaMeta);
+  const canPlay = useMediaStore((s) => s.meta?.canPlay ?? false);
+
   useEffect(() => {
-    if (hasRun.current) return;
+    const el = canvasRef.current;
+    if (!el) return;
+
+    if (hasRun.current) {
+      console.warn("[CanvasPreview] transfer already done, skipping");
+      return;
+    }
     hasRun.current = true;
 
-    const el = canvas.current;
-    if (!el) return;
     const parent = el.parentElement;
     if (!parent) return;
 
@@ -32,20 +44,28 @@ export default function CanvasPreview({ file, onCanvasClick, borderRadius }: Pro
     off.width = parent.offsetWidth;
     off.height = parent.offsetHeight;
 
+    console.log("[CanvasPreview] offscreen dims:", off.width, off.height);
+
     (async () => {
       try {
-        await renderer.registerCanvas(MEDIA_CANVAS_ID, transfer(off, [off]));
+        console.log("[CanvasPreview] initializing renderer");
+        await renderer.init();
+        await renderer.registerCanvas(
+          MEDIA_CANVAS_ID,
+          transfer(off, [off])
+        );
         renderer.switchCanvas(MEDIA_CANVAS_ID);
-        const info = await renderer.load(file);
-        setMediaInfo(info);
-        if (info.canPlay) {
-          setIsPlaying(true);
-        }
+
+        console.log("[CanvasPreview] loading file into worker", file);
+        const info: MediaMeta = await renderer.load(file);
+        console.log("[CanvasPreview] loaded media info:", info);
+        setMediaMeta(info);
+        if (info.canPlay) setIsPlaying(true);
       } catch (err) {
-        console.error(err);
+        console.error("[CanvasPreview] error in effect:", err);
       }
     })();
-  }, [renderer, file]);
+  }, [renderer, file, setMediaMeta]);
 
   const handlePlayPause = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -57,24 +77,17 @@ export default function CanvasPreview({ file, onCanvasClick, borderRadius }: Pro
     setIsPlaying(!isPlaying);
   };
 
-  const handleInspectClick = (e: React.MouseEvent<HTMLElement, MouseEvent>) => {
-    e.stopPropagation();
-    if (mediaInfo) {
-      onCanvasClick(e, mediaInfo);
-    }
-  };
-
   return (
     <div className="block w-full h-full relative">
       <canvas
-        ref={canvas}
+        ref={canvasRef}
         id={MEDIA_CANVAS_ID}
-        className="block w-full h-full"
+        className={`block w-full h-full ${className ?? ""}`}
       />
 
       <div
         className="absolute inset-0 cursor-pointer group/canvas"
-        onClick={(e) => mediaInfo && onCanvasClick(e, mediaInfo)}
+        onClick={onCanvasClick}
         style={{ borderRadius }}
       >
         <div
@@ -82,7 +95,7 @@ export default function CanvasPreview({ file, onCanvasClick, borderRadius }: Pro
           style={{ borderRadius }}
         >
           <div className="flex gap-2">
-            {mediaInfo?.canPlay && (
+            {canPlay && (
               <div
                 className="p-2 bg-primary/80 backdrop-blur-sm rounded-md flex items-center gap-1.5 opacity-0 
                 group-hover/canvas:opacity-100 scale-90 group-hover/canvas:scale-100 transition-all duration-200"
@@ -99,7 +112,10 @@ export default function CanvasPreview({ file, onCanvasClick, borderRadius }: Pro
             <div
               className="p-2 bg-primary/80 backdrop-blur-sm rounded-md flex items-center gap-1.5 opacity-0 
               group-hover/canvas:opacity-100 scale-90 group-hover/canvas:scale-100 transition-all duration-200"
-              onClick={handleInspectClick}
+              onClick={(e) => {
+                e.stopPropagation();
+                onCanvasClick();
+              }}
             >
               <Maximize className="w-4 h-4 stroke-3" />
               <span className="text-base">Inspect</span>

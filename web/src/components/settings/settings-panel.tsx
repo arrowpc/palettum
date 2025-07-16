@@ -1,5 +1,6 @@
 import { useConfigStore } from "@/stores";
 import QualitySetting from "./general/quality-setting";
+import { SizeSetting } from "./general/size-setting";
 import SmoothFormula from "./blend/smooth-formula";
 import SmoothStrength from "./blend/smooth-strength";
 import DitheringSetting from "./match/dithering-setting";
@@ -11,6 +12,7 @@ export default function SettingsPanel() {
   return (
     <div className="flex flex-col gap-4">
       <QualitySetting />
+      <SizeSetting />
       {mapping === "Smoothed" ? (
         <div className="flex flex-row gap-4 px-4">
           <div className="w-1/2">

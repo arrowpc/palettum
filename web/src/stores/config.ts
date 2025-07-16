@@ -21,6 +21,8 @@ export const useConfigStore = create<ConfigState>()(
       ditherStrength: 0.5,
       quantLevel: 0,
       filter: "Nearest",
+      resizeWidth: null,
+      resizeHeight: null,
     },
     setConfig: (key, value) =>
       set((state) => {

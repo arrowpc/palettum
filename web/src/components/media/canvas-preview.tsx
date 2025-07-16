@@ -3,7 +3,7 @@ import { transfer } from "comlink";
 import { useRenderer } from "@/providers/renderer-provider";
 import { Maximize, Play, Pause } from "lucide-react";
 import { MEDIA_CANVAS_ID } from "@/lib/constants";
-import { useMediaStore, type MediaMeta } from "@/stores/media";
+import { useMediaStore, type MediaMeta } from "@/stores";
 
 interface Props {
   file: File;
@@ -44,11 +44,8 @@ export default function CanvasPreview({
     off.width = parent.offsetWidth;
     off.height = parent.offsetHeight;
 
-    console.log("[CanvasPreview] offscreen dims:", off.width, off.height);
-
     (async () => {
       try {
-        console.log("[CanvasPreview] initializing renderer");
         await renderer.init();
         await renderer.registerCanvas(
           MEDIA_CANVAS_ID,
@@ -56,7 +53,6 @@ export default function CanvasPreview({
         );
         renderer.switchCanvas(MEDIA_CANVAS_ID);
 
-        console.log("[CanvasPreview] loading file into worker", file);
         const info: MediaMeta = await renderer.load(file);
         console.log("[CanvasPreview] loaded media info:", info);
         setMediaMeta(info);

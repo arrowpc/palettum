@@ -25,6 +25,7 @@ import {
 import { useRenderer } from "@/providers/renderer-provider";
 import { transfer } from "comlink";
 import { VIEWER_CANVAS_ID } from "@/lib/constants";
+import { useMediaStore } from "@/stores"
 
 function useContinuousTap(
   singleTap: (e: ReactMouseEvent | ReactTouchEvent) => void,
@@ -176,6 +177,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
   const [touchDistance, setTouchDistance] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const resizedWidth = useMediaStore((s) => s.resizedWidth);
+  const resizedHeight = useMediaStore((s) => s.resizedHeight);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const displayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -274,43 +277,45 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
       const displayEl = displayCanvasRef.current;
       const viewportEl = viewportRef.current;
 
-      if (!displayEl || !viewportEl) {
+      // TODO: This shouldn't just return without throwing an error
+      if (
+        !displayEl ||
+        !viewportEl ||
+        resizedWidth <= 0 ||
+        resizedHeight <= 0
+      ) {
+        console.log(resizedWidth);
         setCanvasReady(false);
         return;
       }
 
       try {
-        const mediaInfo = await renderer.getMediaInfo();
-        const width = mediaInfo?.width || 1920;
-        const height = mediaInfo?.height || 1080;
+        const width = resizedWidth;
+        const height = resizedHeight;
         setCanvasSize({ width, height });
 
         displayEl.width = width;
         displayEl.height = height;
 
-        const offscreenCanvas = displayEl.transferControlToOffscreen();
-        offscreenCanvas.width = width;
-        offscreenCanvas.height = height;
+        const offscreen = displayEl.transferControlToOffscreen();
+        offscreen.width = width;
+        offscreen.height = height;
 
         await renderer.registerCanvas(
           VIEWER_CANVAS_ID,
-          transfer(offscreenCanvas, [offscreenCanvas]),
+          transfer(offscreen, [offscreen])
         );
         renderer.switchCanvas(VIEWER_CANVAS_ID);
         setCanvasReady(true);
-      } catch (error) {
-        console.error("Failed to initialize canvas or renderer:", error);
+      } catch (err) {
+        console.error("Canvas init failed:", err);
         setCanvasReady(false);
       }
     };
 
-    const frameId = requestAnimationFrame(initializeCanvasAndRenderer);
-
-    return () => {
-      cancelAnimationFrame(frameId);
-    };
-  }, [renderer]);
-
+    const raf = requestAnimationFrame(initializeCanvasAndRenderer);
+    return () => cancelAnimationFrame(raf);
+  }, [renderer, resizedWidth, resizedHeight]);
   useEffect(() => {
     if (canvasReady) {
       const newLimits = calculateZoomLimits();

@@ -99,15 +99,15 @@ impl Gif {
         Ok(())
     }
 
-    pub async fn resize(
-        &mut self,
-        target_width: Option<u32>,
-        target_height: Option<u32>,
-        scale: Option<f32>,
-        filter: Filter,
-    ) -> Result<()> {
-        self.gif
-            .resize(target_width, target_height, scale, filter.into())?;
+    pub async fn resize(&mut self) -> Result<()> {
+        let instance = get_gpu_instance().await?;
+        let config = instance.config.read();
+        self.gif.resize(
+            config.resize_width,
+            config.resize_height,
+            config.resize_scale,
+            config.filter,
+        )?;
         Ok(())
     }
 

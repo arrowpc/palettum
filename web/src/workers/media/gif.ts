@@ -102,7 +102,9 @@ export class GifHandler {
 
     this.pause();
 
-    onProgress?.(0, "palettifying...");
+    onProgress?.(0, "resizing...");
+    await this.gif.resize();
+    onProgress?.(10, "palettifying...");
     await this.gif.palettify();
 
     onProgress?.(100, "");

@@ -1,12 +1,13 @@
 @group(0) @binding(0) var t: texture_2d<f32>;
+@group(1) @binding(0) var<uniform> uSizes: vec4<f32>;
 
 @fragment
 fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
-    let dimsU: vec2<u32>   = textureDimensions(t, 0);
-    let dims:  vec2<f32>   = vec2<f32>(dimsU);
-    let maxC:  vec2<f32>   = dims - vec2<f32>(1.0);
+    let src_size = uSizes.xy;
+    let dst_size = uSizes.zw;
+    let maxC:  vec2<f32>   = src_size - vec2<f32>(1.0);
 
-    let pos:   vec2<f32>   = uv * dims - vec2<f32>(0.5);
+    let pos:   vec2<f32>   = uv * src_size - vec2<f32>(0.5);
     let base:  vec2<f32>   = floor(pos);
     let f:     vec2<f32>   = pos - base;
 

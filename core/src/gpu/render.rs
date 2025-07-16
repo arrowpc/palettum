@@ -9,6 +9,7 @@ use wasm_bindgen::JsValue;
 use web_sys::{ImageBitmap, OffscreenCanvas};
 
 const PRESENT_UNIFORM_BYTES: u64 = 16; // two vec2<f32>
+const RESIZE_UNIFORM_BYTES: u64 = 16; // two vec2<f32>
 const CONFIG_UNIFORM_BYTES: u64 = std::mem::size_of::<GpuConfig>() as u64;
 
 struct Canvas {
@@ -34,6 +35,7 @@ struct Context {
     pub nearest_sampler: wgpu::Sampler,
     pub tex_bgl: wgpu::BindGroupLayout,
     pub uni_bgl: wgpu::BindGroupLayout,
+    pub resize_uni_bgl: wgpu::BindGroupLayout,
     pub mapping_frag_bgl: wgpu::BindGroupLayout,
     pub blue_noise_bgl: wgpu::BindGroupLayout,
     pub blue_noise_tex: wgpu::Texture,
@@ -319,6 +321,7 @@ impl Renderer {
 
         let tex_bgl = self.build_tex_bgl(&device);
         let uni_bgl = self.build_uni_bgl(&device);
+        let resize_uni_bgl = self.build_resize_uni_bgl(&device);
         let mapping_frag_bgl = self.build_mapping_frag_bgl(&device);
         let blue_noise_bgl = self.build_blue_noise_bgl(&device);
 
@@ -328,6 +331,7 @@ impl Renderer {
             surface,
             &tex_bgl,
             &uni_bgl,
+            &resize_uni_bgl,
             &mapping_frag_bgl,
             &blue_noise_bgl,
         );
@@ -340,6 +344,7 @@ impl Renderer {
             nearest_sampler,
             tex_bgl,
             uni_bgl,
+            resize_uni_bgl,
             mapping_frag_bgl,
             blue_noise_bgl,
             blue_noise_tex,
@@ -520,6 +525,37 @@ impl Renderer {
                 ],
             });
 
+        let src_size = self.full_tex.as_ref().unwrap().size();
+        let dst_size = self.resized_tex.as_ref().unwrap().size();
+
+        let resize_uniform_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Resize Uniform Buffer"),
+            size: RESIZE_UNIFORM_BYTES,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let resize_data: [f32; 4] = [
+            src_size.width as f32,
+            src_size.height as f32,
+            dst_size.width as f32,
+            dst_size.height as f32,
+        ];
+        context
+            .queue
+            .write_buffer(&resize_uniform_buf, 0, bytemuck::cast_slice(&resize_data));
+
+        let resize_uni_bg = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resize_uni_bg"),
+                layout: &context.resize_uni_bgl,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: resize_uniform_buf.as_entire_binding(),
+                }],
+            });
+
         let mut enc = context
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -543,6 +579,7 @@ impl Renderer {
             let resize_pipeline = context.resize_pipelines.get(&config.filter).unwrap();
             rpass.set_pipeline(resize_pipeline);
             rpass.set_bind_group(0, &tmp_bg, &[]);
+            rpass.set_bind_group(1, &resize_uni_bg, &[]);
             rpass.draw(0..6, 0..1);
         }
         context.queue.submit(Some(enc.finish()));
@@ -596,8 +633,40 @@ impl Renderer {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
+            let src_size = self.resized_tex.as_ref().unwrap().size();
+            let dst_size = self.work_tex.as_ref().unwrap().size();
+
+            let resize_uniform_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Work Blit Resize Uniform Buffer"),
+                size: RESIZE_UNIFORM_BYTES,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+
+            let resize_data: [f32; 4] = [
+                src_size.width as f32,
+                src_size.height as f32,
+                dst_size.width as f32,
+                dst_size.height as f32,
+            ];
+            context
+                .queue
+                .write_buffer(&resize_uniform_buf, 0, bytemuck::cast_slice(&resize_data));
+
+            let resize_uni_bg = context.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("work_blit_resize_uni_bg"),
+                layout: &context.resize_uni_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: resize_uniform_buf.as_entire_binding(),
+                    },
+                ],
+            });
+
             rpass.set_pipeline(context.resize_pipelines.get(&Filter::Nearest).unwrap());
             rpass.set_bind_group(0, &tmp_bg, &[]);
+            rpass.set_bind_group(1, &resize_uni_bg, &[]);
             rpass.draw(0..6, 0..1);
         }
         context.queue.submit(Some(enc.finish()));
@@ -891,6 +960,22 @@ impl Renderer {
         })
     }
 
+    fn build_resize_uni_bgl(&self, device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("resize_uniform_bgl"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::FRAGMENT,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(RESIZE_UNIFORM_BYTES),
+                },
+                count: None,
+            }],
+        })
+    }
+
     fn build_mapping_frag_bgl(&self, device: &wgpu::Device) -> wgpu::BindGroupLayout {
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("mapping_frag_bgl"),
@@ -956,6 +1041,7 @@ impl Renderer {
         surface: &wgpu::Surface,
         tex_bgl: &wgpu::BindGroupLayout,
         uni_bgl: &wgpu::BindGroupLayout,
+        resize_uni_bgl: &wgpu::BindGroupLayout,
         mapping_frag_bgl: &wgpu::BindGroupLayout,
         blue_noise_bgl: &wgpu::BindGroupLayout,
     ) -> (
@@ -989,7 +1075,7 @@ impl Renderer {
         let make_resize_pipeline = |fs: &wgpu::ShaderModule, filter: Filter| {
             let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some(&format!("resize_{:?}_layout", filter)),
-                bind_group_layouts: &[tex_bgl],
+                bind_group_layouts: &[tex_bgl, resize_uni_bgl],
                 push_constant_ranges: &[],
             });
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {

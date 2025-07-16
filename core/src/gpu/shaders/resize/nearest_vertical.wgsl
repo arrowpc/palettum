@@ -5,7 +5,11 @@
 fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     let src_size = uSizes.xy;
     let dst_size = uSizes.zw;
-    let texelPos = uv * src_size - 0.5;
-    let nearest = vec2<i32>(round(texelPos));
-    return textureLoad(t, nearest, 0);
+
+    let src_y = uv.y * src_size.y;
+
+    let nearest_x = i32(uv.x * src_size.x - 0.5);
+    let nearest_y = i32(round(src_y - 0.5));
+
+    return textureLoad(t, vec2<i32>(nearest_x, nearest_y), 0);
 }

@@ -18,8 +18,7 @@ fn vs_main(@builtin(vertex_index) i : u32) -> Out {
 
     let base = xy[i];
     let clip = base * pc.scale + pc.offset;
-    var uv   = (base * 0.5) + vec2<f32>(0.5);
-    uv.y = 1.0 - uv.y;
+    let uv   = (base * 0.5) + vec2<f32>(0.5);
 
     var o : Out;
     o.pos = vec4<f32>(clip, 0.0, 1.0);

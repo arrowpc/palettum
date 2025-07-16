@@ -39,7 +39,9 @@ struct Context {
     pub mapping_frag_bgl: wgpu::BindGroupLayout,
     pub blue_noise_bgl: wgpu::BindGroupLayout,
     pub blue_noise_tex: wgpu::Texture,
-    pub resize_pipelines: HashMap<Filter, wgpu::RenderPipeline>,
+    pub blit_pipeline: wgpu::RenderPipeline,
+    pub resize_horizontal_pipelines: HashMap<Filter, wgpu::RenderPipeline>,
+    pub resize_vertical_pipelines: HashMap<Filter, wgpu::RenderPipeline>,
     pub present_pipelines: HashMap<Mapping, wgpu::RenderPipeline>,
     pub present_fmt: wgpu::TextureFormat,
 }
@@ -56,6 +58,7 @@ pub struct Renderer {
 
     full_tex: Option<wgpu::Texture>,
     resized_tex: Option<wgpu::Texture>,
+    horizontal_pass_tex: Option<wgpu::Texture>,
     work_tex: Option<wgpu::Texture>,
     work_bg: Option<wgpu::BindGroup>,
 
@@ -81,6 +84,7 @@ impl Renderer {
             canvas_cache: HashMap::new(),
             full_tex: None,
             resized_tex: None,
+            horizontal_pass_tex: None,
             work_tex: None,
             work_bg: None,
             present_buf: None,
@@ -136,6 +140,7 @@ impl Renderer {
                 self.present_buf = None;
                 self.config_buf = None;
                 self.resized_tex = None;
+                self.horizontal_pass_tex = None;
             }
             let ctx: Arc<Context> = Arc::new(self.create_context(&surface).await?);
             self.context_cache.insert(canvas_id.clone(), ctx.clone());
@@ -181,6 +186,7 @@ impl Renderer {
                     self.present_buf = None;
                     self.config_buf = None;
                     self.resized_tex = None;
+                    self.horizontal_pass_tex = None;
                 }
             } else {
                 return Err(JsValue::from_str("Context for canvas not found"));
@@ -325,7 +331,13 @@ impl Renderer {
         let mapping_frag_bgl = self.build_mapping_frag_bgl(&device);
         let blue_noise_bgl = self.build_blue_noise_bgl(&device);
 
-        let (resize_pipelines, present_pipelines, present_fmt) = self.build_pipelines(
+        let (
+            blit_pipeline,
+            resize_horizontal_pipelines,
+            resize_vertical_pipelines,
+            present_pipelines,
+            present_fmt,
+        ) = self.build_pipelines(
             &device,
             &adapter,
             surface,
@@ -348,7 +360,9 @@ impl Renderer {
             mapping_frag_bgl,
             blue_noise_bgl,
             blue_noise_tex,
-            resize_pipelines,
+            blit_pipeline,
+            resize_horizontal_pipelines,
+            resize_vertical_pipelines,
             present_pipelines,
             present_fmt,
         })
@@ -447,6 +461,21 @@ impl Renderer {
                 resized_w,
                 resized_h,
             )));
+
+            // Also ensure horizontal_pass_tex is sized correctly
+            let full_tex_size = self.full_tex.as_ref().unwrap().size();
+            if self
+                .horizontal_pass_tex
+                .as_ref()
+                .map(|t| t.size().width != resized_w || t.size().height != full_tex_size.height)
+                .unwrap_or(true)
+            {
+                self.horizontal_pass_tex = Some(context.device.create_texture(&Self::linear_tex(
+                    "horizontal_pass_tex",
+                    resized_w,
+                    full_tex_size.height,
+                )));
+            }
         }
 
         let (work_w, work_h) = self
@@ -496,27 +525,27 @@ impl Renderer {
         let context = self.context.as_ref().unwrap();
         let config = self.instance.config.read();
 
-        // Blit from full_tex to resized_tex with selected filter
-        let src_view = self
+        // First pass: Blit from full_tex to horizontal_pass_tex with horizontal filter
+        let src_view_h = self
             .full_tex
             .as_ref()
             .unwrap()
             .create_view(&Default::default());
-        let dst_view = self
-            .resized_tex
+        let dst_view_h = self
+            .horizontal_pass_tex
             .as_ref()
             .unwrap()
             .create_view(&Default::default());
 
-        let tmp_bg = context
+        let tmp_bg_h = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("resize_bg"),
+                label: Some("resize_horizontal_bg"),
                 layout: &context.tex_bgl,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&src_view),
+                        resource: wgpu::BindingResource::TextureView(&src_view_h),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
@@ -525,47 +554,49 @@ impl Renderer {
                 ],
             });
 
-        let src_size = self.full_tex.as_ref().unwrap().size();
-        let dst_size = self.resized_tex.as_ref().unwrap().size();
+        let full_tex_size = self.full_tex.as_ref().unwrap().size();
+        let horizontal_pass_tex_size = self.horizontal_pass_tex.as_ref().unwrap().size();
 
-        let resize_uniform_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Resize Uniform Buffer"),
+        let resize_uniform_buf_h = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Resize Horizontal Uniform Buffer"),
             size: RESIZE_UNIFORM_BYTES,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        let resize_data: [f32; 4] = [
-            src_size.width as f32,
-            src_size.height as f32,
-            dst_size.width as f32,
-            dst_size.height as f32,
+        let resize_data_h: [f32; 4] = [
+            full_tex_size.width as f32,
+            full_tex_size.height as f32,
+            horizontal_pass_tex_size.width as f32,
+            horizontal_pass_tex_size.height as f32,
         ];
-        context
-            .queue
-            .write_buffer(&resize_uniform_buf, 0, bytemuck::cast_slice(&resize_data));
+        context.queue.write_buffer(
+            &resize_uniform_buf_h,
+            0,
+            bytemuck::cast_slice(&resize_data_h),
+        );
 
-        let resize_uni_bg = context
+        let resize_uni_bg_h = context
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("resize_uni_bg"),
+                label: Some("resize_horizontal_uni_bg"),
                 layout: &context.resize_uni_bgl,
                 entries: &[wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: resize_uniform_buf.as_entire_binding(),
+                    resource: resize_uniform_buf_h.as_entire_binding(),
                 }],
             });
 
-        let mut enc = context
+        let mut enc_h = context
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("resize_enc"),
+                label: Some("resize_horizontal_enc"),
             });
         {
-            let mut rpass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("resize_pass"),
+            let mut rpass_h = enc_h.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("resize_horizontal_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &dst_view,
+                    view: &dst_view_h,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -576,13 +607,108 @@ impl Renderer {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            let resize_pipeline = context.resize_pipelines.get(&config.filter).unwrap();
-            rpass.set_pipeline(resize_pipeline);
-            rpass.set_bind_group(0, &tmp_bg, &[]);
-            rpass.set_bind_group(1, &resize_uni_bg, &[]);
-            rpass.draw(0..6, 0..1);
+            let resize_pipeline_h = context
+                .resize_horizontal_pipelines
+                .get(&config.filter)
+                .unwrap();
+            rpass_h.set_pipeline(resize_pipeline_h);
+            rpass_h.set_bind_group(0, &tmp_bg_h, &[]);
+            rpass_h.set_bind_group(1, &resize_uni_bg_h, &[]);
+            rpass_h.draw(0..6, 0..1);
         }
-        context.queue.submit(Some(enc.finish()));
+        context.queue.submit(Some(enc_h.finish()));
+
+        // Second pass: Blit from horizontal_pass_tex to resized_tex with vertical filter
+        let src_view_v = self
+            .horizontal_pass_tex
+            .as_ref()
+            .unwrap()
+            .create_view(&Default::default());
+        let dst_view_v = self
+            .resized_tex
+            .as_ref()
+            .unwrap()
+            .create_view(&Default::default());
+
+        let tmp_bg_v = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resize_vertical_bg"),
+                layout: &context.tex_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&src_view_v),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&context.sampler),
+                    },
+                ],
+            });
+
+        let resized_tex_size = self.resized_tex.as_ref().unwrap().size();
+
+        let resize_uniform_buf_v = context.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Resize Vertical Uniform Buffer"),
+            size: RESIZE_UNIFORM_BYTES,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let resize_data_v: [f32; 4] = [
+            horizontal_pass_tex_size.width as f32,
+            horizontal_pass_tex_size.height as f32,
+            resized_tex_size.width as f32,
+            resized_tex_size.height as f32,
+        ];
+        context.queue.write_buffer(
+            &resize_uniform_buf_v,
+            0,
+            bytemuck::cast_slice(&resize_data_v),
+        );
+
+        let resize_uni_bg_v = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resize_vertical_uni_bg"),
+                layout: &context.resize_uni_bgl,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: resize_uniform_buf_v.as_entire_binding(),
+                }],
+            });
+
+        let mut enc_v = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("resize_vertical_enc"),
+            });
+        {
+            let mut rpass_v = enc_v.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("resize_vertical_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &dst_view_v,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+            let resize_pipeline_v = context
+                .resize_vertical_pipelines
+                .get(&config.filter)
+                .unwrap();
+            rpass_v.set_pipeline(resize_pipeline_v);
+            rpass_v.set_bind_group(0, &tmp_bg_v, &[]);
+            rpass_v.set_bind_group(1, &resize_uni_bg_v, &[]);
+            rpass_v.draw(0..6, 0..1);
+        }
+        context.queue.submit(Some(enc_v.finish()));
 
         // Blit from resized_tex to work_tex
         let src_view = self
@@ -653,18 +779,18 @@ impl Renderer {
                 .queue
                 .write_buffer(&resize_uniform_buf, 0, bytemuck::cast_slice(&resize_data));
 
-            let resize_uni_bg = context.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("work_blit_resize_uni_bg"),
-                layout: &context.resize_uni_bgl,
-                entries: &[
-                    wgpu::BindGroupEntry {
+            let resize_uni_bg = context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("work_blit_resize_uni_bg"),
+                    layout: &context.resize_uni_bgl,
+                    entries: &[wgpu::BindGroupEntry {
                         binding: 0,
                         resource: resize_uniform_buf.as_entire_binding(),
-                    },
-                ],
-            });
+                    }],
+                });
 
-            rpass.set_pipeline(context.resize_pipelines.get(&Filter::Nearest).unwrap());
+            rpass.set_pipeline(&context.blit_pipeline);
             rpass.set_bind_group(0, &tmp_bg, &[]);
             rpass.set_bind_group(1, &resize_uni_bg, &[]);
             rpass.draw(0..6, 0..1);
@@ -1045,6 +1171,8 @@ impl Renderer {
         mapping_frag_bgl: &wgpu::BindGroupLayout,
         blue_noise_bgl: &wgpu::BindGroupLayout,
     ) -> (
+        wgpu::RenderPipeline,
+        HashMap<Filter, wgpu::RenderPipeline>,
         HashMap<Filter, wgpu::RenderPipeline>,
         HashMap<Mapping, wgpu::RenderPipeline>,
         wgpu::TextureFormat,
@@ -1057,29 +1185,93 @@ impl Renderer {
         let base_surface_format = surface.get_capabilities(adapter).formats[0];
         let present_render_target_format = base_surface_format.add_srgb_suffix();
 
-        let nearest_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("nearest_fs"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/resize/nearest.wgsl").into()),
+        let nearest_horizontal_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("nearest_horizontal_fs"),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shaders/resize/nearest_horizontal.wgsl").into(),
+            ),
         });
 
-        let triangle_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("triangle_fs"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/resize/triangle.wgsl").into()),
+        let nearest_vertical_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("nearest_vertical_fs"),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shaders/resize/nearest_vertical.wgsl").into(),
+            ),
         });
 
-        let lanczos_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("lanczos_fs"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/resize/lanczos.wgsl").into()),
+        let triangle_horizontal_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("triangle_horizontal_fs"),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shaders/resize/triangle_horizontal.wgsl").into(),
+            ),
         });
 
-        let make_resize_pipeline = |fs: &wgpu::ShaderModule, filter: Filter| {
+        let triangle_vertical_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("triangle_vertical_fs"),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shaders/resize/triangle_vertical.wgsl").into(),
+            ),
+        });
+
+        let lanczos_horizontal_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("lanczos_horizontal_fs"),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shaders/resize/lanczos_horizontal.wgsl").into(),
+            ),
+        });
+
+        let lanczos_vertical_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("lanczos_vertical_fs"),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shaders/resize/lanczos_vertical.wgsl").into(),
+            ),
+        });
+
+        let blit_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("blit_fs"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/blit.wgsl").into()),
+        });
+
+        let blit_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("blit_pipe"),
+            layout: Some(
+                &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("blit_layout"),
+                    bind_group_layouts: &[tex_bgl],
+                    push_constant_ranges: &[],
+                }),
+            ),
+            vertex: wgpu::VertexState {
+                module: &quad_vs,
+                entry_point: Some("vs_main"),
+                buffers: &[],
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &blit_fs,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            primitive: Default::default(),
+            depth_stencil: None,
+            multisample: Default::default(),
+            multiview: None,
+            cache: None,
+        });
+
+        let make_resize_pipeline = |fs: &wgpu::ShaderModule, filter: Filter, direction: &str| {
             let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some(&format!("resize_{:?}_layout", filter)),
+                label: Some(&format!("resize_{:?}_{}_layout", filter, direction)),
                 bind_group_layouts: &[tex_bgl, resize_uni_bgl],
                 push_constant_ranges: &[],
             });
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(&format!("resize_{:?}_pipe", filter)),
+                label: Some(&format!("resize_{:?}_{}_pipe", filter, direction)),
                 layout: Some(&pl),
                 vertex: wgpu::VertexState {
                     module: &quad_vs,
@@ -1105,18 +1297,32 @@ impl Renderer {
             })
         };
 
-        let mut resize_pipelines = HashMap::new();
-        resize_pipelines.insert(
+        let mut resize_horizontal_pipelines = HashMap::new();
+        resize_horizontal_pipelines.insert(
             Filter::Nearest,
-            make_resize_pipeline(&nearest_fs, Filter::Nearest),
+            make_resize_pipeline(&nearest_horizontal_fs, Filter::Nearest, "horizontal"),
         );
-        resize_pipelines.insert(
+        resize_horizontal_pipelines.insert(
             Filter::Triangle,
-            make_resize_pipeline(&triangle_fs, Filter::Triangle),
+            make_resize_pipeline(&triangle_horizontal_fs, Filter::Triangle, "horizontal"),
         );
-        resize_pipelines.insert(
+        resize_horizontal_pipelines.insert(
             Filter::Lanczos3,
-            make_resize_pipeline(&lanczos_fs, Filter::Lanczos3),
+            make_resize_pipeline(&lanczos_horizontal_fs, Filter::Lanczos3, "horizontal"),
+        );
+
+        let mut resize_vertical_pipelines = HashMap::new();
+        resize_vertical_pipelines.insert(
+            Filter::Nearest,
+            make_resize_pipeline(&nearest_vertical_fs, Filter::Nearest, "vertical"),
+        );
+        resize_vertical_pipelines.insert(
+            Filter::Triangle,
+            make_resize_pipeline(&triangle_vertical_fs, Filter::Triangle, "vertical"),
+        );
+        resize_vertical_pipelines.insert(
+            Filter::Lanczos3,
+            make_resize_pipeline(&lanczos_vertical_fs, Filter::Lanczos3, "vertical"),
         );
 
         let vs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -1200,7 +1406,9 @@ impl Renderer {
         present_pipelines.insert(Mapping::Smoothed, make(&smoothed_fs, Mapping::Smoothed));
 
         (
-            resize_pipelines,
+            blit_pipeline,
+            resize_horizontal_pipelines,
+            resize_vertical_pipelines,
             present_pipelines,
             present_render_target_format,
         )

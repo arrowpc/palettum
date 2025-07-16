@@ -525,190 +525,287 @@ impl Renderer {
         let context = self.context.as_ref().unwrap();
         let config = self.instance.config.read();
 
-        // First pass: Blit from full_tex to horizontal_pass_tex with horizontal filter
-        let src_view_h = self
-            .full_tex
-            .as_ref()
-            .unwrap()
-            .create_view(&Default::default());
-        let dst_view_h = self
-            .horizontal_pass_tex
-            .as_ref()
-            .unwrap()
-            .create_view(&Default::default());
-
-        let tmp_bg_h = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("resize_horizontal_bg"),
-                layout: &context.tex_bgl,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&src_view_h),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&context.sampler),
-                    },
-                ],
-            });
-
         let full_tex_size = self.full_tex.as_ref().unwrap().size();
-        let horizontal_pass_tex_size = self.horizontal_pass_tex.as_ref().unwrap().size();
+        let (desired_resized_w, desired_resized_h) = self
+            .desired_resized_dims()
+            .ok_or(JsValue::from_str("no full_tex"))?;
 
-        let resize_uniform_buf_h = context.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Resize Horizontal Uniform Buffer"),
-            size: RESIZE_UNIFORM_BYTES,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+        let skip_initial_resize = full_tex_size.width == desired_resized_w
+            && full_tex_size.height == desired_resized_h;
 
-        let resize_data_h: [f32; 4] = [
-            full_tex_size.width as f32,
-            full_tex_size.height as f32,
-            horizontal_pass_tex_size.width as f32,
-            horizontal_pass_tex_size.height as f32,
-        ];
-        context.queue.write_buffer(
-            &resize_uniform_buf_h,
-            0,
-            bytemuck::cast_slice(&resize_data_h),
-        );
+        if skip_initial_resize {
+            // Skip horizontal and vertical resize passes, blit full_tex directly to resized_tex
+            let src_view = self
+                .full_tex
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default());
+            let dst_view = self
+                .resized_tex
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default());
 
-        let resize_uni_bg_h = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("resize_horizontal_uni_bg"),
-                layout: &context.resize_uni_bgl,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: resize_uniform_buf_h.as_entire_binding(),
-                }],
+            let tmp_bg = context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("full_to_resized_blit_bg"),
+                    layout: &context.tex_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&src_view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&context.sampler),
+                        },
+                    ],
+                });
+
+            let mut enc = context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("full_to_resized_blit_enc"),
+                });
+            {
+                let mut rpass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("full_to_resized_blit_pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &dst_view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                });
+
+                let src_size = full_tex_size;
+                let dst_size = self.resized_tex.as_ref().unwrap().size();
+
+                let resize_uniform_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("Full to Resized Blit Resize Uniform Buffer"),
+                    size: RESIZE_UNIFORM_BYTES,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
+
+                let resize_data: [f32; 4] = [
+                    src_size.width as f32,
+                    src_size.height as f32,
+                    dst_size.width as f32,
+                    dst_size.height as f32,
+                ];
+                context
+                    .queue
+                    .write_buffer(&resize_uniform_buf, 0, bytemuck::cast_slice(&resize_data));
+
+                let resize_uni_bg = context
+                    .device
+                    .create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("full_to_resized_blit_resize_uni_bg"),
+                        layout: &context.resize_uni_bgl,
+                        entries: &[wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: resize_uniform_buf.as_entire_binding(),
+                        }],
+                    });
+
+                rpass.set_pipeline(&context.blit_pipeline);
+                rpass.set_bind_group(0, &tmp_bg, &[]);
+                rpass.set_bind_group(1, &resize_uni_bg, &[]);
+                rpass.draw(0..6, 0..1);
+            }
+            context.queue.submit(Some(enc.finish()));
+        } else {
+            // First pass: Blit from full_tex to horizontal_pass_tex with horizontal filter
+            let src_view_h = self
+                .full_tex
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default());
+            let dst_view_h = self
+                .horizontal_pass_tex
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default());
+
+            let tmp_bg_h = context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("resize_horizontal_bg"),
+                    layout: &context.tex_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&src_view_h),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&context.sampler),
+                        },
+                    ],
+                });
+
+            let horizontal_pass_tex_size = self.horizontal_pass_tex.as_ref().unwrap().size();
+
+            let resize_uniform_buf_h = context.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Resize Horizontal Uniform Buffer"),
+                size: RESIZE_UNIFORM_BYTES,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
             });
 
-        let mut enc_h = context
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("resize_horizontal_enc"),
-            });
-        {
-            let mut rpass_h = enc_h.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("resize_horizontal_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &dst_view_h,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            let resize_pipeline_h = context
-                .resize_horizontal_pipelines
-                .get(&config.filter)
-                .unwrap();
-            rpass_h.set_pipeline(resize_pipeline_h);
-            rpass_h.set_bind_group(0, &tmp_bg_h, &[]);
-            rpass_h.set_bind_group(1, &resize_uni_bg_h, &[]);
-            rpass_h.draw(0..6, 0..1);
-        }
-        context.queue.submit(Some(enc_h.finish()));
+            let resize_data_h: [f32; 4] = [
+                full_tex_size.width as f32,
+                full_tex_size.height as f32,
+                horizontal_pass_tex_size.width as f32,
+                horizontal_pass_tex_size.height as f32,
+            ];
+            context.queue.write_buffer(
+                &resize_uniform_buf_h,
+                0,
+                bytemuck::cast_slice(&resize_data_h),
+            );
 
-        // Second pass: Blit from horizontal_pass_tex to resized_tex with vertical filter
-        let src_view_v = self
-            .horizontal_pass_tex
-            .as_ref()
-            .unwrap()
-            .create_view(&Default::default());
-        let dst_view_v = self
-            .resized_tex
-            .as_ref()
-            .unwrap()
-            .create_view(&Default::default());
-
-        let tmp_bg_v = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("resize_vertical_bg"),
-                layout: &context.tex_bgl,
-                entries: &[
-                    wgpu::BindGroupEntry {
+            let resize_uni_bg_h = context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("resize_horizontal_uni_bg"),
+                    layout: &context.resize_uni_bgl,
+                    entries: &[wgpu::BindGroupEntry {
                         binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&src_view_v),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&context.sampler),
-                    },
-                ],
+                        resource: resize_uniform_buf_h.as_entire_binding(),
+                    }],
+                });
+
+            let mut enc_h = context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("resize_horizontal_enc"),
+                });
+            {
+                let mut rpass_h = enc_h.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("resize_horizontal_pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &dst_view_h,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                });
+                let resize_pipeline_h = context
+                    .resize_horizontal_pipelines
+                    .get(&config.filter)
+                    .unwrap();
+                rpass_h.set_pipeline(resize_pipeline_h);
+                rpass_h.set_bind_group(0, &tmp_bg_h, &[]);
+                rpass_h.set_bind_group(1, &resize_uni_bg_h, &[]);
+                rpass_h.draw(0..6, 0..1);
+            }
+            context.queue.submit(Some(enc_h.finish()));
+
+            // Second pass: Blit from horizontal_pass_tex to resized_tex with vertical filter
+            let src_view_v = self
+                .horizontal_pass_tex
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default());
+            let dst_view_v = self
+                .resized_tex
+                .as_ref()
+                .unwrap()
+                .create_view(&Default::default());
+
+            let tmp_bg_v = context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("resize_vertical_bg"),
+                    layout: &context.tex_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&src_view_v),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&context.sampler),
+                        },
+                    ],
+                });
+
+            let resized_tex_size = self.resized_tex.as_ref().unwrap().size();
+
+            let resize_uniform_buf_v = context.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Resize Vertical Uniform Buffer"),
+                size: RESIZE_UNIFORM_BYTES,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
             });
 
-        let resized_tex_size = self.resized_tex.as_ref().unwrap().size();
+            let resize_data_v: [f32; 4] = [
+                horizontal_pass_tex_size.width as f32,
+                horizontal_pass_tex_size.height as f32,
+                resized_tex_size.width as f32,
+                resized_tex_size.height as f32,
+            ];
+            context.queue.write_buffer(
+                &resize_uniform_buf_v,
+                0,
+                bytemuck::cast_slice(&resize_data_v),
+            );
 
-        let resize_uniform_buf_v = context.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Resize Vertical Uniform Buffer"),
-            size: RESIZE_UNIFORM_BYTES,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
+            let resize_uni_bg_v = context
+                .device
+                .create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("resize_vertical_uni_bg"),
+                    layout: &context.resize_uni_bgl,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: resize_uniform_buf_v.as_entire_binding(),
+                    }],
+                });
 
-        let resize_data_v: [f32; 4] = [
-            horizontal_pass_tex_size.width as f32,
-            horizontal_pass_tex_size.height as f32,
-            resized_tex_size.width as f32,
-            resized_tex_size.height as f32,
-        ];
-        context.queue.write_buffer(
-            &resize_uniform_buf_v,
-            0,
-            bytemuck::cast_slice(&resize_data_v),
-        );
-
-        let resize_uni_bg_v = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("resize_vertical_uni_bg"),
-                layout: &context.resize_uni_bgl,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: resize_uniform_buf_v.as_entire_binding(),
-                }],
-            });
-
-        let mut enc_v = context
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("resize_vertical_enc"),
-            });
-        {
-            let mut rpass_v = enc_v.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("resize_vertical_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &dst_view_v,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                        store: wgpu::StoreOp::Store,
-                    },
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
-            let resize_pipeline_v = context
-                .resize_vertical_pipelines
-                .get(&config.filter)
-                .unwrap();
-            rpass_v.set_pipeline(resize_pipeline_v);
-            rpass_v.set_bind_group(0, &tmp_bg_v, &[]);
-            rpass_v.set_bind_group(1, &resize_uni_bg_v, &[]);
-            rpass_v.draw(0..6, 0..1);
+            let mut enc_v = context
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("resize_vertical_enc"),
+                });
+            {
+                let mut rpass_v = enc_v.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("resize_vertical_pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &dst_view_v,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                            store: wgpu::StoreOp::Store,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                });
+                let resize_pipeline_v = context
+                    .resize_vertical_pipelines
+                    .get(&config.filter)
+                    .unwrap();
+                rpass_v.set_pipeline(resize_pipeline_v);
+                rpass_v.set_bind_group(0, &tmp_bg_v, &[]);
+                rpass_v.set_bind_group(1, &resize_uni_bg_v, &[]);
+                rpass_v.draw(0..6, 0..1);
+            }
+            context.queue.submit(Some(enc_v.finish()));
         }
-        context.queue.submit(Some(enc_v.finish()));
 
         // Blit from resized_tex to work_tex
         let src_view = self

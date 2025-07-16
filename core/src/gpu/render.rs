@@ -1,5 +1,5 @@
 use super::utils::{get_gpu_instance, preprocess, GpuConfig, GpuInstance};
-use crate::{Config, Mapping};
+use crate::{Config, Filter, Mapping};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -38,6 +38,7 @@ struct Context {
     pub blue_noise_bgl: wgpu::BindGroupLayout,
     pub blue_noise_tex: wgpu::Texture,
     pub blit_pipeline: wgpu::RenderPipeline,
+    pub resize_pipelines: HashMap<Filter, wgpu::RenderPipeline>,
     pub present_pipelines: HashMap<Mapping, wgpu::RenderPipeline>,
     pub present_fmt: wgpu::TextureFormat,
 }
@@ -53,6 +54,7 @@ pub struct Renderer {
     canvas_cache: HashMap<String, Arc<Canvas>>,
 
     full_tex: Option<wgpu::Texture>,
+    resized_tex: Option<wgpu::Texture>,
     work_tex: Option<wgpu::Texture>,
     work_bg: Option<wgpu::BindGroup>,
 
@@ -77,6 +79,7 @@ impl Renderer {
             canvas: None,
             canvas_cache: HashMap::new(),
             full_tex: None,
+            resized_tex: None,
             work_tex: None,
             work_bg: None,
             present_buf: None,
@@ -316,15 +319,16 @@ impl Renderer {
         let mapping_frag_bgl = self.build_mapping_frag_bgl(&device);
         let blue_noise_bgl = self.build_blue_noise_bgl(&device);
 
-        let (blit_pipeline, present_pipelines, present_fmt) = self.build_pipelines(
-            &device,
-            &adapter,
-            surface,
-            &tex_bgl,
-            &uni_bgl,
-            &mapping_frag_bgl,
-            &blue_noise_bgl,
-        );
+        let (blit_pipeline, resize_pipelines, present_pipelines, present_fmt) = self
+            .build_pipelines(
+                &device,
+                &adapter,
+                surface,
+                &tex_bgl,
+                &uni_bgl,
+                &mapping_frag_bgl,
+                &blue_noise_bgl,
+            );
 
         Ok(Context {
             adapter,
@@ -338,6 +342,7 @@ impl Renderer {
             blue_noise_bgl,
             blue_noise_tex,
             blit_pipeline,
+            resize_pipelines,
             present_pipelines,
             present_fmt,
         })
@@ -383,33 +388,76 @@ impl Renderer {
         Ok(())
     }
 
-    fn desired_work_dims(&self) -> Option<(u32, u32)> {
+    fn get_resize_dims(&self, full_w: u32, full_h: u32) -> (u32, u32) {
+        let config = self.instance.config.read();
+        let mut new_w = full_w;
+        let mut new_h = full_h;
+
+        if let Some(width) = config.resize_width {
+            new_w = width;
+        }
+        if let Some(height) = config.resize_height {
+            new_h = height;
+        }
+        if let Some(scale) = config.resize_scale {
+            new_w = (full_w as f32 * scale).round() as u32;
+            new_h = (full_h as f32 * scale).round() as u32;
+        }
+
+        (new_w.max(1), new_h.max(1))
+    }
+
+    fn desired_resized_dims(&self) -> Option<(u32, u32)> {
         let full = self.full_tex.as_ref().unwrap();
+        Some(self.get_resize_dims(full.size().width, full.size().height))
+    }
+
+    fn desired_work_dims(&self) -> Option<(u32, u32)> {
+        let resized = self.resized_tex.as_ref().unwrap();
         let ctx = self.canvas.as_ref().unwrap();
-        let scale = (ctx.config.width as f32 / full.size().width as f32)
-            .min(ctx.config.height as f32 / full.size().height as f32)
+        let scale = (ctx.config.width as f32 / resized.size().width as f32)
+            .min(ctx.config.height as f32 / resized.size().height as f32)
             .clamp(0.0, 1.0);
         Some((
-            (full.size().width as f32 * scale).max(1.0).round() as u32,
-            (full.size().height as f32 * scale).max(1.0).round() as u32,
+            (resized.size().width as f32 * scale).max(1.0).round() as u32,
+            (resized.size().height as f32 * scale).max(1.0).round() as u32,
         ))
     }
 
     fn ensure_work_tex_size(&mut self) -> Result<(), JsValue> {
-        let (w, h) = self
+        let (resized_w, resized_h) = self
+            .desired_resized_dims()
+            .ok_or(JsValue::from_str("no full_tex"))?;
+
+        if self
+            .resized_tex
+            .as_ref()
+            .map(|t| t.size().width != resized_w || t.size().height != resized_h)
+            .unwrap_or(true)
+        {
+            let context = self.context.as_ref().unwrap();
+            self.resized_tex = Some(context.device.create_texture(&Self::linear_tex(
+                "resized_tex",
+                resized_w,
+                resized_h,
+            )));
+        }
+
+        let (work_w, work_h) = self
             .desired_work_dims()
-            .ok_or(JsValue::from_str("no canvas / full_tex"))?;
+            .ok_or(JsValue::from_str("no resized_tex"))?;
+
         if self
             .work_tex
             .as_ref()
-            .map(|t| t.size().width != w || t.size().height != h)
+            .map(|t| t.size().width != work_w || t.size().height != work_h)
             .unwrap_or(true)
         {
             let context = self.context.as_ref().unwrap();
             self.work_tex = Some(
                 context
                     .device
-                    .create_texture(&Self::linear_tex("work_tex", w, h)),
+                    .create_texture(&Self::linear_tex("work_tex", work_w, work_h)),
             );
             let view = self
                 .work_tex
@@ -439,8 +487,68 @@ impl Renderer {
     }
 
     fn blit_full_to_work(&mut self) -> Result<(), JsValue> {
+        let context = self.context.as_ref().unwrap();
+        let config = self.instance.config.read();
+
+        // Blit from full_tex to resized_tex with selected filter
         let src_view = self
             .full_tex
+            .as_ref()
+            .unwrap()
+            .create_view(&Default::default());
+        let dst_view = self
+            .resized_tex
+            .as_ref()
+            .unwrap()
+            .create_view(&Default::default());
+
+        let tmp_bg = context
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resize_bg"),
+                layout: &context.tex_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::Sampler(&context.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::TextureView(&src_view),
+                    },
+                ],
+            });
+
+        let mut enc = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("resize_enc"),
+            });
+        {
+            let mut rpass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("resize_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &dst_view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+            let resize_pipeline = context.resize_pipelines.get(&config.filter).unwrap();
+            rpass.set_pipeline(resize_pipeline);
+            rpass.set_bind_group(0, &tmp_bg, &[]);
+            rpass.draw(0..6, 0..1);
+        }
+        context.queue.submit(Some(enc.finish()));
+
+        // Blit from resized_tex to work_tex
+        let src_view = self
+            .resized_tex
             .as_ref()
             .unwrap()
             .create_view(&Default::default());
@@ -449,8 +557,6 @@ impl Renderer {
             .as_ref()
             .unwrap()
             .create_view(&Default::default());
-
-        let context = self.context.as_ref().unwrap();
 
         let tmp_bg = context
             .device
@@ -853,6 +959,7 @@ impl Renderer {
         blue_noise_bgl: &wgpu::BindGroupLayout,
     ) -> (
         wgpu::RenderPipeline,
+        HashMap<Filter, wgpu::RenderPipeline>,
         HashMap<Mapping, wgpu::RenderPipeline>,
         wgpu::TextureFormat,
     ) {
@@ -900,6 +1007,68 @@ impl Renderer {
                 cache: None,
             })
         };
+
+        let nearest_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("nearest_fs"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/resize/nearest.wgsl").into()),
+        });
+
+        let triangle_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("triangle_fs"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/resize/triangle.wgsl").into()),
+        });
+
+        let lanczos_fs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("lanczos_fs"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/resize/lanczos.wgsl").into()),
+        });
+
+        let make_resize_pipeline = |fs: &wgpu::ShaderModule, filter: Filter| {
+            let pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some(&format!("resize_{:?}_layout", filter)),
+                bind_group_layouts: &[tex_bgl],
+                push_constant_ranges: &[],
+            });
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(&format!("resize_{:?}_pipe", filter)),
+                layout: Some(&pl),
+                vertex: wgpu::VertexState {
+                    module: &quad_vs,
+                    entry_point: Some("vs_main"),
+                    buffers: &[],
+                    compilation_options: Default::default(),
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: fs,
+                    entry_point: Some("fs_main"),
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: wgpu::TextureFormat::Rgba8UnormSrgb,
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::ALL,
+                    })],
+                    compilation_options: Default::default(),
+                }),
+                primitive: Default::default(),
+                depth_stencil: None,
+                multisample: Default::default(),
+                multiview: None,
+                cache: None,
+            })
+        };
+
+        let mut resize_pipelines = HashMap::new();
+        resize_pipelines.insert(
+            Filter::Nearest,
+            make_resize_pipeline(&nearest_fs, Filter::Nearest),
+        );
+        resize_pipelines.insert(
+            Filter::Triangle,
+            make_resize_pipeline(&triangle_fs, Filter::Triangle),
+        );
+        resize_pipelines.insert(
+            Filter::Lanczos3,
+            make_resize_pipeline(&lanczos_fs, Filter::Lanczos3),
+        );
 
         let vs = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("present_vs"),
@@ -983,6 +1152,7 @@ impl Renderer {
 
         (
             blit_pipeline,
+            resize_pipelines,
             present_pipelines,
             present_render_target_format,
         )

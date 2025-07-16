@@ -3,7 +3,7 @@ use palettum::{
     error::Result,
     gpu::utils::get_gpu_instance,
     media::{load_media_from_memory, Gif as CoreGif},
-    process_pixels, Config, Filter, Palette,
+    process_pixels, Filter, Palette,
 };
 use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
@@ -27,11 +27,12 @@ pub async fn palettify(bytes: Vec<u8>) -> Result<Vec<u8>> {
     let mut media = load_media_from_memory(&bytes)?;
     let instance = get_gpu_instance().await?;
     let config = instance.config.read();
-    // media.resize(
-    //     config.resize_width,
-    //     config.resize_height,
-    //     config.filter,
-    // )?;
+    media.resize(
+        config.resize_width,
+        config.resize_height,
+        config.resize_scale,
+        config.filter,
+    )?;
     media.palettify(&config).await?;
 
     let duration = start_time.elapsed();

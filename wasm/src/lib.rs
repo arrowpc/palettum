@@ -2,8 +2,8 @@ use image::EncodableLayout;
 use palettum::{
     error::Result,
     gpu::utils::get_gpu_instance,
-    media::{load_media_from_memory, Gif as CoreGif},
-    process_pixels, Filter, Palette,
+    media::{load_media_from_memory, Gif as CoreGif, Image},
+    process_pixels, Config, Filter, Palette,
 };
 use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;
@@ -46,6 +46,61 @@ pub async fn palettify_frame(bytes: &mut [u8], width: u32, height: u32) -> Resul
     let instance = get_gpu_instance().await?;
     let config = instance.config.read();
     process_pixels(bytes, width, height, &config).await
+}
+
+#[wasm_bindgen]
+#[wasm_bindgen]
+pub struct ResizedFrame {
+    bytes: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+#[wasm_bindgen]
+impl ResizedFrame {
+    #[wasm_bindgen(getter)]
+    pub fn bytes(&self) -> Vec<u8> {
+        self.bytes.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+}
+
+#[wasm_bindgen]
+pub async fn resize_frame(bytes: Vec<u8>, width: u32, height: u32) -> Result<ResizedFrame> {
+    let instance = get_gpu_instance().await?;
+    let config = instance.config.read();
+    let mut image = Image {
+        buffer: image::RgbaImage::from_raw(width, height, bytes).ok_or(
+            palettum::error::Error::Internal(
+                "Failed to create RgbaImage from raw bytes".to_string(),
+            ),
+        )?,
+        width,
+        height,
+        palette: None,
+    };
+
+    image.resize(
+        config.resize_width,
+        config.resize_height,
+        config.resize_scale,
+        config.filter,
+    )?;
+
+    Ok(ResizedFrame {
+        bytes: image.as_bytes(),
+        width: image.width(),
+        height: image.height(),
+    })
 }
 
 #[wasm_bindgen]

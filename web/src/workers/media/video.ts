@@ -28,41 +28,61 @@ interface VideoEncoderEncodeOptions {
   };
 }
 
+// The way I resize here is nothing short of disgusting; it's 5am and I'm done thinking about this
 function createFrameModifier() {
   let canvas: OffscreenCanvas | null = null;
   let ctx: OffscreenCanvasRenderingContext2D | null = null;
   return async function palettify(frame: any): Promise<VideoFrame> {
-    if (!canvas) {
-      canvas = new OffscreenCanvas(frame.codedWidth, frame.codedHeight);
+    const { palettify_frame, resize_frame } = await import("palettum");
+
+    const tempCanvas = new OffscreenCanvas(frame.codedWidth, frame.codedHeight);
+    const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
+    if (!tempCtx) throw new Error("Could not get temporary canvas context");
+
+    let imageBitmap = await createImageBitmap(frame);
+    tempCtx.drawImage(imageBitmap, 0, 0);
+
+    const originalImageData = tempCtx.getImageData(
+      0,
+      0,
+      frame.codedWidth,
+      frame.codedHeight,
+    );
+
+    const resizedFrame = await resize_frame(
+      new Uint8Array(originalImageData.data.buffer),
+      frame.codedWidth,
+      frame.codedHeight,
+    );
+
+    const resizedWidth = resizedFrame.width;
+    const resizedHeight = resizedFrame.height;
+    const resizedBytes = resizedFrame.bytes;
+
+    if (!canvas || canvas.width !== resizedWidth || canvas.height !== resizedHeight) {
+      canvas = new OffscreenCanvas(resizedWidth, resizedHeight);
       ctx = canvas.getContext("2d", { willReadFrequently: true });
     }
     if (!ctx) throw new Error("Could not get canvas context");
-    let imageBitmap = await createImageBitmap(frame);
-    ctx.drawImage(imageBitmap, 0, 0);
 
-    const imageData = ctx.getImageData(
-      0,
-      0,
-      frame.codedWidth,
-      frame.codedHeight,
-    );
+    const currentImageData = new ImageData(new Uint8ClampedArray(resizedBytes), resizedWidth, resizedHeight);
 
-    const { palettify_frame } = await import("palettum");
+      ctx.putImageData(currentImageData, 0, 0);
 
     await palettify_frame(
-      new Uint8Array(imageData.data.buffer),
-      frame.codedWidth,
-      frame.codedHeight,
+      new Uint8Array(currentImageData.data.buffer),
+      resizedWidth,
+      resizedHeight,
     );
 
-    ctx.putImageData(imageData, 0, 0);
+    ctx.putImageData(currentImageData, 0, 0);
 
     const frameInit: VideoFrameBufferInit = {
       duration: frame.duration,
       timestamp: frame.timestamp,
-      codedWidth: frame.codedWidth,
-      codedHeight: frame.codedHeight,
-      format: "BGRA",
+      codedWidth: resizedWidth,
+      codedHeight: resizedHeight,
+      format: "RGBA",
       colorSpace: {
         primaries: "bt709",
         transfer: "bt709",

@@ -17,7 +17,7 @@ export interface ToggleSwitchProps
 
 const container = cva([
   "relative inline-flex select-none overflow-hidden",
-  "rounded-xl border-2 border-foreground bg-muted/70 backdrop-blur-md",
+  "rounded-xl border-2 border-foreground backdrop-blur-md",
 ]);
 
 const labelBase =

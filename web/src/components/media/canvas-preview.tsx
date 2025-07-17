@@ -88,8 +88,16 @@ export default function CanvasPreview({
       />
 
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-md">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <div className="absolute inset-0 flex items-center justify-center rounded-md">
+          <div className="grid grid-cols-2 gap-0.5 animate-spin">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="w-1.5 h-1.5 bg-current opacity-75"
+                style={{ imageRendering: 'pixelated' }}
+              />
+            ))}
+          </div>
         </div>
       )}
 

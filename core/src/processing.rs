@@ -399,7 +399,6 @@ pub async fn process_pixels(
         return Ok(());
     }
 
-    log::debug!("Processing with CPU as fallback.");
     let lab_colors = config
         .palette
         .colors

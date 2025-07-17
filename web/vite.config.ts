@@ -24,7 +24,13 @@ const exposeLibAV: PluginOption = {
 
       const filename = req.url.replace("/_libav/", "").split("?")[0];
       for (const pkg of LIBAV_PKGS) {
-        const filePath = path.join(__dirname, "node_modules", pkg, "dist", filename);
+        const filePath = path.join(
+          __dirname,
+          "node_modules",
+          pkg,
+          "dist",
+          filename,
+        );
         if (fs.existsSync(filePath)) {
           const fileType = mime.getType(filename);
           if (fileType) res.setHeader("Content-Type", fileType);
@@ -62,17 +68,14 @@ const enableCOEP: PluginOption = {
 };
 
 const ReactCompilerConfig = {
-  target: '19'
+  target: "19",
 };
-
 
 export default defineConfig({
   plugins: [
     react({
       babel: {
-        plugins: [
-          ["babel-plugin-react-compiler", ReactCompilerConfig],
-        ],
+        plugins: [["babel-plugin-react-compiler", ReactCompilerConfig]],
       },
     }),
     tailwindcss(),

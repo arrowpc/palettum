@@ -70,8 +70,7 @@ const DraggableDimensionLabel = ({
 };
 
 export const Dimensions: React.FC = () => {
-  const { resizedWidth, resizedHeight, setResizedDims, meta } =
-    useMediaStore();
+  const { resizedWidth, resizedHeight, setResizedDims, meta } = useMediaStore();
   const setConfig = useConfigStore((s) => s.setConfig);
 
   const [dimensions, setDimensions] = useState({
@@ -151,7 +150,7 @@ export const Dimensions: React.FC = () => {
         }
       }
     },
-    [dimensions, keepAspectRatio, resizedHeight]
+    [dimensions, keepAspectRatio, resizedHeight],
   );
 
   const handleHeightChange = useCallback(
@@ -189,7 +188,7 @@ export const Dimensions: React.FC = () => {
         }
       }
     },
-    [dimensions, keepAspectRatio, resizedWidth]
+    [dimensions, keepAspectRatio, resizedWidth],
   );
 
   const resetDimensions = useCallback(() => {
@@ -242,7 +241,7 @@ export const Dimensions: React.FC = () => {
             "text-foreground-secondary transition-colors",
             isReset
               ? "opacity-50 cursor-not-allowed"
-              : "hover:bg-secondary hover:text-foreground"
+              : "hover:bg-secondary hover:text-foreground",
           )}
         >
           <RotateCcw size={16} />
@@ -303,7 +302,7 @@ export const Dimensions: React.FC = () => {
             "flex items-center justify-center w-10 h-10 border rounded-md shadow-sm focus:outline-none transition-all",
             keepAspectRatio
               ? "bg-primary text-primary-foreground border-primary hover:bg-primary-hover"
-              : "text-foreground border-foreground hover:bg-secondary-hover"
+              : "text-foreground border-foreground hover:bg-secondary-hover",
           )}
         >
           {keepAspectRatio ? (

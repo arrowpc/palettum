@@ -17,7 +17,7 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
       className={cn(
         "flex flex-col gap-4",
         constrainHeader ? "items-center" : "items-stretch",
-        className
+        className,
       )}
     >
       {children}

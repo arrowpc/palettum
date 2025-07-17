@@ -58,7 +58,11 @@ export function ExportButton() {
 
   return (
     <div className="self-center">
-      <Button onClick={handleExport} disabled={exportState !== "idle"} className="flex items-center">
+      <Button
+        onClick={handleExport}
+        disabled={exportState !== "idle"}
+        className="flex items-center"
+      >
         {exportState === "idle" && (
           <>
             <Download className="mr-2 h-4 w-4 flex-shrink-0" />
@@ -73,12 +77,12 @@ export function ExportButton() {
         )}
         {exportState === "progress" && (
           <>
-            <CircularProgress 
-              progress={exportProgress} 
+            <CircularProgress
+              progress={exportProgress}
               size={30}
               strokeWidth={3.5}
               showPercentage={true}
-              className="text-xs" 
+              className="text-xs"
             />
             {exportMessage}
           </>

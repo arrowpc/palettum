@@ -41,15 +41,21 @@ const PaletteDropdown: React.FC<Props> = ({
 }) => {
   useOutsideClick(anchorRef, close, open);
 
-  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onSearch(e.target.value);
-  }, [onSearch]);
+  const handleSearchChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      onSearch(e.target.value);
+    },
+    [onSearch],
+  );
 
-  const emptyState = useMemo(() => (
-    <div className="p-4 text-center text-muted-foreground">
-      No palettes found
-    </div>
-  ), []);
+  const emptyState = useMemo(
+    () => (
+      <div className="p-4 text-center text-muted-foreground">
+        No palettes found
+      </div>
+    ),
+    [],
+  );
 
   const paletteList = useMemo(() => {
     return palettes.map((palette) => (
@@ -65,7 +71,16 @@ const PaletteDropdown: React.FC<Props> = ({
         onMobileMenu={() => onMobileMenu(palette.id)}
       />
     ));
-  }, [palettes, selectedId, onSelect, onDuplicate, onExport, onEdit, onDelete, onMobileMenu]);
+  }, [
+    palettes,
+    selectedId,
+    onSelect,
+    onDuplicate,
+    onExport,
+    onEdit,
+    onDelete,
+    onMobileMenu,
+  ]);
 
   if (!open) return null;
 

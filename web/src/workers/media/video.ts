@@ -59,13 +59,21 @@ function createFrameModifier() {
     const resizedHeight = resizedFrame.height;
     const resizedBytes = resizedFrame.bytes;
 
-    if (!canvas || canvas.width !== resizedWidth || canvas.height !== resizedHeight) {
+    if (
+      !canvas ||
+      canvas.width !== resizedWidth ||
+      canvas.height !== resizedHeight
+    ) {
       canvas = new OffscreenCanvas(resizedWidth, resizedHeight);
       ctx = canvas.getContext("2d", { willReadFrequently: true });
     }
     if (!ctx) throw new Error("Could not get canvas context");
 
-    const currentImageData = new ImageData(new Uint8ClampedArray(resizedBytes), resizedWidth, resizedHeight);
+    const currentImageData = new ImageData(
+      new Uint8ClampedArray(resizedBytes),
+      resizedWidth,
+      resizedHeight,
+    );
 
     ctx.putImageData(currentImageData, 0, 0);
 
@@ -305,7 +313,7 @@ export class VideoHandler {
     if (this.libav) {
       try {
         await this.libav.unlink("input");
-      } catch (e) { }
+      } catch (e) {}
       if (this.ifc) await this.libav.avformat_close_input_js(this.ifc);
       if (this.rpkt) await this.libav.av_packet_free(this.rpkt);
     }
@@ -565,19 +573,19 @@ export class VideoHandler {
       const packet =
         ostream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO
           ? await bridge.encodedVideoChunkToPacket(
-            tempLibav,
-            value.chunk,
-            value.meta,
-            ostream,
-            i,
-          )
+              tempLibav,
+              value.chunk,
+              value.meta,
+              ostream,
+              i,
+            )
           : await bridge.encodedAudioChunkToPacket(
-            tempLibav,
-            value.chunk,
-            value.meta,
-            ostream,
-            i,
-          );
+              tempLibav,
+              value.chunk,
+              value.meta,
+              ostream,
+              i,
+            );
       starterPackets.push(packet);
     }
 
@@ -593,19 +601,19 @@ export class VideoHandler {
           const packet =
             ostream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO
               ? await bridge.encodedVideoChunkToPacket(
-                tempLibav,
-                value.chunk,
-                value.meta,
-                ostream,
-                i,
-              )
+                  tempLibav,
+                  value.chunk,
+                  value.meta,
+                  ostream,
+                  i,
+                )
               : await bridge.encodedAudioChunkToPacket(
-                tempLibav,
-                value.chunk,
-                value.meta,
-                ostream,
-                i,
-              );
+                  tempLibav,
+                  value.chunk,
+                  value.meta,
+                  ostream,
+                  i,
+                );
           await tempLibav.ff_write_multi(ofc, wpkt, [packet]);
 
           if (ostream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO) {

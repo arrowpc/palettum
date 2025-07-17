@@ -4,7 +4,9 @@ import { useConfigStore } from "@/stores";
 import React from "react";
 
 function Dithering() {
-  const ditherAlgorithm = useConfigStore((state) => state.config.ditherAlgorithm);
+  const ditherAlgorithm = useConfigStore(
+    (state) => state.config.ditherAlgorithm,
+  );
   const ditherStrength = useConfigStore((state) => state.config.ditherStrength);
   const setConfig = useConfigStore((state) => state.setConfig);
 
@@ -34,7 +36,7 @@ function Dithering() {
       </div>
       <div className="flex flex-col items-center gap-4">
         <Slider
-          value={[isDitheringEnabled ? ditherStrength ?? 0 : 0]}
+          value={[isDitheringEnabled ? (ditherStrength ?? 0) : 0]}
           max={1}
           step={0.01}
           onValueChange={([v]) => {
@@ -50,7 +52,9 @@ function Dithering() {
         <div
           className={`text-center text-sm ${(ditherStrength ?? 0) === 0 ? "text-muted-foreground" : ""}`}
         >
-          {(ditherStrength ?? 0) === 0 ? "Off" : (ditherStrength ?? 0).toFixed(2)}
+          {(ditherStrength ?? 0) === 0
+            ? "Off"
+            : (ditherStrength ?? 0).toFixed(2)}
         </div>
       </div>
     </div>

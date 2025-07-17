@@ -1,5 +1,12 @@
 import React, { useMemo, useCallback } from "react";
-import { Copy, Download, Edit2, ExternalLink, MoreVertical, Trash2 } from "lucide-react";
+import {
+  Copy,
+  Download,
+  Edit2,
+  ExternalLink,
+  MoreVertical,
+  Trash2,
+} from "lucide-react";
 import { rgbToHex, cn, getDisplayedColors } from "@/lib/utils";
 import { useColorCycle } from "@/hooks/use-color-cycle";
 import { type Palette } from "palettum";
@@ -33,7 +40,9 @@ const ListActionButton = React.memo<{
         disabled
           ? "text-muted-foreground cursor-not-allowed"
           : "text-foreground hover:bg-background",
-        isParentHovered ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+        isParentHovered
+          ? "opacity-100 pointer-events-auto"
+          : "opacity-0 pointer-events-none",
       )}
     >
       <Icon className="w-4 h-4" />
@@ -55,33 +64,64 @@ const PaletteListItem: React.FC<Props> = ({
   const colorCycleIndex = useColorCycle(
     palette.colors.length,
     isHovered && palette.colors.length > 4,
-    200
+    200,
   );
 
   const displayedColors = useMemo(() => {
     return getDisplayedColors(palette, 4, colorCycleIndex);
   }, [palette, colorCycleIndex]);
 
-  const handleAction = useCallback((e: React.MouseEvent, action: () => void) => {
-    e.stopPropagation();
-    action();
-  }, []);
-
+  const handleAction = useCallback(
+    (e: React.MouseEvent, action: () => void) => {
+      e.stopPropagation();
+      action();
+    },
+    [],
+  );
 
   const actions = useMemo(() => {
     if (!isHovered) return [];
 
     return [
-      { icon: Copy, onClick: (e: React.MouseEvent) => handleAction(e, onDuplicate), label: "Duplicate" },
-      { icon: Download, onClick: (e: React.MouseEvent) => handleAction(e, onExport), label: "Export" },
-      { icon: Edit2, onClick: (e: React.MouseEvent) => handleAction(e, onEdit), label: "Edit", disabled: palette.kind === "Default" },
-      { icon: Trash2, onClick: (e: React.MouseEvent) => handleAction(e, onDelete), label: "Delete", disabled: palette.kind === "Default" },
+      {
+        icon: Copy,
+        onClick: (e: React.MouseEvent) => handleAction(e, onDuplicate),
+        label: "Duplicate",
+      },
+      {
+        icon: Download,
+        onClick: (e: React.MouseEvent) => handleAction(e, onExport),
+        label: "Export",
+      },
+      {
+        icon: Edit2,
+        onClick: (e: React.MouseEvent) => handleAction(e, onEdit),
+        label: "Edit",
+        disabled: palette.kind === "Default",
+      },
+      {
+        icon: Trash2,
+        onClick: (e: React.MouseEvent) => handleAction(e, onDelete),
+        label: "Delete",
+        disabled: palette.kind === "Default",
+      },
     ];
-  }, [isHovered, handleAction, onDuplicate, onExport, onEdit, onDelete, palette.kind]);
+  }, [
+    isHovered,
+    handleAction,
+    onDuplicate,
+    onExport,
+    onEdit,
+    onDelete,
+    palette.kind,
+  ]);
 
-  const handleMobileMenuClick = useCallback((e: React.MouseEvent) => {
-    handleAction(e, onMobileMenu);
-  }, [handleAction, onMobileMenu]);
+  const handleMobileMenuClick = useCallback(
+    (e: React.MouseEvent) => {
+      handleAction(e, onMobileMenu);
+    },
+    [handleAction, onMobileMenu],
+  );
 
   return (
     <div
@@ -92,7 +132,7 @@ const PaletteListItem: React.FC<Props> = ({
         "group relative flex items-center gap-3 p-3 cursor-pointer transition-colors",
         selected
           ? "bg-primary/10 border-r-2 border-primary"
-          : "hover:bg-muted/50"
+          : "hover:bg-muted/50",
       )}
     >
       {/* Colors */}

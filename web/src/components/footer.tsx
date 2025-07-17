@@ -13,8 +13,8 @@ const PrivacyPolicyContent: React.FC = () => {
   return (
     <div className="font-mono prose prose-sm dark:prose-invert max-h-[70vh] overflow-y-auto p-1 text-foreground">
       <h2>Privacy Policy for Palettum</h2>
-        <strong>Last updated:</strong> May 11, 2025
-        <p>TODO</p>
+      <strong>Last updated:</strong> May 11, 2025
+      <p>TODO</p>
     </div>
   );
 };
@@ -30,7 +30,8 @@ const Footer: React.FC = () => {
           Palettum
         </p>
         <p className="text-xs text-center text-muted-foreground">
-          Instantly style and recolor images, GIFs, and videos with your custom palette
+          Instantly style and recolor images, GIFs, and videos with your custom
+          palette
         </p>
         <Dialog>
           <DialogTrigger asChild>

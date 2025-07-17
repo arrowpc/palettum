@@ -115,7 +115,7 @@ export const ImageColorExtractor: React.FC<ImageColorExtractorProps> =
                       isExtractingColors ||
                       !canExtractMore ||
                       numColorsToExtract <= 0) &&
-                    "opacity-50 cursor-not-allowed",
+                      "opacity-50 cursor-not-allowed",
                   )}
                   disabled={
                     !uploadedImageFile ||

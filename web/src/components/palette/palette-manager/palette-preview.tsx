@@ -1,5 +1,19 @@
-import React, { useRef, useLayoutEffect, useState, useMemo, useCallback } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Copy, Download, Edit2, Trash2 } from "lucide-react";
+import React, {
+  useRef,
+  useLayoutEffect,
+  useState,
+  useMemo,
+  useCallback,
+} from "react";
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Download,
+  Edit2,
+  Trash2,
+} from "lucide-react";
 import { rgbToHex, cn } from "@/lib/utils";
 import { type Palette } from "palettum";
 import { useColorCycle } from "@/hooks/use-color-cycle";
@@ -32,7 +46,7 @@ const ActionButton = React.memo<{
         "p-2 rounded-md transition-colors",
         disabled
           ? "text-muted-foreground cursor-not-allowed"
-          : "text-foreground hover:bg-muted"
+          : "text-foreground hover:bg-muted",
       )}
     >
       <Icon className="w-4 h-4" />
@@ -87,14 +101,14 @@ const PalettePreview: React.FC<Props> = ({
   const colorCycleIndex = useColorCycle(
     palette.colors.length,
     palette.colors.length > maxVisible,
-    300
+    300,
   );
 
   const visibleColors = useMemo(() => {
     return palette.colors.length > maxVisible
       ? [...Array(maxVisible - 1).keys()].map(
-        (i) => palette.colors[(colorCycleIndex + i) % palette.colors.length]
-      )
+          (i) => palette.colors[(colorCycleIndex + i) % palette.colors.length],
+        )
       : palette.colors;
   }, [palette.colors, maxVisible, colorCycleIndex]);
 
@@ -104,12 +118,25 @@ const PalettePreview: React.FC<Props> = ({
       : 0;
   }, [palette.colors.length, maxVisible]);
 
-  const actions = useMemo(() => [
-    { icon: Copy, onClick: onDuplicate, label: "Duplicate" },
-    { icon: Download, onClick: onExport, label: "Export" },
-    { icon: Edit2, onClick: onEdit, label: "Edit", disabled: palette.kind === "Default" },
-    { icon: Trash2, onClick: onDelete, label: "Delete", disabled: palette.kind === "Default" },
-  ], [onDuplicate, onExport, onEdit, onDelete, palette.kind]);
+  const actions = useMemo(
+    () => [
+      { icon: Copy, onClick: onDuplicate, label: "Duplicate" },
+      { icon: Download, onClick: onExport, label: "Export" },
+      {
+        icon: Edit2,
+        onClick: onEdit,
+        label: "Edit",
+        disabled: palette.kind === "Default",
+      },
+      {
+        icon: Trash2,
+        onClick: onDelete,
+        label: "Delete",
+        disabled: palette.kind === "Default",
+      },
+    ],
+    [onDuplicate, onExport, onEdit, onDelete, palette.kind],
+  );
 
   const handleToggle = useCallback(() => {
     requestAnimationFrame(() => {
@@ -122,9 +149,7 @@ const PalettePreview: React.FC<Props> = ({
       {/* Header */}
       <div className="flex items-center justify-between p-4 pb-3">
         <div className="flex items-center gap-3 min-w-0">
-          <h3 className="font-medium text-foreground truncate">
-            {palette.id}
-          </h3>
+          <h3 className="font-medium text-foreground truncate">{palette.id}</h3>
           {palette.kind === "Default" && (
             <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded">
               Default
@@ -194,7 +219,7 @@ const PalettePreview: React.FC<Props> = ({
               <ChevronDown
                 className={cn(
                   "w-4 h-4 transition-transform",
-                  isOpen && "rotate-180"
+                  isOpen && "rotate-180",
                 )}
               />
             </button>

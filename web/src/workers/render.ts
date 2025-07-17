@@ -16,9 +16,8 @@ const api = {
     await renderer.register_canvas(id, canvas);
   },
 
-   switchCanvas(id: string) {
-     renderer.switch_canvas(id);
-
+  switchCanvas(id: string) {
+    renderer.switch_canvas(id);
   },
 
   dropCanvas(id: string) {
@@ -79,7 +78,7 @@ const api = {
   },
 
   async export(
-    onProgress?: (progress: number, message: string) => void
+    onProgress?: (progress: number, message: string) => void,
   ): Promise<Blob> {
     if (!mediaHandler) {
       throw new Error("No media handler loaded to export");
@@ -100,7 +99,7 @@ export interface MediaInfo {
 
 export type RendererAPI = Omit<typeof api, "export" | "load"> & {
   export: (
-    onProgress?: (progress: number, message: string) => void
+    onProgress?: (progress: number, message: string) => void,
   ) => Promise<Blob>;
   load: (file: File) => Promise<MediaInfo>;
 };

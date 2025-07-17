@@ -23,7 +23,9 @@ export class ImageHandler {
     this.disposed = true;
   }
 
-  async export(onProgress?: (progress: number, message: string) => void): Promise<Blob> {
+  async export(
+    onProgress?: (progress: number, message: string) => void,
+  ): Promise<Blob> {
     const { palettify } = await import("palettum");
     onProgress?.(0, "palettifying...");
     const palettizedBytes = await palettify(

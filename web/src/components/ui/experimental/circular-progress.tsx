@@ -1,4 +1,4 @@
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 interface CircularProgressProps {
   progress: number; // 0-100
@@ -13,15 +13,23 @@ export function CircularProgress({
   size = 16,
   strokeWidth = 2,
   className,
-  showPercentage = true
+  showPercentage = true,
 }: CircularProgressProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   return (
-    <div className={cn("inline-flex items-center justify-center flex-shrink-0", className)}>
-      <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+    <div
+      className={cn(
+        "inline-flex items-center justify-center flex-shrink-0",
+        className,
+      )}
+    >
+      <div
+        className="relative flex items-center justify-center"
+        style={{ width: size, height: size }}
+      >
         <svg
           className="transform -rotate-90"
           width={size}
@@ -57,8 +65,8 @@ export function CircularProgress({
             <span
               className="font-medium tabular-nums leading-none"
               style={{
-                fontSize: `${size * 0.20}px`,
-                lineHeight: 1
+                fontSize: `${size * 0.2}px`,
+                lineHeight: 1,
               }}
             >
               {Math.round(progress)}

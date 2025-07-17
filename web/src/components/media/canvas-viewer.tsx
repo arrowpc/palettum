@@ -25,7 +25,7 @@ import {
 import { useRenderer } from "@/providers/renderer-provider";
 import { transfer } from "comlink";
 import { VIEWER_CANVAS_ID } from "@/lib/constants";
-import { useMediaStore } from "@/stores"
+import { useMediaStore } from "@/stores";
 
 function useContinuousTap(
   singleTap: (e: ReactMouseEvent | ReactTouchEvent) => void,
@@ -92,13 +92,7 @@ interface ToolbarProps {
 }
 
 const Toolbar: React.FC<ToolbarProps> = memo(
-  ({
-    zoomLevel,
-    zoomLimits,
-    resetView,
-    handleZoom,
-    isDefaultView,
-  }) => {
+  ({ zoomLevel, zoomLimits, resetView, handleZoom, isDefaultView }) => {
     const isMinZoom = Math.abs(zoomLevel - zoomLimits.min) < 0.001;
     const isMaxZoom = Math.abs(zoomLevel - zoomLimits.max) < 0.001;
 
@@ -303,7 +297,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
 
         await renderer.registerCanvas(
           VIEWER_CANVAS_ID,
-          transfer(offscreen, [offscreen])
+          transfer(offscreen, [offscreen]),
         );
         renderer.switchCanvas(VIEWER_CANVAS_ID);
         setCanvasReady(true);
@@ -433,7 +427,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
     [zoomLevel, isDefaultView, resetView, handleZoom],
   );
 
-  const handleSingleTap = useCallback(() => { }, []);
+  const handleSingleTap = useCallback(() => {}, []);
   const handleTap = useContinuousTap(handleSingleTap, handleDoubleClick);
 
   const handleMouseUp = useCallback(() => {

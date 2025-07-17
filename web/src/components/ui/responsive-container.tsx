@@ -36,7 +36,7 @@ export const ResponsiveContainer: React.FC<ResponsiveContainerProps> = ({
       className={cn(
         "grid gap-6",
         isCollapsed ? "grid-cols-1" : "grid-cols-2",
-        className
+        className,
       )}
     >
       {children}

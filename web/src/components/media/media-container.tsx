@@ -27,7 +27,6 @@ export default function MediaContainer() {
   const value = useConfigStore((state) => state.config[setting]);
   const setConfig = useConfigStore((state) => state.setConfig);
 
-
   const [dragging, setDragging] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
   const [borderRadius, setBorderRadius] = useState(0);
@@ -48,7 +47,6 @@ export default function MediaContainer() {
     return () => resizeObserver.disconnect();
   }, []);
 
-
   const handleFile = async (f: File) => {
     setFile(f);
 
@@ -64,7 +62,7 @@ export default function MediaContainer() {
 
   const frameClass = cn(
     "absolute inset-0 overflow-hidden transition-colors text-foreground/70",
-    dragging && "text-primary bg-primary/5"
+    dragging && "text-primary bg-primary/5",
   );
 
   const offsetFactor = 1 - 1 / Math.SQRT2;
@@ -75,10 +73,7 @@ export default function MediaContainer() {
       ref={containerRef}
       className="relative w-full aspect-[16/9] group overflow-hidden"
     >
-      <div
-        className={frameClass}
-        style={{ borderRadius: `${borderRadius}px` }}
-      >
+      <div className={frameClass} style={{ borderRadius: `${borderRadius}px` }}>
         {file ? (
           <CanvasPreview
             file={file}

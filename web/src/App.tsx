@@ -23,7 +23,8 @@ function App() {
           <div className="flex justify-between w-full items-center gap-8">
             <GitHubButton />
             <p className="text-center text-sm text-muted-foreground">
-              Instantly style and recolor images, GIFs, and videos with your custom palette
+              Instantly style and recolor images, GIFs, and videos with your
+              custom palette
             </p>
             <ThemeToggle />
           </div>

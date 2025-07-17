@@ -32,5 +32,5 @@ export const useConfigStore = create<ConfigState>()(
       set((state) => {
         state.config.palette = palette;
       }),
-  }))
+  })),
 );

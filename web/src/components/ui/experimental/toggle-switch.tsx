@@ -182,7 +182,9 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
           if (typeof forwardRef === "function") {
             forwardRef(node);
           } else if (forwardRef) {
-            (forwardRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+            (
+              forwardRef as React.MutableRefObject<HTMLDivElement | null>
+            ).current = node;
           }
         }}
         role="radiogroup"

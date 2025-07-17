@@ -50,10 +50,7 @@ export default function CanvasPreview({
       try {
         setIsLoading(true);
         await renderer.init();
-        await renderer.registerCanvas(
-          MEDIA_CANVAS_ID,
-          transfer(off, [off])
-        );
+        await renderer.registerCanvas(MEDIA_CANVAS_ID, transfer(off, [off]));
         renderer.switchCanvas(MEDIA_CANVAS_ID);
         renderer.clearCanvas();
 
@@ -94,7 +91,7 @@ export default function CanvasPreview({
               <div
                 key={i}
                 className="w-1.5 h-1.5 bg-current opacity-75"
-                style={{ imageRendering: 'pixelated' }}
+                style={{ imageRendering: "pixelated" }}
               />
             ))}
           </div>
@@ -122,7 +119,9 @@ export default function CanvasPreview({
                 ) : (
                   <Play className="w-4 h-4 stroke-3" />
                 )}
-                <span className="text-base">{isPlaying ? "Pause" : "Play"}</span>
+                <span className="text-base">
+                  {isPlaying ? "Pause" : "Play"}
+                </span>
               </div>
             )}
             <div

@@ -1,4 +1,10 @@
-import { useState, useRef, useMemo, useCallback, type ChangeEvent } from "react";
+import {
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+  type ChangeEvent,
+} from "react";
 import PalettePreview from "./palette-preview";
 import PaletteDropdown from "./palette-dropdown";
 import MobileActionSheet from "./mobile-action-sheet";
@@ -46,18 +52,22 @@ const PaletteManager: React.FC = () => {
   }, [sortedPalettes, search]);
 
   const currentIndex = useMemo(() => {
-    return sortedPalettes.findIndex(p => p.id === selectedPalette.id);
+    return sortedPalettes.findIndex((p) => p.id === selectedPalette.id);
   }, [sortedPalettes, selectedPalette.id]);
 
-  const cyclePalette = useCallback((direction: 'prev' | 'next') => {
-    if (sortedPalettes.length <= 1) return;
-    
-    const newIndex = direction === 'next' 
-      ? (currentIndex + 1) % sortedPalettes.length
-      : (currentIndex - 1 + sortedPalettes.length) % sortedPalettes.length;
-    
-    cycleSelectedPalette(sortedPalettes[newIndex]);
-  }, [sortedPalettes, currentIndex, cycleSelectedPalette]);
+  const cyclePalette = useCallback(
+    (direction: "prev" | "next") => {
+      if (sortedPalettes.length <= 1) return;
+
+      const newIndex =
+        direction === "next"
+          ? (currentIndex + 1) % sortedPalettes.length
+          : (currentIndex - 1 + sortedPalettes.length) % sortedPalettes.length;
+
+      cycleSelectedPalette(sortedPalettes[newIndex]);
+    },
+    [sortedPalettes, currentIndex, cycleSelectedPalette],
+  );
 
   const handleSavePalette = useCallback(
     async (updatedPalette: Palette) => {
@@ -162,7 +172,8 @@ const PaletteManager: React.FC = () => {
       } catch (err) {
         console.error("Failed to import palette:", err);
         alert(
-          `Failed to import palette: ${err instanceof Error ? err.message : "Unknown error"
+          `Failed to import palette: ${
+            err instanceof Error ? err.message : "Unknown error"
           }. Please check the file format.`,
         );
       }
@@ -192,8 +203,8 @@ const PaletteManager: React.FC = () => {
         palette={selectedPalette}
         isOpen={dropdownOpen}
         onToggle={() => setDropdownOpen((o) => !o)}
-        onPrevious={() => cyclePalette('prev')}
-        onNext={() => cyclePalette('next')}
+        onPrevious={() => cyclePalette("prev")}
+        onNext={() => cyclePalette("next")}
         onEdit={() => handleEditPalette(selectedPalette)}
         onDuplicate={() => duplicatePalette(selectedPalette)}
         onExport={() => exportPalette(selectedPalette)}

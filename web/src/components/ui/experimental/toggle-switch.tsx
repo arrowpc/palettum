@@ -46,19 +46,29 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
     const [segments, setSegments] = React.useState<
       { offset: number; width: number }[]
     >([]);
+    const [scale, setScale] = React.useState(1);
 
     const [hoveredLabelIndex, setHoveredLabelIndex] = React.useState<
       number | null
     >(null);
 
     const measure = React.useCallback(() => {
-      setSegments(
-        labelRefs.current.map((el) =>
-          el
-            ? { offset: el.offsetLeft, width: el.offsetWidth }
-            : { offset: 0, width: 0 },
-        ),
+      const segs = labelRefs.current.map((el) =>
+        el
+          ? { offset: el.offsetLeft, width: el.offsetWidth }
+          : { offset: 0, width: 0 },
       );
+      setSegments(segs);
+
+      const totalLabelsWidth = segs.reduce((acc, s) => acc + s.width, 0);
+      const containerWidth =
+        wrapperRef.current?.offsetWidth ?? totalLabelsWidth;
+
+      if (totalLabelsWidth > containerWidth) {
+        setScale(containerWidth / totalLabelsWidth);
+      } else {
+        setScale(1);
+      }
     }, []);
 
     React.useLayoutEffect(() => {
@@ -70,6 +80,15 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
       return () => ro.disconnect();
     }, [measure, options.length]);
 
+    const scaledSegments = React.useMemo(
+      () =>
+        segments.map((s) => ({
+          offset: s.offset * scale,
+          width: s.width * scale,
+        })),
+      [segments, scale],
+    );
+
     const activeIdx = React.useMemo(
       () => options.findIndex((o) => o.value === value),
       [options, value],
@@ -77,74 +96,74 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
 
     const nearestIdx = React.useCallback(
       (x: number) => {
-        if (!segments.length) return 0;
-        const centres = segments.map((s) => s.offset + s.width / 2);
+        if (!scaledSegments.length) return 0;
+        const centres = scaledSegments.map((s) => s.offset + s.width / 2);
         return centres.reduce(
           (best, c, i) =>
             Math.abs(c - x) < Math.abs(centres[best] - x) ? i : best,
           0,
         );
       },
-      [segments],
+      [scaledSegments],
     );
 
     const mvX = useMotionValue(0);
     const mvW = useMotionValue(0);
 
     React.useEffect(() => {
-      if (!segments.length) return;
-      animate(mvX, segments[activeIdx].offset, SPRING as any);
-      animate(mvW, segments[activeIdx].width, SPRING as any);
-    }, [segments, activeIdx, mvX, mvW]);
+      if (!scaledSegments.length) return;
+      animate(mvX, scaledSegments[activeIdx].offset, SPRING as any);
+      animate(mvW, scaledSegments[activeIdx].width, SPRING as any);
+    }, [scaledSegments, activeIdx, mvX, mvW]);
 
     const constraints = React.useMemo(() => {
-      if (!segments.length) return { left: 0, right: 0 };
+      if (!scaledSegments.length) return { left: 0, right: 0 };
       return {
-        left: segments[0].offset,
-        right: segments[segments.length - 1].offset,
+        left: scaledSegments[0].offset,
+        right: scaledSegments[scaledSegments.length - 1].offset,
       };
-    }, [segments]);
+    }, [scaledSegments]);
 
     const handleDrag = React.useCallback(
       (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
         if (!wrapperRef.current) return;
         const left = wrapperRef.current.getBoundingClientRect().left;
-        const currentHoveredIdx = nearestIdx(info.point.x - left);
+        const currentHoveredIdx = nearestIdx((info.point.x - left) / scale);
         if (currentHoveredIdx !== hoveredLabelIndex) {
           setHoveredLabelIndex(currentHoveredIdx);
         }
       },
-      [nearestIdx, hoveredLabelIndex],
+      [nearestIdx, hoveredLabelIndex, scale],
     );
 
     const handleDragEnd = React.useCallback(
       (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
         if (!wrapperRef.current) return;
         const left = wrapperRef.current.getBoundingClientRect().left;
-        const idx = nearestIdx(info.point.x - left);
+        const idx = nearestIdx((info.point.x - left) / scale);
 
-        animate(mvX, segments[idx].offset, SPRING as any);
-        animate(mvW, segments[idx].width, SPRING as any);
+        animate(mvX, scaledSegments[idx].offset, SPRING as any);
+        animate(mvW, scaledSegments[idx].width, SPRING as any);
 
         setHoveredLabelIndex(null);
 
         if (options[idx].value !== value) onChange(options[idx].value);
       },
-      [nearestIdx, segments, mvX, mvW, options, value, onChange],
+      [nearestIdx, scaledSegments, mvX, mvW, options, value, onChange, scale],
     );
 
     const handleTap = React.useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
         if (!wrapperRef.current) return;
         const left = wrapperRef.current.getBoundingClientRect().left;
-        const idx = nearestIdx(e.clientX - left);
+        const idx = nearestIdx((e.clientX - left) / scale);
 
-        animate(mvX, segments[idx].offset, SPRING as any);
-        animate(mvW, segments[idx].width, SPRING as any);
+        animate(mvX, scaledSegments[idx].offset, SPRING as any);
+        animate(mvW, scaledSegments[idx].width, SPRING as any);
 
         if (options[idx].value !== value) onChange(options[idx].value);
       },
-      [nearestIdx, segments, mvX, mvW, options, value, onChange],
+      [nearestIdx, scaledSegments, mvX, mvW, options, value, onChange, scale],
     );
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -172,52 +191,65 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
         className={cn(container(), "cursor-pointer", className)}
         onClick={handleTap}
       >
-        <motion.div
-          aria-hidden
-          className={cn(
-            "absolute top-0 h-full rounded-md bg-primary",
-            thumbShadow,
-            "z-1",
-          )}
-          style={{ x: mvX, width: mvW }}
-          drag="x"
-          dragConstraints={constraints}
-          dragElastic={0.2}
-          dragMomentum={false}
-          whileTap={{ scale: PRESS_SCALE }}
-          whileDrag={{ scale: PRESS_SCALE }}
-          onDrag={handleDrag}
-          onDragEnd={handleDragEnd}
-        />
-
-        {options.map((o, i) => (
+        <div
+          style={{
+            transform: `scale(${scale})`,
+            transformOrigin: "left center",
+            width: scale < 1 ? `${100 / scale}%` : "100%",
+            display: "flex",
+            position: "relative",
+            zIndex: 2,
+          }}
+        >
           <motion.div
-            key={o.value}
-            ref={(el) => {
-              labelRefs.current[i] = el;
-            }}
-            role="radio"
-            aria-checked={o.value === value}
-            className={cn(labelBase, {
-              "text-primary-foreground": i === activeIdx,
-              "text-muted-foreground": i !== activeIdx,
-            })}
-            initial={false}
-            animate={{
-              scale: i === hoveredLabelIndex ? 1.15 : 1,
-              opacity:
-                i === activeIdx || i === hoveredLabelIndex ? 1 : MUTED_OPACITY,
-            }}
-            transition={{
-              type: "spring",
-              stiffness: 400,
-              damping: 30,
-              mass: 0.8,
-            }}
-          >
-            {o.label}
-          </motion.div>
-        ))}
+            aria-hidden
+            className={cn(
+              "absolute top-0 h-full rounded-md bg-primary",
+              thumbShadow,
+              "z-1",
+            )}
+            style={{ x: mvX, width: mvW }}
+            drag="x"
+            dragConstraints={constraints}
+            dragElastic={0.2}
+            dragMomentum={false}
+            whileTap={{ scale: PRESS_SCALE }}
+            whileDrag={{ scale: PRESS_SCALE }}
+            onDrag={handleDrag}
+            onDragEnd={handleDragEnd}
+          />
+
+          {options.map((o, i) => (
+            <motion.div
+              key={o.value}
+              ref={(el) => {
+                labelRefs.current[i] = el;
+              }}
+              role="radio"
+              aria-checked={o.value === value}
+              className={cn(labelBase, {
+                "text-primary-foreground": i === activeIdx,
+                "text-muted-foreground": i !== activeIdx,
+              })}
+              initial={false}
+              animate={{
+                scale: i === hoveredLabelIndex ? 1.15 : 1,
+                opacity:
+                  i === activeIdx || i === hoveredLabelIndex
+                    ? 1
+                    : MUTED_OPACITY,
+              }}
+              transition={{
+                type: "spring",
+                stiffness: 400,
+                damping: 30,
+                mass: 0.8,
+              }}
+            >
+              {o.label}
+            </motion.div>
+          ))}
+        </div>
       </div>
     );
   },

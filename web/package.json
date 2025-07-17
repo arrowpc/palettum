@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "wasm:build": "cd ../wasm && RUSTFLAGS='--cfg=web_sys_unstable_apis -C target-feature=+simd128' wasm-pack build --target bundler --out-dir ../web/src/wasm/pkg --debug && cd ../web",
+    "wasm:build:release": "cd ../wasm && RUSTFLAGS='--cfg=web_sys_unstable_apis -C target-feature=+simd128' wasm-pack build --target bundler --out-dir ../web/src/wasm/pkg --release && cd ../web"
   },
   "dependencies": {
     "@libav.js/variant-webcodecs": "^6.7.7",

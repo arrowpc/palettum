@@ -3,7 +3,7 @@ use palettum::{
     error::Result,
     gpu::utils::get_gpu_instance,
     media::{load_media_from_memory, Gif as CoreGif, Image},
-    process_pixels, Config, Filter, Palette,
+    process_pixels, Palette,
 };
 use std::result::Result as StdResult;
 use wasm_bindgen::prelude::*;

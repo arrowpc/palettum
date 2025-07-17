@@ -4,7 +4,7 @@ import React, {
   useCallback,
   useRef,
 } from "react"
-import { RotateCcw, Link, Unlink } from "lucide-react"
+import { RotateCcw, Link2, Unlink2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { useMediaStore } from "@/stores/media"
@@ -328,48 +328,48 @@ export const Dimensions: React.FC = () => {
 
       <div className="flex items-center gap-4">
         {/* Width */}
-        <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
+        <div className="flex items-center border border-foreground  rounded-md h-10">
           <DraggableDimensionLabel
             id="width"
             value={dimensions.width}
             onChange={handleWidthChange}
-            className="text-base text-foreground-secondary px-3 py-2"
+            className="flex items-center justify-center text-sm font-medium text-foreground px-3 h-full"
           >
             W
           </DraggableDimensionLabel>
+          <div className="w-px h-6 bg-foreground" />
           <Input
             id="width"
             type="number"
             value={dimensions.width}
             onChange={handleWidthChange}
             min="1"
-            // max={LIMITS.MAX_DIMENSION}
             max={4096}
             placeholder="Width"
-            className="w-20 p-2 text-xs text-foreground focus:outline-none bg-background rounded-r-md"
+            className="w-20 h-full px-3 text-sm"
           />
         </div>
 
         {/* Height */}
-        <div className="flex items-center bg-background border border-border rounded-md shadow-sm focus-within:ring-2 focus-within:ring-ring focus-within:border-border-active">
+        <div className="flex items-center border border-foreground rounded-md h-10">
           <DraggableDimensionLabel
             id="height"
             value={dimensions.height}
             onChange={handleHeightChange}
-            className="text-base text-foreground-secondary px-3 py-2"
+            className="flex items-center justify-center text-sm font-medium text-foreground px-3 h-full"
           >
             H
           </DraggableDimensionLabel>
+          <div className="w-px h-6 bg-foreground" />
           <Input
             id="height"
             type="number"
             value={dimensions.height}
             onChange={handleHeightChange}
             min="1"
-            // max={LIMITS.MAX_DIMENSION}
             max={4096}
             placeholder="Height"
-            className="w-20 p-2 text-xs text-foreground focus:outline-none bg-background rounded-r-md"
+            className="w-20 h-full px-3 text-sm"
           />
         </div>
 
@@ -385,13 +385,13 @@ export const Dimensions: React.FC = () => {
             "flex items-center justify-center w-10 h-10 border rounded-md shadow-sm focus:outline-none transition-all",
             keepAspectRatio
               ? "bg-primary text-primary-foreground border-primary hover:bg-primary-hover"
-              : "text-foreground border-border hover:bg-secondary-hover"
+              : "text-foreground border-foreground hover:bg-secondary-hover"
           )}
         >
           {keepAspectRatio ? (
-            <Link size={20} className="text-foreground" />
+            <Link2 size={20} className="text-foreground" />
           ) : (
-            <Unlink size={20} className="text-icon-inactive" />
+            <Unlink2 size={20} className="text-icon-inactive" />
           )}
         </button>
       </div>

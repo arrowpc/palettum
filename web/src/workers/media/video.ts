@@ -67,7 +67,7 @@ function createFrameModifier() {
 
     const currentImageData = new ImageData(new Uint8ClampedArray(resizedBytes), resizedWidth, resizedHeight);
 
-      ctx.putImageData(currentImageData, 0, 0);
+    ctx.putImageData(currentImageData, 0, 0);
 
     await palettify_frame(
       new Uint8Array(currentImageData.data.buffer),
@@ -160,7 +160,7 @@ export class VideoHandler {
         while (!this.disposed) {
           // Pause demuxing if frameQueue is too full
           while (this.frameQueue.size() > 30 && !this.disposed) {
-            await new Promise((resolve) => setTimeout(resolve, 100)); // Wait a bit
+            await new Promise((resolve) => setTimeout(resolve, 50));
           }
 
           const [res, packets] = await this.libav.ff_read_frame_multi(
@@ -178,7 +178,10 @@ export class VideoHandler {
 
           if (res === this.libav.AVERROR_EOF) {
             if (LOOP) {
-              // Seek back to the beginning for looping
+              await this.decoder.flush();
+
+              this.frameQueue.push(null);
+
               await this.libav.avformat_seek_file(
                 this.ifc,
                 -1,
@@ -190,20 +193,18 @@ export class VideoHandler {
                 0,
                 this.libav.AVSEEK_FLAG_ANY,
               );
-              // Clear decoder's internal state after seeking
+
               this.decoder.reset();
               this.decoder.configure(this.vConfig!);
-              // Clear the frameQueue to remove any unconsumed frames from the previous loop
-              // and prepare for new frames from the beginning of the video.
-              this.frameQueue.clear(); // Use clear() instead of re-initializing
-              continue; // Continue the loop to read frames from the beginning
+
+              this.frameQueue = new BufferStream<VideoFrame>();
+
+              continue;
             } else {
-              // If not looping, break the loop and signal end of stream
               break;
             }
           }
         }
-        // Only flush and push null if the loop is truly ending (not looping or disposed)
         if (!LOOP || this.disposed) {
           await this.decoder.flush();
           this.frameQueue.push(null);
@@ -220,39 +221,47 @@ export class VideoHandler {
     if (!first) return;
     const r = await getRenderer();
     let nextFrame: VideoFrame | null = first;
+
     const drawNext = async () => {
       if (this.disposed) return;
       if (!this.playing) {
         this.drawHandle = self.setTimeout(drawNext, 50);
         return;
       }
+
       if (!nextFrame) {
         const { done, value } = await this.frameReader!.read();
+
         if (done) {
           if (LOOP) {
-            // Release the lock on the old reader
+            // The old stream has ended. We get a reader for the new stream
             this.frameReader?.releaseLock();
-            // Get a new reader for the looped content
             this.frameReader = this.frameQueue.getReader();
+
             const { value: newFirstFrame } = await this.frameReader.read();
+
             if (newFirstFrame) {
               nextFrame = newFirstFrame;
             } else {
-              // If no frame is immediately available, wait and try again
+              // This case is less likely now but good for safety
+              // It might happen if the video is disposed during the loop transition
               this.drawHandle = self.setTimeout(drawNext, 50);
               return;
             }
           } else {
             return; // Not looping, so stop drawing
           }
+        } else {
+          nextFrame = value || null;
         }
-        nextFrame = value || null;
       }
-      if (!nextFrame) return;
+
+      if (!nextFrame) {
+        return;
+      }
+
       const bmp = await createImageBitmap(nextFrame);
       r.draw(bmp);
-      // Maybe after a refactor bmp can be closed after a draw call but for now it's not possible
-      // bmp.close();
       const durMs =
         typeof nextFrame.duration === "number" ? nextFrame.duration / 1000 : 33;
       nextFrame.close();

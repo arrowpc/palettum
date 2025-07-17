@@ -122,7 +122,6 @@ impl Renderer {
             new_ctx = Arc::new(self.create_context(&surface, &canvas_id).await?);
             self.context_cache
                 .insert(canvas_id.clone(), new_ctx.clone());
-            self.context = Some(new_ctx.clone());
         };
 
         let config = self.configure_surface(&new_ctx, &surface, &canvas);

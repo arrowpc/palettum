@@ -42,7 +42,7 @@
 
   --text-scale: 0.70;
   --text-xs: calc(0.6rem * var(--text-scale));
-  --text-sm: calc(0.75rem * var(--text-scale));
+  --text-sm: calc(0.85rem * var(--text-scale));
   --text-base: calc(1rem * var(--text-scale));
   --text-lg: calc(1.125rem * var(--text-scale));
   --text-xl: calc(1.25rem * var(--text-scale));

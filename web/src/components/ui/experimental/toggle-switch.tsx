@@ -21,8 +21,8 @@ const container = cva([
 ]);
 
 const labelBase =
-  "relative z-10 flex-shrink-0 origin-center px-5 py-2 text-center " +
-  "text-base font-medium uppercase tracking-wide " +
+  "relative z-10 flex-shrink-0 origin-center px-3 py-2 text-center " +
+  "text-sm font-medium uppercase tracking-wide " +
   "pointer-events-none";
 
 const thumbShadow = "shadow-[0_6px_20px_theme(colors.primary/0.35)]";

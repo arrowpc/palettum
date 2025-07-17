@@ -6,10 +6,13 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     let src_size = uSizes.xy;
     let dst_size = uSizes.zw;
 
-    let src_y = uv.y * src_size.y;
+    let x_coord = i32(uv.x * src_size.x);
+    let x_max_idx = i32(src_size.x) - 1;
+    let clamped_x = clamp(x_coord, 0, x_max_idx);
 
-    let nearest_x = i32(uv.x * src_size.x - 0.5);
-    let nearest_y = i32(round(src_y - 0.5));
+    let nearest_y = i32(round(uv.y * src_size.y - 0.5));
+    let y_max_idx = i32(src_size.y) - 1;
+    let clamped_y = clamp(nearest_y, 0, y_max_idx);
 
-    return textureLoad(t, vec2<i32>(nearest_x, nearest_y), 0);
+    return textureLoad(t, vec2<i32>(clamped_x, clamped_y), 0);
 }

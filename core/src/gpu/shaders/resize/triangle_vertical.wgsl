@@ -18,7 +18,9 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
     var sumC      : vec4<f32> = vec4<f32>(0.0);
     var wSum      : f32       = 0.0;
 
-    let x_coord   = i32(uv.x * src_size.x - 0.5);
+    let x_coord = i32(uv.x * src_size.x);
+    let x_max_idx = i32(src_size.x) - 1;
+    let clamped_x_coord = clamp(x_coord, 0, x_max_idx);
 
     for (var j: i32 = -ry; j <= ry; j = j + 1) {
         let samplePos_y = baseF_y + f32(j);
@@ -26,7 +28,7 @@ fn fs_main(@location(0) uv: vec2<f32>) -> @location(0) vec4<f32> {
         let w           = max(0.0, 1.0 - abs(dy) / sratio_y);
         if (w > 0.0) {
             let iy     = clamp(i32(samplePos_y), 0, maxI_y);
-            let c      = textureLoad(t, vec2<i32>(x_coord, iy), 0);
+            let c      = textureLoad(t, vec2<i32>(clamped_x_coord, iy), 0);
             sumC       = sumC + c * w;
             wSum       = wSum + w;
         }

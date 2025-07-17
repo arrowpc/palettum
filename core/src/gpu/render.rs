@@ -114,12 +114,12 @@ impl Renderer {
             if let Some(ctx) = &self.context {
                 new_ctx = ctx.clone();
             } else {
-                new_ctx = Arc::new(self.create_context(&surface).await?);
+                new_ctx = Arc::new(self.create_context(&surface, &canvas_id).await?);
                 self.context = Some(new_ctx.clone());
             }
         } else {
             // WebGL: per-canvas context
-            new_ctx = Arc::new(self.create_context(&surface).await?);
+            new_ctx = Arc::new(self.create_context(&surface, &canvas_id).await?);
             self.context_cache
                 .insert(canvas_id.clone(), new_ctx.clone());
             self.context = Some(new_ctx.clone());
@@ -332,7 +332,11 @@ impl Renderer {
 }
 
 impl Renderer {
-    async fn create_context(&self, surface: &wgpu::Surface<'static>) -> Result<Context, JsValue> {
+    async fn create_context(
+        &self,
+        surface: &wgpu::Surface<'static>,
+        canvas_id: &str,
+    ) -> Result<Context, JsValue> {
         let adapter = self
             .instance
             .as_ref()
@@ -348,6 +352,7 @@ impl Renderer {
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                label: Some(canvas_id),
                 ..Default::default()
             })
             .await

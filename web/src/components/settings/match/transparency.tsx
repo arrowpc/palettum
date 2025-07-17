@@ -1,7 +1,6 @@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useConfigStore, useMediaStore } from "@/stores";
-import SettingWrapper from "../setting-wrapper";
 import React from "react";
 
 function Transparency() {
@@ -31,41 +30,44 @@ function Transparency() {
   };
 
   return (
-    <SettingWrapper
-      label="Transparency"
-      control={
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-row items-center justify-between">
+        <label className="text-lg font-medium">Transparency</label>
         <Switch
           id="transparency-switch"
           checked={isTransparencyEnabled && hasAlpha}
           onCheckedChange={handleCheckedChange}
           disabled={!hasAlpha}
         />
-      }
-    >
-      {hasAlpha ? (
-        <>
-          <Slider
-            value={[transparencyThreshold ?? 0]}
-            max={255}
-            step={1}
-            onValueChange={([v]) => {
-              setConfig("transparencyThreshold", v);
-            }}
-            className="w-full"
-            disabled={!hasAlpha}
-          />
-          <div
-            className={`text-center text-sm ${transparencyThreshold === 0 ? "text-muted-foreground" : ""}`}
-          >
-            {transparencyThreshold === 0 ? "Off" : transparencyThreshold}
+      </div>
+      <div className="flex flex-col items-center gap-4">
+        {hasAlpha ? (
+          <>
+            <Slider
+              value={[transparencyThreshold ?? 0]}
+              max={255}
+              step={1}
+              onValueChange={([v]) => {
+                setConfig("transparencyThreshold", v);
+              }}
+              className="w-full"
+              disabled={!hasAlpha}
+            />
+            <div
+              className={`text-center text-sm ${
+                transparencyThreshold === 0 ? "text-muted-foreground" : ""
+              }`}
+            >
+              {transparencyThreshold === 0 ? "Off" : transparencyThreshold}
+            </div>
+          </>
+        ) : (
+          <div className="text-center text-sm text-muted-foreground">
+            No Alpha detected in media
           </div>
-        </>
-      ) : (
-        <div className="text-center text-sm text-muted-foreground">
-          No Alpha detected in media
-        </div>
-      )}
-    </SettingWrapper>
+        )}
+      </div>
+    </div>
   );
 }
 

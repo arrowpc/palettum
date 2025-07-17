@@ -1,7 +1,6 @@
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useConfigStore } from "@/stores";
-import SettingWrapper from "../setting-wrapper";
 import React from "react";
 
 function Dithering() {
@@ -24,36 +23,37 @@ function Dithering() {
   };
 
   return (
-    <SettingWrapper
-      label="Dithering"
-      control={
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-row items-center justify-between">
+        <label className="text-lg font-medium">Dithering</label>
         <Switch
           id="dithering-switch"
           checked={isDitheringEnabled}
           onCheckedChange={handleCheckedChange}
         />
-      }
-    >
-      <Slider
-        value={[isDitheringEnabled ? ditherStrength ?? 0 : 0]}
-        max={1}
-        step={0.01}
-        onValueChange={([v]) => {
-          setConfig("ditherStrength", v);
-          if (v === 0) {
-            setConfig("ditherAlgorithm", "None");
-          } else if (ditherAlgorithm === "None" && v > 0) {
-            setConfig("ditherAlgorithm", "Bn");
-          }
-        }}
-        className="w-full"
-      />
-      <div
-        className={`text-center text-sm ${(ditherStrength ?? 0) === 0 ? "text-muted-foreground" : ""}`}
-      >
-        {(ditherStrength ?? 0) === 0 ? "Off" : (ditherStrength ?? 0).toFixed(2)}
       </div>
-    </SettingWrapper>
+      <div className="flex flex-col items-center gap-4">
+        <Slider
+          value={[isDitheringEnabled ? ditherStrength ?? 0 : 0]}
+          max={1}
+          step={0.01}
+          onValueChange={([v]) => {
+            setConfig("ditherStrength", v);
+            if (v === 0) {
+              setConfig("ditherAlgorithm", "None");
+            } else if (ditherAlgorithm === "None" && v > 0) {
+              setConfig("ditherAlgorithm", "Bn");
+            }
+          }}
+          className="w-full"
+        />
+        <div
+          className={`text-center text-sm ${(ditherStrength ?? 0) === 0 ? "text-muted-foreground" : ""}`}
+        >
+          {(ditherStrength ?? 0) === 0 ? "Off" : (ditherStrength ?? 0).toFixed(2)}
+        </div>
+      </div>
+    </div>
   );
 }
 

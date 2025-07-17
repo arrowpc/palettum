@@ -1,6 +1,5 @@
 import { useConfigStore } from "@/stores";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
-import SettingWrapper from "../setting-wrapper";
 import type { Filter } from "palettum";
 
 export default function ResizeFilter() {
@@ -15,12 +14,13 @@ export default function ResizeFilter() {
   ];
 
   return (
-    <SettingWrapper label="">
+    <div className="flex flex-col items-center gap-4">
+      <label className="text-lg font-medium">Filter</label>
       <ToggleSwitch
         options={options}
         value={value ?? "lanczos"}
         onChange={(v) => setConfig(setting, v as Filter)}
       />
-    </SettingWrapper>
+    </div>
   );
 }

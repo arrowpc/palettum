@@ -25,6 +25,10 @@ const api = {
     renderer.drop_canvas(id);
   },
 
+  clearCanvas() {
+    renderer.clear_current_canvas();
+  },
+
   setConfig(cfg: Config) {
     renderer.set_config(cfg);
   },

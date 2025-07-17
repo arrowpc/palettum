@@ -256,6 +256,59 @@ impl Renderer {
         }
         Ok(())
     }
+
+    pub fn clear_current_canvas(&mut self) -> Result<(), JsValue> {
+        let canvas = self.canvas.as_ref().ok_or("canvas missing")?;
+        let context = self.context.as_ref().unwrap();
+
+        let frame = canvas
+            .surface
+            .get_current_texture()
+            .map_err(|e| JsValue::from_str(&format!("clear_current_canvas: {:?}", e)))?;
+
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
+            format: Some(context.present_fmt),
+            ..Default::default()
+        });
+
+        let mut enc = context
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("clear_canvas_enc"),
+            });
+
+        {
+            let _rpass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("clear_canvas_pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+        }
+
+        context.queue.submit(Some(enc.finish()));
+        frame.present();
+
+        // Invalidate stored bitmap and textures
+        self.last_bmp = None;
+        self.full_tex = None;
+        self.resized_tex = None;
+        self.horizontal_pass_tex = None;
+        self.work_tex = None;
+        self.work_bg = None;
+        self.present_buf = None;
+        self.config_buf = None;
+
+        Ok(())
+    }
 }
 
 impl Renderer {

@@ -25,6 +25,8 @@ export default function CanvasPreview({
   const [isPlaying, setIsPlaying] = useState(false);
 
   const setMediaMeta = useMediaStore((s) => s.setMediaMeta);
+  const setIsLoading = useMediaStore((s) => s.setIsLoading);
+  const isLoading = useMediaStore((s) => s.isLoading);
   const canPlay = useMediaStore((s) => s.meta?.canPlay ?? false);
 
   useEffect(() => {
@@ -46,12 +48,14 @@ export default function CanvasPreview({
 
     (async () => {
       try {
+        setIsLoading(true);
         await renderer.init();
         await renderer.registerCanvas(
           MEDIA_CANVAS_ID,
           transfer(off, [off])
         );
         renderer.switchCanvas(MEDIA_CANVAS_ID);
+        renderer.clearCanvas();
 
         const info: MediaMeta = await renderer.load(file);
         console.log("[CanvasPreview] loaded media info:", info);
@@ -59,9 +63,11 @@ export default function CanvasPreview({
         if (info.canPlay) setIsPlaying(true);
       } catch (err) {
         console.error("[CanvasPreview] error in effect:", err);
+      } finally {
+        setIsLoading(false);
       }
     })();
-  }, [renderer, file, setMediaMeta]);
+  }, [renderer, file, setMediaMeta, setIsLoading]);
 
   const handlePlayPause = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -78,8 +84,14 @@ export default function CanvasPreview({
       <canvas
         ref={canvasRef}
         id={MEDIA_CANVAS_ID}
-        className={`block w-full h-full ${className ?? ""}`}
+        className={`block w-full h-full ${className ?? ""} ${isLoading ? "hidden" : ""}`}
       />
+
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-md">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        </div>
+      )}
 
       <div
         className="absolute inset-0 cursor-pointer group/canvas"

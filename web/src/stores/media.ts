@@ -13,6 +13,7 @@ interface MediaState {
   // TODO: hasAlpha should be moved to MediaMeta. This will require refactoring how we detect alpha
   hasAlpha: boolean;
   meta: MediaMeta | null;
+  isLoading: boolean;
 
   resizedWidth: number;
   resizedHeight: number;
@@ -21,6 +22,7 @@ interface MediaState {
   setHasAlpha: (b: boolean) => void;
   setMediaMeta: (m: MediaMeta) => void;
   setResizedDims: (w: number, h: number) => void;
+  setIsLoading: (b: boolean) => void;
 
   reset: () => void;
 }
@@ -29,18 +31,21 @@ export const useMediaStore = create<MediaState>((set) => ({
   file: null,
   hasAlpha: false,
   meta: null,
+  isLoading: false,
   resizedWidth: 0,
   resizedHeight: 0,
-  setFile: (file) => set(() => ({ file })),
+  setFile: (file) => set(() => ({ file, isLoading: true })),
   setHasAlpha: (hasAlpha) => set(() => ({ hasAlpha })),
   setMediaMeta: (meta) => set(() => ({ meta })),
   setResizedDims: (resizedWidth, resizedHeight) =>
     set(() => ({ resizedWidth, resizedHeight })),
+  setIsLoading: (isLoading) => set(() => ({ isLoading })),
   reset: () =>
     set(() => ({
       file: null,
       hasAlpha: false,
       meta: null,
+      isLoading: false,
       resizedWidth: 0,
       resizedHeight: 0,
     })),

@@ -3,7 +3,7 @@ use crate::{Config, Filter, Mapping};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 use web_sys::{ImageBitmap, OffscreenCanvas};
@@ -44,6 +44,14 @@ struct Context {
     pub resize_vertical_pipelines: HashMap<Filter, wgpu::RenderPipeline>,
     pub present_pipelines: HashMap<Mapping, wgpu::RenderPipeline>,
     pub present_fmt: wgpu::TextureFormat,
+
+    pub full_tex: RwLock<Option<wgpu::Texture>>,
+    pub resized_tex: RwLock<Option<wgpu::Texture>>,
+    pub horizontal_pass_tex: RwLock<Option<wgpu::Texture>>,
+    pub work_tex: RwLock<Option<wgpu::Texture>>,
+    pub work_bg: RwLock<Option<wgpu::BindGroup>>,
+    pub present_buf: RwLock<Option<wgpu::Buffer>>,
+    pub config_buf: RwLock<Option<wgpu::Buffer>>,
 }
 
 #[wasm_bindgen]
@@ -56,17 +64,7 @@ pub struct Renderer {
     canvas: Option<Arc<Canvas>>,
     canvas_cache: HashMap<String, Arc<Canvas>>,
 
-    full_tex: Option<wgpu::Texture>,
-    resized_tex: Option<wgpu::Texture>,
-    horizontal_pass_tex: Option<wgpu::Texture>,
-    work_tex: Option<wgpu::Texture>,
-    work_bg: Option<wgpu::BindGroup>,
-
-    present_buf: Option<wgpu::Buffer>,
-    config_buf: Option<wgpu::Buffer>,
-
     resize_mode: ResizeMode,
-
     last_bmp: Option<ImageBitmap>,
 }
 
@@ -82,13 +80,6 @@ impl Renderer {
             context_cache: HashMap::new(),
             canvas: None,
             canvas_cache: HashMap::new(),
-            full_tex: None,
-            resized_tex: None,
-            horizontal_pass_tex: None,
-            work_tex: None,
-            work_bg: None,
-            present_buf: None,
-            config_buf: None,
             resize_mode: ResizeMode::default(),
             last_bmp: None,
         }
@@ -108,8 +99,6 @@ impl Renderer {
         }
         log::info!("Registering canvas with id: {}", canvas_id);
 
-        let instance = self.instance.as_ref();
-
         let raw_surface = self
             .instance
             .instance
@@ -119,34 +108,25 @@ impl Renderer {
             unsafe { std::mem::transmute::<_, wgpu::Surface<'static>>(raw_surface) };
 
         // Context selection/creation
-        let context = if instance.using_webgpu {
+        let new_ctx: Arc<Context>;
+        if self.instance.using_webgpu {
             // WebGPU: one global context, create if needed
             if let Some(ctx) = &self.context {
-                ctx.clone()
+                new_ctx = ctx.clone();
             } else {
-                let ctx: Arc<Context> = Arc::new(self.create_context(&surface).await?);
-                self.context = Some(ctx.clone());
-                ctx
+                new_ctx = Arc::new(self.create_context(&surface).await?);
+                self.context = Some(new_ctx.clone());
             }
         } else {
             // WebGL: per-canvas context
-            let ctx: Arc<Context> = Arc::new(self.create_context(&surface).await?);
-
-            self.full_tex = None;
-            self.resized_tex = None;
-            self.horizontal_pass_tex = None;
-            self.work_tex = None;
-            self.work_bg = None;
-            self.present_buf = None;
-            self.config_buf = None;
-
-            self.context_cache.insert(canvas_id.clone(), ctx.clone());
-            self.context = Some(ctx.clone());
-            ctx
+            new_ctx = Arc::new(self.create_context(&surface).await?);
+            self.context_cache
+                .insert(canvas_id.clone(), new_ctx.clone());
+            self.context = Some(new_ctx.clone());
         };
 
-        let config = self.configure_surface(&context, &surface, &canvas);
-        surface.configure(&context.device, &config);
+        let config = self.configure_surface(&new_ctx, &surface, &canvas);
+        surface.configure(&new_ctx.device, &config);
 
         let canvas_handle = Arc::new(Canvas {
             id: canvas_id.clone(),
@@ -158,6 +138,7 @@ impl Renderer {
 
         Ok(())
     }
+
     pub fn switch_canvas(&mut self, canvas_id: &str) -> Result<(), JsValue> {
         let canvas = self
             .canvas_cache
@@ -168,22 +149,16 @@ impl Renderer {
 
         if !self.instance.as_ref().using_webgpu {
             if let Some(new_ctx) = self.context_cache.get(canvas_id) {
+                // For WebGL, we switch the active context. The new context's mutable
+                // resources will initially be None, and will be created on the next draw.
                 let is_switching_context = self
                     .context
                     .as_ref()
                     .map_or(true, |current_ctx| !Arc::ptr_eq(current_ctx, new_ctx));
 
                 if is_switching_context {
-                    log::info!("Switching WebGL context, invalidating GPU resources...");
+                    log::info!("Switching WebGL context...");
                     self.context = Some(new_ctx.clone());
-
-                    self.full_tex = None;
-                    self.work_tex = None;
-                    self.work_bg = None;
-                    self.present_buf = None;
-                    self.config_buf = None;
-                    self.resized_tex = None;
-                    self.horizontal_pass_tex = None;
                 }
             } else {
                 return Err(JsValue::from_str("Context for canvas not found"));
@@ -224,9 +199,25 @@ impl Renderer {
                 "last bitmap is invalid (closed or zero size)",
             ));
         }
-        if self.full_tex.is_none() {
+
+        let ctx = self
+            .context
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No active context"))?;
+
+        // Check if full_tex exists and is valid before reuploading
+        let full_tex_exists = {
+            let full_tex_guard = ctx
+                .full_tex
+                .read()
+                .map_err(|_| JsValue::from_str("Failed to read full_tex"))?;
+            full_tex_guard.is_some()
+        };
+
+        if !full_tex_exists {
             self.upload_full_texture(&bitmap)?;
         }
+
         self.ensure_work_tex_size()?;
         self.blit_full_to_work()?;
         self.present()
@@ -248,7 +239,18 @@ impl Renderer {
 
     pub fn set_config(&mut self, config: Config) -> Result<(), JsValue> {
         *self.instance.config.write() = config;
-        if self.full_tex.is_some() {
+        let ctx = self
+            .context
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No active context"))?;
+        let full_tex_exists = {
+            let full_tex_guard = ctx
+                .full_tex
+                .read()
+                .map_err(|_| JsValue::from_str("Failed to read full_tex"))?;
+            full_tex_guard.is_some()
+        };
+        if full_tex_exists {
             self.try_draw()?;
         }
         Ok(())
@@ -294,15 +296,36 @@ impl Renderer {
         context.queue.submit(Some(enc.finish()));
         frame.present();
 
-        // Invalidate stored bitmap and textures
         self.last_bmp = None;
-        self.full_tex = None;
-        self.resized_tex = None;
-        self.horizontal_pass_tex = None;
-        self.work_tex = None;
-        self.work_bg = None;
-        self.present_buf = None;
-        self.config_buf = None;
+
+        *context
+            .full_tex
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to clear full_tex"))? = None;
+        *context
+            .resized_tex
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to clear resized_tex"))? = None;
+        *context
+            .horizontal_pass_tex
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to clear horizontal_pass_tex"))? = None;
+        *context
+            .work_tex
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to clear work_tex"))? = None;
+        *context
+            .work_bg
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to clear work_bg"))? = None;
+        *context
+            .present_buf
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to clear present_buf"))? = None;
+        *context
+            .config_buf
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to clear config_buf"))? = None;
 
         Ok(())
     }
@@ -415,46 +438,55 @@ impl Renderer {
             resize_vertical_pipelines,
             present_pipelines,
             present_fmt,
+            full_tex: RwLock::new(None),
+            resized_tex: RwLock::new(None),
+            horizontal_pass_tex: RwLock::new(None),
+            work_tex: RwLock::new(None),
+            work_bg: RwLock::new(None),
+            present_buf: RwLock::new(None),
+            config_buf: RwLock::new(None),
         })
     }
 
     fn upload_full_texture(&mut self, bmp: &ImageBitmap) -> Result<(), JsValue> {
+        let ctx = self
+            .context
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No active context"))?;
         let (w, h) = (bmp.width() as u32, bmp.height() as u32);
-        if self
+
+        let mut full_tex_guard = ctx
             .full_tex
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to acquire write lock for full_tex"))?;
+
+        if full_tex_guard
             .as_ref()
             .map(|t| t.size().width != w || t.size().height != h)
             .unwrap_or(true)
         {
-            self.full_tex = Some(
-                self.context
-                    .as_ref()
-                    .unwrap()
-                    .device
+            *full_tex_guard = Some(
+                ctx.device
                     .create_texture(&Self::linear_tex("full_tex", w, h)),
             );
         }
 
-        self.context
-            .as_ref()
-            .unwrap()
-            .queue
-            .copy_external_image_to_texture(
-                &wgpu::CopyExternalImageSourceInfo {
-                    source: wgpu::ExternalImageSource::ImageBitmap(bmp.clone()),
-                    origin: wgpu::Origin2d::ZERO,
-                    flip_y: false,
-                },
-                wgpu::CopyExternalImageDestInfo {
-                    texture: self.full_tex.as_ref().unwrap(),
-                    mip_level: 0,
-                    origin: wgpu::Origin3d::ZERO,
-                    aspect: wgpu::TextureAspect::All,
-                    color_space: wgpu::PredefinedColorSpace::Srgb,
-                    premultiplied_alpha: false,
-                },
-                self.full_tex.as_ref().unwrap().size(),
-            );
+        ctx.queue.copy_external_image_to_texture(
+            &wgpu::CopyExternalImageSourceInfo {
+                source: wgpu::ExternalImageSource::ImageBitmap(bmp.clone()),
+                origin: wgpu::Origin2d::ZERO,
+                flip_y: false,
+            },
+            wgpu::CopyExternalImageDestInfo {
+                texture: full_tex_guard.as_ref().unwrap(),
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+                color_space: wgpu::PredefinedColorSpace::Srgb,
+                premultiplied_alpha: false,
+            },
+            full_tex_guard.as_ref().unwrap().size(),
+        );
         Ok(())
     }
 
@@ -478,15 +510,35 @@ impl Renderer {
     }
 
     fn desired_resized_dims(&self) -> Option<(u32, u32)> {
-        let full = self.full_tex.as_ref().unwrap();
+        let ctx = self
+            .context
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No active context"))
+            .ok()?;
+        let full_tex_guard = ctx
+            .full_tex
+            .read()
+            .map_err(|_| JsValue::from_str("Failed to read full_tex"))
+            .ok()?;
+        let full = full_tex_guard.as_ref()?;
         Some(self.get_resize_dims(full.size().width, full.size().height))
     }
 
     fn desired_work_dims(&self) -> Option<(u32, u32)> {
-        let resized = self.resized_tex.as_ref().unwrap();
-        let ctx = self.canvas.as_ref().unwrap();
-        let scale = (ctx.config.width as f32 / resized.size().width as f32)
-            .min(ctx.config.height as f32 / resized.size().height as f32)
+        let ctx = self
+            .context
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No active context"))
+            .ok()?;
+        let resized_tex_guard = ctx
+            .resized_tex
+            .read()
+            .map_err(|_| JsValue::from_str("Failed to read resized_tex"))
+            .ok()?;
+        let resized = resized_tex_guard.as_ref()?;
+        let canvas = self.canvas.as_ref().unwrap();
+        let scale = (canvas.config.width as f32 / resized.size().width as f32)
+            .min(canvas.config.height as f32 / resized.size().height as f32)
             .clamp(0.0, 1.0);
         Some((
             (resized.size().width as f32 * scale).max(1.0).round() as u32,
@@ -495,125 +547,150 @@ impl Renderer {
     }
 
     fn ensure_work_tex_size(&mut self) -> Result<(), JsValue> {
+        let ctx = self
+            .context
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No active context"))?;
+
         let (resized_w, resized_h) = self
             .desired_resized_dims()
-            .ok_or(JsValue::from_str("no full_tex"))?;
+            .ok_or(JsValue::from_str("no full_tex in context"))?;
 
-        if self
+        let mut resized_tex_guard = ctx
             .resized_tex
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to write resized_tex"))?;
+        if resized_tex_guard
             .as_ref()
             .map(|t| t.size().width != resized_w || t.size().height != resized_h)
             .unwrap_or(true)
         {
-            let context = self.context.as_ref().unwrap();
-            self.resized_tex = Some(context.device.create_texture(&Self::linear_tex(
+            *resized_tex_guard = Some(ctx.device.create_texture(&Self::linear_tex(
                 "resized_tex",
                 resized_w,
                 resized_h,
             )));
 
-            // Also ensure horizontal_pass_tex is sized correctly
-            let full_tex_size = self.full_tex.as_ref().unwrap().size();
-            if self
+            let full_tex_size = ctx
+                .full_tex
+                .read()
+                .map_err(|_| JsValue::from_str("Failed to read full_tex"))?
+                .as_ref()
+                .unwrap()
+                .size();
+            let mut horizontal_pass_tex_guard = ctx
                 .horizontal_pass_tex
+                .write()
+                .map_err(|_| JsValue::from_str("Failed to write horizontal_pass_tex"))?;
+            if horizontal_pass_tex_guard
                 .as_ref()
                 .map(|t| t.size().width != resized_w || t.size().height != full_tex_size.height)
                 .unwrap_or(true)
             {
-                self.horizontal_pass_tex = Some(context.device.create_texture(&Self::linear_tex(
+                *horizontal_pass_tex_guard = Some(ctx.device.create_texture(&Self::linear_tex(
                     "horizontal_pass_tex",
                     resized_w,
                     full_tex_size.height,
                 )));
             }
         }
+        drop(resized_tex_guard);
 
         let (work_w, work_h) = self
             .desired_work_dims()
-            .ok_or(JsValue::from_str("no resized_tex"))?;
+            .ok_or(JsValue::from_str("no resized_tex in context"))?;
 
-        if self
+        let mut work_tex_guard = ctx
             .work_tex
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to write work_tex"))?;
+        if work_tex_guard
             .as_ref()
             .map(|t| t.size().width != work_w || t.size().height != work_h)
             .unwrap_or(true)
         {
-            let context = self.context.as_ref().unwrap();
-            self.work_tex = Some(
-                context
-                    .device
+            *work_tex_guard = Some(
+                ctx.device
                     .create_texture(&Self::linear_tex("work_tex", work_w, work_h)),
             );
-            let view = self
-                .work_tex
+            let view = work_tex_guard
                 .as_ref()
                 .unwrap()
                 .create_view(&Default::default());
-            self.work_bg = Some(
-                context
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("work_bg"),
-                        layout: &self.context.as_ref().unwrap().tex_bgl,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::TextureView(&view),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: wgpu::BindingResource::Sampler(&context.sampler),
-                            },
-                        ],
-                    }),
-            );
+            *ctx.work_bg
+                .write()
+                .map_err(|_| JsValue::from_str("Failed to write work_bg"))? =
+                Some(ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("work_bg"),
+                    layout: &ctx.tex_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::TextureView(&view),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::Sampler(&ctx.sampler),
+                        },
+                    ],
+                }));
         }
         Ok(())
     }
 
     fn blit_full_to_work(&mut self) -> Result<(), JsValue> {
-        let context = self.context.as_ref().unwrap();
+        let ctx = self
+            .context
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No active context"))?;
         let config = self.instance.config.read();
 
-        let full_tex_size = self.full_tex.as_ref().unwrap().size();
+        let full_tex = ctx
+            .full_tex
+            .read()
+            .map_err(|_| JsValue::from_str("Failed to read full_tex"))?
+            .as_ref()
+            .unwrap()
+            .clone();
+        let full_tex_size = full_tex.size();
+
         let (desired_resized_w, desired_resized_h) = self
             .desired_resized_dims()
-            .ok_or(JsValue::from_str("no full_tex"))?;
+            .ok_or(JsValue::from_str("no desired resized dims"))?;
 
         let skip_initial_resize =
             full_tex_size.width == desired_resized_w && full_tex_size.height == desired_resized_h;
 
         if skip_initial_resize {
-            // Skip horizontal and vertical resize passes, blit full_tex directly to resized_tex
-            let src_view = self
-                .full_tex
-                .as_ref()
-                .unwrap()
-                .create_view(&Default::default());
-            let dst_view = self
+            let src_view = full_tex.create_view(&Default::default());
+
+            let resized_tex_guard = ctx
                 .resized_tex
+                .write()
+                .map_err(|_| JsValue::from_str("Failed to write resized_tex"))?;
+            let dst_view = resized_tex_guard
                 .as_ref()
                 .unwrap()
                 .create_view(&Default::default());
+            let dst_size = resized_tex_guard.as_ref().unwrap().size();
+            drop(resized_tex_guard);
 
-            let tmp_bg = context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("full_to_resized_blit_bg"),
-                    layout: &context.tex_bgl,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&src_view),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&context.sampler),
-                        },
-                    ],
-                });
+            let tmp_bg = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("full_to_resized_blit_bg"),
+                layout: &ctx.tex_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&src_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&ctx.sampler),
+                    },
+                ],
+            });
 
-            let mut enc = context
+            let mut enc = ctx
                 .device
                 .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                     label: Some("full_to_resized_blit_enc"),
@@ -634,10 +711,7 @@ impl Renderer {
                     timestamp_writes: None,
                 });
 
-                let src_size = full_tex_size;
-                let dst_size = self.resized_tex.as_ref().unwrap().size();
-
-                let resize_uniform_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+                let resize_uniform_buf = ctx.device.create_buffer(&wgpu::BufferDescriptor {
                     label: Some("Full to Resized Blit Resize Uniform Buffer"),
                     size: RESIZE_UNIFORM_BYTES,
                     usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
@@ -645,67 +719,60 @@ impl Renderer {
                 });
 
                 let resize_data: [f32; 4] = [
-                    src_size.width as f32,
-                    src_size.height as f32,
+                    full_tex_size.width as f32,
+                    full_tex_size.height as f32,
                     dst_size.width as f32,
                     dst_size.height as f32,
                 ];
-                context.queue.write_buffer(
-                    &resize_uniform_buf,
-                    0,
-                    bytemuck::cast_slice(&resize_data),
-                );
+                ctx.queue
+                    .write_buffer(&resize_uniform_buf, 0, bytemuck::cast_slice(&resize_data));
 
-                let resize_uni_bg = context
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("full_to_resized_blit_resize_uni_bg"),
-                        layout: &context.resize_uni_bgl,
-                        entries: &[wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: resize_uniform_buf.as_entire_binding(),
-                        }],
-                    });
+                let resize_uni_bg = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("full_to_resized_blit_resize_uni_bg"),
+                    layout: &ctx.resize_uni_bgl,
+                    entries: &[wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: resize_uniform_buf.as_entire_binding(),
+                    }],
+                });
 
-                rpass.set_pipeline(&context.blit_pipeline);
+                rpass.set_pipeline(&ctx.blit_pipeline);
                 rpass.set_bind_group(0, &tmp_bg, &[]);
                 rpass.set_bind_group(1, &resize_uni_bg, &[]);
                 rpass.draw(0..6, 0..1);
             }
-            context.queue.submit(Some(enc.finish()));
+            ctx.queue.submit(Some(enc.finish()));
         } else {
             // First pass: Blit from full_tex to horizontal_pass_tex with horizontal filter
-            let src_view_h = self
-                .full_tex
-                .as_ref()
-                .unwrap()
-                .create_view(&Default::default());
-            let dst_view_h = self
+            let src_view_h = full_tex.create_view(&Default::default());
+
+            let horizontal_pass_tex_guard = ctx
                 .horizontal_pass_tex
+                .write()
+                .map_err(|_| JsValue::from_str("Failed to write horizontal_pass_tex"))?;
+            let dst_view_h = horizontal_pass_tex_guard
                 .as_ref()
                 .unwrap()
                 .create_view(&Default::default());
+            let horizontal_pass_tex_size = horizontal_pass_tex_guard.as_ref().unwrap().size();
+            drop(horizontal_pass_tex_guard);
 
-            let tmp_bg_h = context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("resize_horizontal_bg"),
-                    layout: &context.tex_bgl,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&src_view_h),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&context.sampler),
-                        },
-                    ],
-                });
+            let tmp_bg_h = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resize_horizontal_bg"),
+                layout: &ctx.tex_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&src_view_h),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&ctx.sampler),
+                    },
+                ],
+            });
 
-            let horizontal_pass_tex_size = self.horizontal_pass_tex.as_ref().unwrap().size();
-
-            let resize_uniform_buf_h = context.device.create_buffer(&wgpu::BufferDescriptor {
+            let resize_uniform_buf_h = ctx.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Resize Horizontal Uniform Buffer"),
                 size: RESIZE_UNIFORM_BYTES,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
@@ -718,29 +785,26 @@ impl Renderer {
                 horizontal_pass_tex_size.width as f32,
                 horizontal_pass_tex_size.height as f32,
             ];
-            context.queue.write_buffer(
+            ctx.queue.write_buffer(
                 &resize_uniform_buf_h,
                 0,
                 bytemuck::cast_slice(&resize_data_h),
             );
 
-            let resize_uni_bg_h = context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("resize_horizontal_uni_bg"),
-                    layout: &context.resize_uni_bgl,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: resize_uniform_buf_h.as_entire_binding(),
-                    }],
-                });
+            let resize_uni_bg_h = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resize_horizontal_uni_bg"),
+                layout: &ctx.resize_uni_bgl,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: resize_uniform_buf_h.as_entire_binding(),
+                }],
+            });
 
-            let mut enc_h =
-                context
-                    .device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                        label: Some("resize_horizontal_enc"),
-                    });
+            let mut enc_h = ctx
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("resize_horizontal_enc"),
+                });
             {
                 let mut rpass_h = enc_h.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("resize_horizontal_pass"),
@@ -756,49 +820,51 @@ impl Renderer {
                     occlusion_query_set: None,
                     timestamp_writes: None,
                 });
-                let resize_pipeline_h = context
-                    .resize_horizontal_pipelines
-                    .get(&config.filter)
-                    .unwrap();
+                let resize_pipeline_h =
+                    ctx.resize_horizontal_pipelines.get(&config.filter).unwrap();
                 rpass_h.set_pipeline(resize_pipeline_h);
                 rpass_h.set_bind_group(0, &tmp_bg_h, &[]);
                 rpass_h.set_bind_group(1, &resize_uni_bg_h, &[]);
                 rpass_h.draw(0..6, 0..1);
             }
-            context.queue.submit(Some(enc_h.finish()));
+            ctx.queue.submit(Some(enc_h.finish()));
 
             // Second pass: Blit from horizontal_pass_tex to resized_tex with vertical filter
-            let src_view_v = self
+            let horizontal_pass_tex = ctx
                 .horizontal_pass_tex
+                .read()
+                .map_err(|_| JsValue::from_str("Failed to read horizontal_pass_tex"))?
                 .as_ref()
                 .unwrap()
-                .create_view(&Default::default());
-            let dst_view_v = self
+                .clone();
+            let src_view_v = horizontal_pass_tex.create_view(&Default::default());
+            let resized_tex_guard = ctx
                 .resized_tex
+                .write()
+                .map_err(|_| JsValue::from_str("Failed to write resized_tex"))?;
+            let dst_view_v = resized_tex_guard
                 .as_ref()
                 .unwrap()
                 .create_view(&Default::default());
+            let resized_tex_size = resized_tex_guard.as_ref().unwrap().size();
+            drop(resized_tex_guard);
 
-            let tmp_bg_v = context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("resize_vertical_bg"),
-                    layout: &context.tex_bgl,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: wgpu::BindingResource::TextureView(&src_view_v),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::Sampler(&context.sampler),
-                        },
-                    ],
-                });
+            let tmp_bg_v = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resize_vertical_bg"),
+                layout: &ctx.tex_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&src_view_v),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&ctx.sampler),
+                    },
+                ],
+            });
 
-            let resized_tex_size = self.resized_tex.as_ref().unwrap().size();
-
-            let resize_uniform_buf_v = context.device.create_buffer(&wgpu::BufferDescriptor {
+            let resize_uniform_buf_v = ctx.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Resize Vertical Uniform Buffer"),
                 size: RESIZE_UNIFORM_BYTES,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
@@ -811,29 +877,26 @@ impl Renderer {
                 resized_tex_size.width as f32,
                 resized_tex_size.height as f32,
             ];
-            context.queue.write_buffer(
+            ctx.queue.write_buffer(
                 &resize_uniform_buf_v,
                 0,
                 bytemuck::cast_slice(&resize_data_v),
             );
 
-            let resize_uni_bg_v = context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("resize_vertical_uni_bg"),
-                    layout: &context.resize_uni_bgl,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: resize_uniform_buf_v.as_entire_binding(),
-                    }],
-                });
+            let resize_uni_bg_v = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("resize_vertical_uni_bg"),
+                layout: &ctx.resize_uni_bgl,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: resize_uniform_buf_v.as_entire_binding(),
+                }],
+            });
 
-            let mut enc_v =
-                context
-                    .device
-                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                        label: Some("resize_vertical_enc"),
-                    });
+            let mut enc_v = ctx
+                .device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("resize_vertical_enc"),
+                });
             {
                 let mut rpass_v = enc_v.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("resize_vertical_pass"),
@@ -849,48 +912,51 @@ impl Renderer {
                     occlusion_query_set: None,
                     timestamp_writes: None,
                 });
-                let resize_pipeline_v = context
-                    .resize_vertical_pipelines
-                    .get(&config.filter)
-                    .unwrap();
+                let resize_pipeline_v = ctx.resize_vertical_pipelines.get(&config.filter).unwrap();
                 rpass_v.set_pipeline(resize_pipeline_v);
                 rpass_v.set_bind_group(0, &tmp_bg_v, &[]);
                 rpass_v.set_bind_group(1, &resize_uni_bg_v, &[]);
                 rpass_v.draw(0..6, 0..1);
             }
-            context.queue.submit(Some(enc_v.finish()));
+            ctx.queue.submit(Some(enc_v.finish()));
         }
 
-        // Blit from resized_tex to work_tex
-        let src_view = self
+        let resized_tex = ctx
             .resized_tex
+            .read()
+            .map_err(|_| JsValue::from_str("Failed to read resized_tex"))?
             .as_ref()
             .unwrap()
-            .create_view(&Default::default());
-        let dst_view = self
+            .clone();
+        let src_view = resized_tex.create_view(&Default::default());
+
+        let work_tex_guard = ctx
             .work_tex
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to write work_tex"))?;
+        let dst_view = work_tex_guard
             .as_ref()
             .unwrap()
             .create_view(&Default::default());
+        let dst_size = work_tex_guard.as_ref().unwrap().size();
+        drop(work_tex_guard);
 
-        let tmp_bg = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("work_blit_bg"),
-                layout: &context.tex_bgl,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&src_view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&context.sampler),
-                    },
-                ],
-            });
+        let tmp_bg = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("work_blit_bg"),
+            layout: &ctx.tex_bgl,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&src_view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&ctx.sampler),
+                },
+            ],
+        });
 
-        let mut enc = context
+        let mut enc = ctx
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("work_blit_enc"),
@@ -910,10 +976,9 @@ impl Renderer {
                 occlusion_query_set: None,
                 timestamp_writes: None,
             });
-            let src_size = self.resized_tex.as_ref().unwrap().size();
-            let dst_size = self.work_tex.as_ref().unwrap().size();
+            let src_size = resized_tex.size();
 
-            let resize_uniform_buf = context.device.create_buffer(&wgpu::BufferDescriptor {
+            let resize_uniform_buf = ctx.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Work Blit Resize Uniform Buffer"),
                 size: RESIZE_UNIFORM_BYTES,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
@@ -926,34 +991,42 @@ impl Renderer {
                 dst_size.width as f32,
                 dst_size.height as f32,
             ];
-            context
-                .queue
+            ctx.queue
                 .write_buffer(&resize_uniform_buf, 0, bytemuck::cast_slice(&resize_data));
 
-            let resize_uni_bg = context
-                .device
-                .create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("work_blit_resize_uni_bg"),
-                    layout: &context.resize_uni_bgl,
-                    entries: &[wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: resize_uniform_buf.as_entire_binding(),
-                    }],
-                });
+            let resize_uni_bg = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("work_blit_resize_uni_bg"),
+                layout: &ctx.resize_uni_bgl,
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: resize_uniform_buf.as_entire_binding(),
+                }],
+            });
 
-            rpass.set_pipeline(&context.blit_pipeline);
+            rpass.set_pipeline(&ctx.blit_pipeline);
             rpass.set_bind_group(0, &tmp_bg, &[]);
             rpass.set_bind_group(1, &resize_uni_bg, &[]);
             rpass.draw(0..6, 0..1);
         }
-        context.queue.submit(Some(enc.finish()));
+        ctx.queue.submit(Some(enc.finish()));
 
         Ok(())
     }
 
     fn present(&mut self) -> Result<(), JsValue> {
         let canvas = self.canvas.as_ref().ok_or("canvas missing")?;
-        let work_tex = self.work_tex.as_ref().ok_or("work_tex missing")?;
+        let ctx = self
+            .context
+            .as_ref()
+            .ok_or_else(|| JsValue::from_str("No active context"))?;
+
+        let work_tex = ctx
+            .work_tex
+            .read()
+            .map_err(|_| JsValue::from_str("Failed to read work_tex"))?
+            .as_ref()
+            .ok_or("work_tex missing in context")?
+            .clone();
 
         let (img_w, img_h) = { (work_tex.size().width as f32, work_tex.size().height as f32) };
         let (can_w, can_h) = (canvas.config.width as f32, canvas.config.height as f32);
@@ -981,10 +1054,12 @@ impl Renderer {
             ResizeMode::Stretch => {}
         }
 
-        let context = self.context.as_ref().unwrap();
-
-        if self.present_buf.is_none() {
-            self.present_buf = Some(context.device.create_buffer(&wgpu::BufferDescriptor {
+        let mut present_buf_guard = ctx
+            .present_buf
+            .write()
+            .map_err(|_| JsValue::from_str("Failed to write present_buf"))?;
+        if present_buf_guard.is_none() {
+            *present_buf_guard = Some(ctx.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("present_buf"),
                 size: PRESENT_UNIFORM_BYTES,
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
@@ -992,26 +1067,32 @@ impl Renderer {
             }));
         }
         let data: [f32; 4] = [scale[0], scale[1], offset[0], offset[1]];
-        context.queue.write_buffer(
-            self.present_buf.as_ref().unwrap(),
+        ctx.queue.write_buffer(
+            present_buf_guard.as_ref().unwrap(),
             0,
             bytemuck::cast_slice(&data),
         );
+        drop(present_buf_guard);
 
-        let uni_bg = context
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("uni_bg"),
-                layout: &context.uni_bgl,
-                entries: &[wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                        buffer: self.present_buf.as_ref().unwrap(),
-                        offset: 0,
-                        size: wgpu::BufferSize::new(PRESENT_UNIFORM_BYTES),
-                    }),
-                }],
-            });
+        let present_buf = ctx
+            .present_buf
+            .read()
+            .map_err(|_| JsValue::from_str("Failed to read present_buf"))?
+            .as_ref()
+            .unwrap()
+            .clone();
+        let uni_bg = ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("uni_bg"),
+            layout: &ctx.uni_bgl,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                    buffer: &present_buf,
+                    offset: 0,
+                    size: wgpu::BufferSize::new(PRESENT_UNIFORM_BYTES),
+                }),
+            }],
+        });
 
         let config = self.instance.config.read();
         let mapping = config.mapping;
@@ -1021,88 +1102,92 @@ impl Renderer {
                 let gpu_config_data =
                     GpuConfig::from_config(&config, work_tex.size().width, work_tex.size().height);
 
-                if self.config_buf.is_none() {
-                    self.config_buf = Some(context.device.create_buffer(&wgpu::BufferDescriptor {
+                let mut config_buf_guard = ctx
+                    .config_buf
+                    .write()
+                    .map_err(|_| JsValue::from_str("Failed to write config_buf"))?;
+                if config_buf_guard.is_none() {
+                    *config_buf_guard = Some(ctx.device.create_buffer(&wgpu::BufferDescriptor {
                         label: Some("config_buf"),
                         size: CONFIG_UNIFORM_BYTES,
                         usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
                         mapped_at_creation: false,
                     }));
                 }
-                context.queue.write_buffer(
-                    self.config_buf.as_ref().unwrap(),
+                ctx.queue.write_buffer(
+                    config_buf_guard.as_ref().unwrap(),
                     0,
                     bytemuck::cast_slice(&[gpu_config_data]),
                 );
+                drop(config_buf_guard);
 
-                Some(
-                    context
-                        .device
-                        .create_bind_group(&wgpu::BindGroupDescriptor {
-                            label: Some("mapping_frag_bg"),
-                            layout: &context.mapping_frag_bgl,
-                            entries: &[
-                                wgpu::BindGroupEntry {
-                                    binding: 0,
-                                    resource: wgpu::BindingResource::Sampler(&context.sampler),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 1,
-                                    resource: wgpu::BindingResource::TextureView(
-                                        &work_tex.create_view(&Default::default()),
-                                    ),
-                                },
-                                wgpu::BindGroupEntry {
-                                    binding: 2,
-                                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
-                                        buffer: self.config_buf.as_ref().unwrap(),
-                                        offset: 0,
-                                        size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
-                                    }),
-                                },
-                            ],
-                        }),
-                )
+                let config_buf = ctx
+                    .config_buf
+                    .read()
+                    .map_err(|_| JsValue::from_str("Failed to read config_buf"))?
+                    .as_ref()
+                    .unwrap()
+                    .clone();
+
+                Some(ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("mapping_frag_bg"),
+                    layout: &ctx.mapping_frag_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: wgpu::BindingResource::Sampler(&ctx.sampler),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(
+                                &work_tex.create_view(&Default::default()),
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                                buffer: &config_buf,
+                                offset: 0,
+                                size: wgpu::BufferSize::new(CONFIG_UNIFORM_BYTES),
+                            }),
+                        },
+                    ],
+                }))
             }
         };
 
         let blue_noise_bg_to_use: Option<wgpu::BindGroup> = if mapping == Mapping::Palettized {
-            Some(
-                context
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("blue_noise_bg"),
-                        layout: &context.blue_noise_bgl,
-                        entries: &[
-                            wgpu::BindGroupEntry {
-                                binding: 0,
-                                resource: wgpu::BindingResource::TextureView(
-                                    &context.blue_noise_tex.create_view(&Default::default()),
-                                ),
-                            },
-                            wgpu::BindGroupEntry {
-                                binding: 1,
-                                resource: wgpu::BindingResource::Sampler(&context.nearest_sampler),
-                            },
-                        ],
-                    }),
-            )
+            Some(ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("blue_noise_bg"),
+                layout: &ctx.blue_noise_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(
+                            &ctx.blue_noise_tex.create_view(&Default::default()),
+                        ),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&ctx.nearest_sampler),
+                    },
+                ],
+            }))
         } else {
             None
         };
 
-        // ------------ render -----------------------------------
         let frame = canvas
             .surface
             .get_current_texture()
             .map_err(|e| JsValue::from_str(&format!("frame: {:?}", e)))?;
 
         let view = frame.texture.create_view(&wgpu::TextureViewDescriptor {
-            format: Some(context.present_fmt),
+            format: Some(ctx.present_fmt),
             ..Default::default()
         });
 
-        let mut enc = context
+        let mut enc = ctx
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("present_enc"),
@@ -1123,7 +1208,7 @@ impl Renderer {
                 timestamp_writes: None,
             });
 
-            let pipe = context.present_pipelines.get(&mapping).unwrap();
+            let pipe = ctx.present_pipelines.get(&mapping).unwrap();
             rpass.set_pipeline(pipe);
 
             match mapping {
@@ -1140,7 +1225,7 @@ impl Renderer {
             rpass.draw(0..6, 0..1);
         }
 
-        context.queue.submit(Some(enc.finish()));
+        ctx.queue.submit(Some(enc.finish()));
         frame.present();
         Ok(())
     }
@@ -1388,7 +1473,7 @@ impl Renderer {
             layout: Some(
                 &device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("blit_layout"),
-                    bind_group_layouts: &[tex_bgl],
+                    bind_group_layouts: &[tex_bgl, resize_uni_bgl],
                     push_constant_ranges: &[],
                 }),
             ),

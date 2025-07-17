@@ -350,7 +350,13 @@ impl Renderer {
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
-                required_limits: wgpu::Limits::downlevel_webgl2_defaults(),
+                required_limits: wgpu::Limits {
+                    // Sorry Firefox Android users...
+                    // https://web3dsurvey.com/webgl/parameters/MAX_TEXTURE_SIZE
+                    max_texture_dimension_2d: 8192,
+                    max_texture_dimension_1d: 8192,
+                    ..wgpu::Limits::downlevel_webgl2_defaults()
+                },
                 label: Some(canvas_id),
                 ..Default::default()
             })

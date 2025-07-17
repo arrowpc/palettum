@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useMediaStore } from "@/stores/media";
 import { useConfigStore } from "@/stores/config";
+import { MAX_DIMENSION } from "@/lib/constants";
 
 interface DraggableDimensionLabelProps {
   id: string;
@@ -113,7 +114,7 @@ export const Dimensions: React.FC = () => {
   }, [meta, resizedWidth, resizedHeight]);
 
   const clampDimension = (n: number): number =>
-    Math.min(Math.max(1, n), 4096);
+    Math.min(Math.max(1, n), MAX_DIMENSION);
 
   const handleWidthChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,7 +266,7 @@ export const Dimensions: React.FC = () => {
             value={dimensions.width}
             onChange={handleWidthChange}
             min="1"
-            max={4096}
+            max={MAX_DIMENSION}
             placeholder="Width"
             className="w-20 h-full px-3 text-sm border-0 focus-visible:ring-0"
           />
@@ -287,7 +288,7 @@ export const Dimensions: React.FC = () => {
             value={dimensions.height}
             onChange={handleHeightChange}
             min="1"
-            max={4096}
+            max={MAX_DIMENSION}
             placeholder="Height"
             className="w-20 h-full px-3 text-sm border-0 focus-visible:ring-0"
           />

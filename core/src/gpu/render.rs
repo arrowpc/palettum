@@ -15,7 +15,6 @@ const CONFIG_UNIFORM_BYTES: u64 = std::mem::size_of::<GpuConfig>() as u64;
 struct Canvas {
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
-    id: String,
 }
 
 #[derive(Default)]
@@ -127,11 +126,7 @@ impl Renderer {
         let config = self.configure_surface(&new_ctx, &surface, &canvas);
         surface.configure(&new_ctx.device, &config);
 
-        let canvas_handle = Arc::new(Canvas {
-            id: canvas_id.clone(),
-            surface,
-            config,
-        });
+        let canvas_handle = Arc::new(Canvas { surface, config });
 
         self.canvas_cache.insert(canvas_id, canvas_handle);
 
@@ -276,11 +271,12 @@ impl Renderer {
             });
 
         {
-            let _rpass = enc.begin_render_pass(&wgpu::RenderPassDescriptor {
+            enc.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("clear_canvas_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                         store: wgpu::StoreOp::Store,
@@ -710,6 +706,7 @@ impl Renderer {
                     label: Some("full_to_resized_blit_pass"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &dst_view,
+                        depth_slice: None,
                         resolve_target: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -821,6 +818,7 @@ impl Renderer {
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &dst_view_h,
                         resolve_target: None,
+                        depth_slice: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                             store: wgpu::StoreOp::Store,
@@ -913,6 +911,7 @@ impl Renderer {
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &dst_view_v,
                         resolve_target: None,
+                        depth_slice: None,
                         ops: wgpu::Operations {
                             load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                             store: wgpu::StoreOp::Store,
@@ -976,6 +975,7 @@ impl Renderer {
                 label: Some("work_blit_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &dst_view,
+                    depth_slice: None,
                     resolve_target: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -1208,6 +1208,7 @@ impl Renderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                         store: wgpu::StoreOp::Store,

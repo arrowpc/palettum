@@ -130,19 +130,16 @@ impl Renderer {
             }
         } else {
             // WebGL: per-canvas context
-            if self.context.is_some() {
-                log::debug!(
-                    "New canvas registration is replacing an old context. Invalidating resources."
-                );
-                self.full_tex = None;
-                self.work_tex = None;
-                self.work_bg = None;
-                self.present_buf = None;
-                self.config_buf = None;
-                self.resized_tex = None;
-                self.horizontal_pass_tex = None;
-            }
             let ctx: Arc<Context> = Arc::new(self.create_context(&surface).await?);
+
+            self.full_tex = None;
+            self.resized_tex = None;
+            self.horizontal_pass_tex = None;
+            self.work_tex = None;
+            self.work_bg = None;
+            self.present_buf = None;
+            self.config_buf = None;
+
             self.context_cache.insert(canvas_id.clone(), ctx.clone());
             self.context = Some(ctx.clone());
             ctx
@@ -177,7 +174,7 @@ impl Renderer {
                     .map_or(true, |current_ctx| !Arc::ptr_eq(current_ctx, new_ctx));
 
                 if is_switching_context {
-                    log::info!("Switching WebGL context, invalidating GPU resources.");
+                    log::info!("Switching WebGL context, invalidating GPU resources...");
                     self.context = Some(new_ctx.clone());
 
                     self.full_tex = None;
@@ -583,8 +580,8 @@ impl Renderer {
             .desired_resized_dims()
             .ok_or(JsValue::from_str("no full_tex"))?;
 
-        let skip_initial_resize = full_tex_size.width == desired_resized_w
-            && full_tex_size.height == desired_resized_h;
+        let skip_initial_resize =
+            full_tex_size.width == desired_resized_w && full_tex_size.height == desired_resized_h;
 
         if skip_initial_resize {
             // Skip horizontal and vertical resize passes, blit full_tex directly to resized_tex
@@ -653,9 +650,11 @@ impl Renderer {
                     dst_size.width as f32,
                     dst_size.height as f32,
                 ];
-                context
-                    .queue
-                    .write_buffer(&resize_uniform_buf, 0, bytemuck::cast_slice(&resize_data));
+                context.queue.write_buffer(
+                    &resize_uniform_buf,
+                    0,
+                    bytemuck::cast_slice(&resize_data),
+                );
 
                 let resize_uni_bg = context
                     .device
@@ -736,11 +735,12 @@ impl Renderer {
                     }],
                 });
 
-            let mut enc_h = context
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("resize_horizontal_enc"),
-                });
+            let mut enc_h =
+                context
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("resize_horizontal_enc"),
+                    });
             {
                 let mut rpass_h = enc_h.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("resize_horizontal_pass"),
@@ -828,11 +828,12 @@ impl Renderer {
                     }],
                 });
 
-            let mut enc_v = context
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("resize_vertical_enc"),
-                });
+            let mut enc_v =
+                context
+                    .device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("resize_vertical_enc"),
+                    });
             {
                 let mut rpass_v = enc_v.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("resize_vertical_pass"),

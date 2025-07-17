@@ -27,6 +27,10 @@ fn fs_main(
         pixel_to_process_linear = pow(dithered_srgb_255 / 255.0, vec3<f32>(2.2));
     }
 
+    if pixel_srgb.a * 255.0 < f32(config.transparency_threshold) {
+        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
+    }
+
     let pixel_srgb_u8 =
         vec3<u32>(round(pow(pixel_to_process_linear, vec3<f32>(1.0 / 2.2)) * 255.0));
     let packed_pixel_srgb = (pixel_srgb_u8.r & 0xFFu)
@@ -59,9 +63,6 @@ fn fs_main(
         srgb_to_linear(b_final_srgb),
     );
 
-    if pixel_srgb.a * 255.0 < f32(config.transparency_threshold) {
-        return vec4<f32>(0.0, 0.0, 0.0, 0.0);
-    }
 
-    return vec4<f32>(final_rgb_linear, pixel_srgb.a);
+    return vec4<f32>(final_rgb_linear, 1.0);
 }

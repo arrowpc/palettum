@@ -101,7 +101,6 @@ impl Image {
                 trns_alphas.push(255u8); // A (Opaque)
             }
 
-            let transparent_index = (palette.len() - 1) as u8;
             let transparent_color = &palette[palette.len() - 1];
             plte_palette.push(transparent_color.0[0]);
             plte_palette.push(transparent_color.0[1]);
@@ -113,8 +112,12 @@ impl Image {
 
             let mut writer = encoder.write_header()?;
 
+            // last entry in palette is the transparent placeholder
+            let transparent_index = (palette.len() - 1) as u8;
+
             let color_to_index: HashMap<Rgb<u8>, u8> = palette
                 .iter()
+                .take(palette.len() - 1) // skip the last entry
                 .enumerate()
                 .map(|(i, color)| (*color, i as u8))
                 .collect();

@@ -270,6 +270,7 @@ export class VideoHandler {
 
       const bmp = await createImageBitmap(nextFrame);
       r.draw(bmp);
+      bmp.close();
       const durMs =
         typeof nextFrame.duration === "number" ? nextFrame.duration / 1000 : 33;
       nextFrame.close();

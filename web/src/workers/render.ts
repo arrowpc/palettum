@@ -32,15 +32,19 @@ const api = {
     renderer.set_config(cfg);
   },
 
-  async load(file: File) {
+  async load(file: File, onProgress?: (progress: number) => void) {
     if (mediaHandler) await mediaHandler.dispose();
-    mediaHandler = await createMediaHandlerForFile(file);
+    mediaHandler = await createMediaHandlerForFile(
+      file,
+      onProgress ? proxy(onProgress) : undefined,
+    );
     await mediaHandler.init();
 
     const mediaInfo: MediaInfo = {
       canPlay: typeof mediaHandler.play === "function",
       canPause: typeof mediaHandler.pause === "function",
       canSeek: typeof mediaHandler.seek === "function",
+      duration: mediaHandler.duration ?? 0,
       width: mediaHandler.width,
       height: mediaHandler.height,
     };
@@ -55,6 +59,7 @@ const api = {
       canPlay: typeof mediaHandler.play === "function",
       canPause: typeof mediaHandler.pause === "function",
       canSeek: typeof mediaHandler.seek === "function",
+      duration: mediaHandler.duration ?? 0,
       width: mediaHandler.width,
       height: mediaHandler.height,
     };
@@ -93,6 +98,7 @@ export interface MediaInfo {
   canPlay: boolean;
   canPause: boolean;
   canSeek: boolean;
+  duration: number;
   width: number;
   height: number;
 }
@@ -101,7 +107,10 @@ export type RendererAPI = Omit<typeof api, "export" | "load"> & {
   export: (
     onProgress?: (progress: number, message: string) => void,
   ) => Promise<Blob>;
-  load: (file: File) => Promise<MediaInfo>;
+  load: (
+    file: File,
+    onProgress?: (progress: number) => void,
+  ) => Promise<MediaInfo>;
 };
 
 expose(api);

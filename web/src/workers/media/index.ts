@@ -13,7 +13,10 @@ export type MediaHandler =
   | typeof ImageHandler
   | typeof VideoHandler;
 
-export async function createMediaHandlerForFile(file: File) {
+export async function createMediaHandlerForFile(
+  file: File,
+  onProgress?: (progress: number) => void,
+) {
   const extension = file.name.split(".").pop()?.toLowerCase();
   if (!extension) throw new Error("File has no extension");
 
@@ -22,5 +25,5 @@ export async function createMediaHandlerForFile(file: File) {
   );
   if (!handlerInfo) throw new Error(`Unsupported file type: ${extension}`);
 
-  return new handlerInfo.handler(file);
+  return new handlerInfo.handler(file, { onProgress });
 }

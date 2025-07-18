@@ -1,4 +1,7 @@
-import type { LibAV as LibAVInstance } from "@libav.js/variant-webcodecs";
+import type {
+  LibAV as LibAVInstance,
+  Stream,
+} from "@libav.js/variant-webcodecs";
 import type * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
 import { initLibAV } from "../libav";
 import { getRenderer } from "../core/renderer";
@@ -18,7 +21,7 @@ function toLibAVTimestamp(value: number): [number, number] {
     value = 0;
   }
 
-  const bigIntValue = BigInt(value);
+  const bigIntValue = BigInt(Math.round(value));
   const low = Number(bigIntValue & 0xffffffffn);
   const high = Number(bigIntValue >> 32n);
   return [low, high];
@@ -121,23 +124,25 @@ class AdaptiveFrameBuffer {
   private started = false;
 }
 
+interface VideoHandlerOptions {
+  bufferGoalMs?: number;
+  readChunkBytes?: number;
+  loop?: boolean;
+  onProgress?: (progress: number) => void;
+}
+
 export class VideoHandler {
-  constructor(
-    file: File,
-    opts?: {
-      bufferGoalMs?: number;
-      readChunkBytes?: number;
-      loop?: boolean;
-    },
-  ) {
+  constructor(file: File, opts?: VideoHandlerOptions) {
     this.file = file;
     this.bufferGoalMs = opts?.bufferGoalMs ?? 100;
     this.readChunkBytes = opts?.readChunkBytes ?? 64 * 1024;
     this.loopEnabled = opts?.loop ?? true;
+    this.onProgress = opts?.onProgress;
   }
 
   width = 0;
   height = 0;
+  duration = 0; // in seconds
 
   play(): void {
     if (this.playing) return;
@@ -161,39 +166,37 @@ export class VideoHandler {
     return this.playing;
   }
 
-  async seek(ms: number): Promise<void> {
-    if (!this.libav) throw new Error("not initialised");
-    if (this.seeking) return;
-    this.seeking = true;
+  async seek(timestampMs: number): Promise<void> {
+    if (this.disposed || !this.libav || !this.vStream) return;
 
+    const wasPlaying = this.playing;
+    this.pause();
     this.pausedBySeek = true;
 
     await this.decoder.flush();
+    this.frames.clear();
     this.decoder.reset();
-    // reconfigure the decoder as resetting can sometimes clear configuration
     this.decoder.configure(this.vConfig);
 
-    this.frames.clear();
+    this.firstPts = -1;
 
-    // reposition demuxer to the target timestamp
-    const targetPtsUs = ms * 1_000;
-    const [ts_lo, ts_hi] = toLibAVTimestamp(targetPtsUs);
+    const timestamp =
+      (timestampMs / 1000) *
+      (this.vStream.time_base_den / this.vStream.time_base_num);
+    const [ts_lo, ts_hi] = toLibAVTimestamp(timestamp);
 
     await this.libav.av_seek_frame(
       this.ifc,
-      -1,
+      this.vStreamIndex,
       ts_lo,
       ts_hi,
       this.libav.AVSEEK_FLAG_BACKWARD,
     );
 
-    // Playback time needs to be re-synced relative
-    // to the new starting point (the PTS of the first frame after seek)
-    this.playStart = performance.now();
-    this.firstPts = -1;
-
     this.pausedBySeek = false;
-    this.seeking = false;
+    if (wasPlaying) {
+      this.play();
+    }
   }
 
   async dispose(): Promise<void> {
@@ -229,10 +232,15 @@ export class VideoHandler {
     );
     if (vIdx === -1) throw new Error("no video stream");
 
-    const vStream = streams[vIdx];
+    // Store the video stream and its index for later use (seeking)
+    this.vStreamIndex = vIdx;
+    this.vStream = streams[vIdx];
+
+    this.duration = this.vStream.duration * 1000;
+
     const cfg = (await bridge.videoStreamToConfig(
       libav,
-      vStream,
+      this.vStream,
     )) as VideoDecoderConfig;
     if (!(await VideoDecoder.isConfigSupported(cfg)).supported) {
       throw new Error("codec not supported");
@@ -250,16 +258,17 @@ export class VideoHandler {
 
     this.rpkt = await libav.av_packet_alloc();
 
-    this.demuxLoop(vIdx, vStream).catch(console.error);
+    this.demuxLoop(this.vStreamIndex, this.vStream).catch(console.error);
     this.drawLoop().catch(console.error);
   }
-
   private file: File;
   private libav!: LibAVInstance;
   private bridge!: typeof LibAVWebCodecsBridge;
   private vConfig!: VideoDecoderConfig;
   private decoder!: VideoDecoder;
   private frames!: AdaptiveFrameBuffer;
+  private vStream!: Stream;
+  private vStreamIndex = -1;
 
   private ifc = 0;
   private rpkt = 0;
@@ -269,7 +278,6 @@ export class VideoHandler {
   private pauseMark: number | null = null;
   private loopEnabled = true;
   private disposed = false;
-  private seeking = false;
   private pausedBySeek = false;
 
   private firstPts: TimestampUs = -1;
@@ -277,8 +285,9 @@ export class VideoHandler {
 
   private readonly bufferGoalMs: number;
   private readonly readChunkBytes: number;
+  private readonly onProgress?: (progress: number) => void;
 
-  private async demuxLoop(vIdx: number, vStream: any): Promise<void> {
+  private async demuxLoop(vIdx: number, vStream: Stream): Promise<void> {
     if (!this.libav || !this.bridge) return;
 
     while (!this.disposed) {
@@ -340,7 +349,6 @@ export class VideoHandler {
     const draw = async (): Promise<void> => {
       if (this.disposed) return;
       this.raf = requestAnimationFrame(draw);
-
       if (!this.playing) return;
 
       const peek = this.frames.peek();
@@ -352,13 +360,12 @@ export class VideoHandler {
       }
 
       const ptsMs = (peek.pts - this.firstPts) / 1_000;
-      const target = this.playStart + ptsMs;
-
-      if (performance.now() < target) return; // not yet
+      this.onProgress?.(peek.pts / 1_000);
+      const drawAt = this.playStart + ptsMs;
+      if (performance.now() < drawAt) return;
 
       const q = this.frames.consume();
       if (!q) return;
-
       try {
         const bmp = await createImageBitmap(q.frame);
         renderer.draw(bmp);

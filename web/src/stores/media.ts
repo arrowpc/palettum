@@ -4,6 +4,7 @@ export interface MediaMeta {
   canPlay: boolean;
   canPause: boolean;
   canSeek: boolean;
+  duration: number;
   width: number;
   height: number;
 }

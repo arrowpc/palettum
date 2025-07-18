@@ -3,6 +3,10 @@ import type { Gif } from "palettum";
 
 const LOOP = true;
 
+interface GifHandlerOptions {
+  onProgress?: (progress: number) => void;
+}
+
 export class GifHandler {
   private gif: Gif | null = null;
   private frames: { bmp: ImageBitmap; dur: number }[] = [];
@@ -10,11 +14,14 @@ export class GifHandler {
   private playing = true;
   private loopHandle: number | undefined;
   private file: File;
+  private onProgress?: (progress: number) => void;
   public width = 0;
   public height = 0;
+  public duration = 0;
 
-  constructor(file: File) {
+  constructor(file: File, opts?: GifHandlerOptions) {
     this.file = file;
+    this.onProgress = opts?.onProgress;
   }
 
   async init() {
@@ -23,6 +30,7 @@ export class GifHandler {
     this.gif = new Gif(new Uint8Array(buffer));
     this.width = this.gif.width;
     this.height = this.gif.height;
+    this.duration = this.gif.num_frames;
     await this.reinitializeFrames();
     this.loop();
   }
@@ -56,6 +64,7 @@ export class GifHandler {
       }
       const { bmp, dur } = this.frames[this.idx];
       r.draw(bmp);
+      this.onProgress?.(this.idx);
       this.idx = (this.idx + 1) % this.frames.length;
       if (this.idx === 0 && !LOOP) {
         return;
@@ -80,6 +89,7 @@ export class GifHandler {
   seek(frameIndex: number) {
     if (this.gif && frameIndex >= 0 && frameIndex < this.gif.num_frames) {
       this.idx = frameIndex;
+      this.onProgress?.(this.idx);
       getRenderer().then((r) => r.draw(this.frames[this.idx].bmp));
     }
   }

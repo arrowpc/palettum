@@ -1,10 +1,28 @@
-const LOOP = true;
-
 import type { LibAV as LibAVInstance } from "@libav.js/variant-webcodecs";
 import type * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
 import { initLibAV } from "../libav";
 import { getRenderer } from "../core/renderer";
 import { BufferStream } from "../utils/buffer-stream";
+
+type TimestampUs = number;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function toLibAVTimestamp(value: number): [number, number] {
+  if (value < 0) {
+    console.warn(
+      "Negative timestamp provided to toLibAVTimestamp, treating as 0.",
+    );
+    value = 0;
+  }
+
+  const bigIntValue = BigInt(value);
+  const low = Number(bigIntValue & 0xffffffffn);
+  const high = Number(bigIntValue >> 32n);
+  return [low, high];
+}
 
 type LibAVFormatContext = number & {
   pb?: {
@@ -28,297 +46,407 @@ interface VideoEncoderEncodeOptions {
   };
 }
 
-// The way I resize here is nothing short of disgusting; it's 5am and I'm done thinking about this
-function createFrameModifier() {
-  let canvas: OffscreenCanvas | null = null;
-  let ctx: OffscreenCanvasRenderingContext2D | null = null;
-  return async function palettify(frame: any): Promise<VideoFrame> {
-    const { palettify_frame, resize_frame } = await import("palettum");
+interface Queued {
+  frame: VideoFrame;
+  pts: TimestampUs;
+  duration: TimestampUs;
+  arrival: DOMHighResTimeStamp;
+}
 
-    const tempCanvas = new OffscreenCanvas(frame.codedWidth, frame.codedHeight);
-    const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
-    if (!tempCtx) throw new Error("Could not get temporary canvas context");
+class AdaptiveFrameBuffer {
+  private readonly maxFrames: number;
+  private readonly initialWatermark: number;
+  private readonly queue: Queued[] = [];
+  private playing = true;
 
-    let imageBitmap = await createImageBitmap(frame);
-    tempCtx.drawImage(imageBitmap, 0, 0);
+  constructor(opts?: { initialWatermark?: number; maxFrames?: number }) {
+    this.initialWatermark = opts?.initialWatermark ?? 6;
+    this.maxFrames = opts?.maxFrames ?? 200;
+  }
 
-    const originalImageData = tempCtx.getImageData(
-      0,
-      0,
-      frame.codedWidth,
-      frame.codedHeight,
-    );
+  enqueue(frame: VideoFrame): void {
+    this.queue.push({
+      frame,
+      pts: frame.timestamp ?? 0,
+      duration: frame.duration ?? 33_333,
+      arrival: performance.now(),
+    });
 
-    const resizedFrame = await resize_frame(
-      new Uint8Array(originalImageData.data.buffer),
-      frame.codedWidth,
-      frame.codedHeight,
-    );
+    // keep pts ordered
+    // This is extremely important!! depending on the codecs and how it's implemented
+    // For more info learn about b-frames here: https://ottverse.com/i-p-b-frames-idr-keyframes-differences-usecases/#What_is_a_B-frame
+    this.queue.sort((a, b) => a.pts - b.pts);
 
-    const resizedWidth = resizedFrame.width;
-    const resizedHeight = resizedFrame.height;
-    const resizedBytes = resizedFrame.bytes;
-
-    if (
-      !canvas ||
-      canvas.width !== resizedWidth ||
-      canvas.height !== resizedHeight
-    ) {
-      canvas = new OffscreenCanvas(resizedWidth, resizedHeight);
-      ctx = canvas.getContext("2d", { willReadFrequently: true });
+    while (this.queue.length > this.maxFrames) {
+      this.queue.shift()!.frame.close();
     }
-    if (!ctx) throw new Error("Could not get canvas context");
+  }
 
-    const currentImageData = new ImageData(
-      new Uint8ClampedArray(resizedBytes),
-      resizedWidth,
-      resizedHeight,
-    );
+  clear(): void {
+    this.queue.forEach((q) => q.frame.close());
+    this.queue.length = 0;
+  }
 
-    ctx.putImageData(currentImageData, 0, 0);
+  size(): number {
+    return this.queue.length;
+  }
 
-    await palettify_frame(
-      new Uint8Array(currentImageData.data.buffer),
-      resizedWidth,
-      resizedHeight,
-    );
+  bufferedDurationMs(): number {
+    if (this.queue.length < 2) return 0;
+    const first = this.queue[0].pts;
+    const last = this.queue[this.queue.length - 1].pts;
+    return (last - first) / 1_000; // μs -> ms
+  }
 
-    ctx.putImageData(currentImageData, 0, 0);
+  consume(): Queued | null {
+    if (!this.playing) return null;
+    if (
+      this.queue.length === 0 ||
+      (this.queue.length < this.initialWatermark && !this.started)
+    ) {
+      return null;
+    }
+    this.started = true;
+    return this.queue.shift() ?? null;
+  }
 
-    const frameInit: VideoFrameBufferInit = {
-      duration: frame.duration,
-      timestamp: frame.timestamp,
-      codedWidth: resizedWidth,
-      codedHeight: resizedHeight,
-      format: "RGBA",
-      colorSpace: {
-        primaries: "bt709",
-        transfer: "bt709",
-        matrix: "bt709",
-        fullRange: true,
-      },
-    };
-    let newFrame = new VideoFrame(canvas, frameInit);
-    frame.close();
-    return newFrame;
-  };
+  peek(): Queued | null {
+    return this.queue[0] ?? null;
+  }
+
+  setPlaying(p: boolean): void {
+    this.playing = p;
+  }
+
+  private started = false;
 }
 
 export class VideoHandler {
-  private playing = true;
-  private disposed = false;
-  private frameQueue = new BufferStream<VideoFrame>();
-  private vConfig: VideoDecoderConfig | null = null;
-  private drawHandle: number | undefined;
-  private ifc = 0;
-  private rpkt = 0;
-  private decoder!: VideoDecoder;
-  private frameReader: ReadableStreamDefaultReader<VideoFrame | null> | null =
-    null;
-  private libav: LibAVInstance | null = null;
-  private bridge: typeof LibAVWebCodecsBridge | null = null;
-  private file: Blob;
-  public width = 0;
-  public height = 0;
-
-  constructor(file: File) {
+  constructor(
+    file: File,
+    opts?: {
+      bufferGoalMs?: number;
+      readChunkBytes?: number;
+      loop?: boolean;
+    },
+  ) {
     this.file = file;
+    this.bufferGoalMs = opts?.bufferGoalMs ?? 100;
+    this.readChunkBytes = opts?.readChunkBytes ?? 64 * 1024;
+    this.loopEnabled = opts?.loop ?? true;
   }
 
-  async init(): Promise<void> {
-    this.frameQueue = new BufferStream<VideoFrame>();
-    const { libav, bridge } = await initLibAV();
-    this.libav = libav;
-    this.bridge = bridge;
-    await libav.mkreadaheadfile("input", this.file);
-    const [ifc, istreams] = await libav.ff_init_demuxer_file("input");
-    this.ifc = ifc;
-    const vIdx = istreams.findIndex(
-      (s) => s.codec_type === libav.AVMEDIA_TYPE_VIDEO,
-    );
-    if (vIdx < 0) throw new Error("No video stream found in file.");
-    const vStream = istreams[vIdx];
-    const vConfig = await bridge.videoStreamToConfig(libav, vStream);
-    if (!vConfig) return;
-    this.vConfig = vConfig as VideoDecoderConfig;
-    this.width = this.vConfig.codedWidth || 0;
-    this.height = this.vConfig.codedHeight || 0;
-    if (
-      !(await VideoDecoder.isConfigSupported(vConfig as VideoDecoderConfig))
-        .supported
-    ) {
-      throw new Error("Video codec not supported by WebCodecs.");
+  width = 0;
+  height = 0;
+
+  play(): void {
+    if (this.playing) return;
+    const now = performance.now();
+    if (this.pauseMark !== null) {
+      this.playStart += now - this.pauseMark;
+      this.pauseMark = null;
     }
-    this.decoder = new VideoDecoder({
-      output: (f) => this.frameQueue.push(f),
-      error: (e) => console.error("VideoDecoder error:", e),
-    });
-    this.decoder.configure(vConfig as VideoDecoderConfig);
-    this.rpkt = await libav.av_packet_alloc();
-    this.startDemuxDecodeLoop(vIdx, vStream);
-    this.loopDraw();
-  }
-
-  private async startDemuxDecodeLoop(vIdx: number, vStream: any) {
-    (async () => {
-      if (!(this.libav && this.bridge)) return;
-      try {
-        const READ_LIMIT = 64 * 1024;
-
-        while (!this.disposed) {
-          // Pause demuxing if frameQueue is too full
-          while (this.frameQueue.size() > 30 && !this.disposed) {
-            await new Promise((resolve) => setTimeout(resolve, 50));
-          }
-
-          const [res, packets] = await this.libav.ff_read_frame_multi(
-            this.ifc,
-            this.rpkt,
-            { limit: READ_LIMIT }, // Only read up to 64KB at a time
-          );
-
-          if (packets[vIdx]) {
-            for (const pkt of packets[vIdx]) {
-              const chunk = this.bridge.packetToEncodedVideoChunk(pkt, vStream);
-              this.decoder.decode(chunk);
-            }
-          }
-
-          if (res === this.libav.AVERROR_EOF) {
-            if (LOOP) {
-              await this.decoder.flush();
-
-              this.frameQueue.push(null);
-
-              await this.libav.avformat_seek_file(
-                this.ifc,
-                -1,
-                0,
-                0,
-                0,
-                0,
-                0,
-                0,
-                this.libav.AVSEEK_FLAG_ANY,
-              );
-
-              this.decoder.reset();
-              this.decoder.configure(this.vConfig!);
-
-              this.frameQueue = new BufferStream<VideoFrame>();
-
-              continue;
-            } else {
-              break;
-            }
-          }
-        }
-        if (!LOOP || this.disposed) {
-          await this.decoder.flush();
-          this.frameQueue.push(null);
-        }
-      } catch (err) {
-        console.error("Demux/decode loop failed:", err);
-      }
-    })();
-  }
-
-  private async loopDraw() {
-    this.frameReader = this.frameQueue.getReader();
-    const { value: first } = await this.frameReader.read();
-    if (!first) return;
-    const r = await getRenderer();
-    let nextFrame: VideoFrame | null = first;
-
-    const drawNext = async () => {
-      if (this.disposed) return;
-      if (!this.playing) {
-        this.drawHandle = self.setTimeout(drawNext, 50);
-        return;
-      }
-
-      if (!nextFrame) {
-        const { done, value } = await this.frameReader!.read();
-
-        if (done) {
-          if (LOOP) {
-            // The old stream has ended. We get a reader for the new stream
-            this.frameReader?.releaseLock();
-            this.frameReader = this.frameQueue.getReader();
-
-            const { value: newFirstFrame } = await this.frameReader.read();
-
-            if (newFirstFrame) {
-              nextFrame = newFirstFrame;
-            } else {
-              // This case is less likely now but good for safety
-              // It might happen if the video is disposed during the loop transition
-              this.drawHandle = self.setTimeout(drawNext, 50);
-              return;
-            }
-          } else {
-            return; // Not looping, so stop drawing
-          }
-        } else {
-          nextFrame = value || null;
-        }
-      }
-
-      if (!nextFrame) {
-        return;
-      }
-
-      const bmp = await createImageBitmap(nextFrame);
-      r.draw(bmp);
-      bmp.close();
-      const durMs =
-        typeof nextFrame.duration === "number" ? nextFrame.duration / 1000 : 33;
-      nextFrame.close();
-      nextFrame = null;
-      this.drawHandle = self.setTimeout(drawNext, durMs);
-    };
-    drawNext();
-  }
-
-  play() {
     this.playing = true;
+    this.frames.setPlaying(true);
   }
 
-  pause() {
+  pause(): void {
+    if (!this.playing) return;
+    this.pauseMark = performance.now();
     this.playing = false;
+    this.frames.setPlaying(false);
   }
 
-  isPlaying() {
+  isPlaying(): boolean {
     return this.playing;
   }
 
-  seek(_t: number) {
-    console.warn("LibAVVideoPlayer.seek() not implemented.");
+  async seek(ms: number): Promise<void> {
+    if (!this.libav) throw new Error("not initialised");
+    if (this.seeking) return;
+    this.seeking = true;
+
+    this.pausedBySeek = true;
+
+    await this.decoder.flush();
+    this.decoder.reset();
+    // reconfigure the decoder as resetting can sometimes clear configuration
+    this.decoder.configure(this.vConfig);
+
+    this.frames.clear();
+
+    // reposition demuxer to the target timestamp
+    const targetPtsUs = ms * 1_000;
+    const [ts_lo, ts_hi] = toLibAVTimestamp(targetPtsUs);
+
+    await this.libav.av_seek_frame(
+      this.ifc,
+      -1,
+      ts_lo,
+      ts_hi,
+      this.libav.AVSEEK_FLAG_BACKWARD,
+    );
+
+    // Playback time needs to be re-synced relative
+    // to the new starting point (the PTS of the first frame after seek)
+    this.playStart = performance.now();
+    this.firstPts = -1;
+
+    this.pausedBySeek = false;
+    this.seeking = false;
   }
 
-  async dispose() {
+  async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    self.clearTimeout(this.drawHandle);
 
-    // Drain and close all frames in the queue
-    if (this.frameReader) {
-      while (true) {
-        const { done, value } = await this.frameReader.read();
-        if (done) break;
-        if (value) value.close();
-      }
-      this.frameReader = null;
-    }
+    cancelAnimationFrame(this.raf);
+    this.frames.clear();
+    this.decoder?.close();
 
     if (this.libav) {
       try {
         await this.libav.unlink("input");
-      } catch (e) {}
+      } catch {}
       if (this.ifc) await this.libav.avformat_close_input_js(this.ifc);
       if (this.rpkt) await this.libav.av_packet_free(this.rpkt);
     }
-    this.decoder?.close();
+  }
+
+  async init(): Promise<void> {
+    this.frames = new AdaptiveFrameBuffer();
+
+    const { libav, bridge } = await initLibAV();
+    this.libav = libav;
+    this.bridge = bridge;
+
+    await libav.mkreadaheadfile("input", this.file);
+    const [ifc, streams] = await libav.ff_init_demuxer_file("input");
+    this.ifc = ifc;
+
+    const vIdx = streams.findIndex(
+      (s) => s.codec_type === libav.AVMEDIA_TYPE_VIDEO,
+    );
+    if (vIdx === -1) throw new Error("no video stream");
+
+    const vStream = streams[vIdx];
+    const cfg = (await bridge.videoStreamToConfig(
+      libav,
+      vStream,
+    )) as VideoDecoderConfig;
+    if (!(await VideoDecoder.isConfigSupported(cfg)).supported) {
+      throw new Error("codec not supported");
+    }
+
+    this.vConfig = cfg;
+    this.width = cfg.codedWidth ?? 0;
+    this.height = cfg.codedHeight ?? 0;
+
+    this.decoder = new VideoDecoder({
+      output: (frame) => this.frames.enqueue(frame),
+      error: (e) => console.error("decoder:", e),
+    });
+    this.decoder.configure(cfg);
+
+    this.rpkt = await libav.av_packet_alloc();
+
+    this.demuxLoop(vIdx, vStream).catch(console.error);
+    this.drawLoop().catch(console.error);
+  }
+
+  private file: File;
+  private libav!: LibAVInstance;
+  private bridge!: typeof LibAVWebCodecsBridge;
+  private vConfig!: VideoDecoderConfig;
+  private decoder!: VideoDecoder;
+  private frames!: AdaptiveFrameBuffer;
+
+  private ifc = 0;
+  private rpkt = 0;
+
+  private playing = true;
+  private playStart = 0;
+  private pauseMark: number | null = null;
+  private loopEnabled = true;
+  private disposed = false;
+  private seeking = false;
+  private pausedBySeek = false;
+
+  private firstPts: TimestampUs = -1;
+  private raf = 0;
+
+  private readonly bufferGoalMs: number;
+  private readonly readChunkBytes: number;
+
+  private async demuxLoop(vIdx: number, vStream: any): Promise<void> {
+    if (!this.libav || !this.bridge) return;
+
+    while (!this.disposed) {
+      if (!this.playing || this.pausedBySeek) {
+        await sleep(20);
+        continue;
+      }
+
+      const bufMs = this.frames.bufferedDurationMs();
+      if (bufMs > this.bufferGoalMs || this.frames.size() >= this.framesMax()) {
+        await sleep(20);
+        continue;
+      }
+
+      const [res, packets] = await this.libav.ff_read_frame_multi(
+        this.ifc,
+        this.rpkt,
+        { limit: this.readChunkBytes },
+      );
+
+      if (packets[vIdx]) {
+        for (const pkt of packets[vIdx]) {
+          const chunk = this.bridge.packetToEncodedVideoChunk(pkt, vStream);
+          this.decoder.decode(chunk);
+        }
+      }
+
+      if (res === this.libav.AVERROR_EOF) {
+        await this.decoder.flush();
+        if (this.loopEnabled) {
+          // If looping, seek back to the beginning
+          const [ts_lo, ts_hi] = toLibAVTimestamp(0);
+          await this.libav.av_seek_frame(
+            this.ifc,
+            -1,
+            ts_lo,
+            ts_hi,
+            this.libav.AVSEEK_FLAG_BACKWARD,
+          );
+          this.decoder.reset();
+          this.decoder.configure(this.vConfig);
+          this.frames.clear();
+          this.firstPts = -1;
+          continue;
+        }
+        break;
+      }
+    }
+  }
+
+  private framesMax(): number {
+    // 1 second of 60 fps ≈ 60 frames
+    return 60;
+  }
+
+  private async drawLoop(): Promise<void> {
+    const renderer = await getRenderer();
+
+    const draw = async (): Promise<void> => {
+      if (this.disposed) return;
+      this.raf = requestAnimationFrame(draw);
+
+      if (!this.playing) return;
+
+      const peek = this.frames.peek();
+      if (!peek) return;
+
+      if (this.firstPts === -1) {
+        this.firstPts = peek.pts;
+        this.playStart = performance.now();
+      }
+
+      const ptsMs = (peek.pts - this.firstPts) / 1_000;
+      const target = this.playStart + ptsMs;
+
+      if (performance.now() < target) return; // not yet
+
+      const q = this.frames.consume();
+      if (!q) return;
+
+      try {
+        const bmp = await createImageBitmap(q.frame);
+        renderer.draw(bmp);
+      } finally {
+        q.frame.close();
+      }
+    };
+
+    this.raf = requestAnimationFrame(draw);
+  }
+
+  // The way I resize here is nothing short of disgusting; it's 5am and I'm done thinking about this
+  private createFrameModifier() {
+    let canvas: OffscreenCanvas | null = null;
+    let ctx: OffscreenCanvasRenderingContext2D | null = null;
+    return async function palettify(frame: any): Promise<VideoFrame> {
+      const { palettify_frame, resize_frame } = await import("palettum");
+
+      const tempCanvas = new OffscreenCanvas(
+        frame.codedWidth,
+        frame.codedHeight,
+      );
+      const tempCtx = tempCanvas.getContext("2d", { willReadFrequently: true });
+      if (!tempCtx) throw new Error("Could not get temporary canvas context");
+
+      let imageBitmap = await createImageBitmap(frame);
+      tempCtx.drawImage(imageBitmap, 0, 0);
+
+      const originalImageData = tempCtx.getImageData(
+        0,
+        0,
+        frame.codedWidth,
+        frame.codedHeight,
+      );
+
+      const resizedFrame = await resize_frame(
+        new Uint8Array(originalImageData.data.buffer),
+        frame.codedWidth,
+        frame.codedHeight,
+      );
+
+      const resizedWidth = resizedFrame.width;
+      const resizedHeight = resizedFrame.height;
+      const resizedBytes = resizedFrame.bytes;
+
+      if (
+        !canvas ||
+        canvas.width !== resizedWidth ||
+        canvas.height !== resizedHeight
+      ) {
+        canvas = new OffscreenCanvas(resizedWidth, resizedHeight);
+        ctx = canvas.getContext("2d", { willReadFrequently: true });
+      }
+      if (!ctx) throw new Error("Could not get canvas context");
+
+      const currentImageData = new ImageData(
+        new Uint8ClampedArray(resizedBytes),
+        resizedWidth,
+        resizedHeight,
+      );
+
+      ctx.putImageData(currentImageData, 0, 0);
+
+      await palettify_frame(
+        new Uint8Array(currentImageData.data.buffer),
+        resizedWidth,
+        resizedHeight,
+      );
+
+      ctx.putImageData(currentImageData, 0, 0);
+
+      const frameInit: VideoFrameBufferInit = {
+        duration: frame.duration,
+        timestamp: frame.timestamp,
+        codedWidth: resizedWidth,
+        codedHeight: resizedHeight,
+        format: "RGBA",
+        colorSpace: {
+          primaries: "bt709",
+          transfer: "bt709",
+          matrix: "bt709",
+          fullRange: true,
+        },
+      };
+      let newFrame = new VideoFrame(canvas, frameInit);
+      frame.close();
+      return newFrame;
+    };
   }
 
   async export(
@@ -514,7 +642,7 @@ export class VideoHandler {
       }
     })();
 
-    const modifyFrame = createFrameModifier();
+    const modifyFrame = this.createFrameModifier();
 
     const encoderPromises = encoders.map(({ encoder, config }, i) => {
       return (async () => {

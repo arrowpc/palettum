@@ -1,4 +1,3 @@
-// Extended FieldDef to support custom formatting
 export interface FieldDef<O> {
   /** the key in your options object */
   key: keyof O;
@@ -46,11 +45,12 @@ function pad2(n: number): string {
   return padN(n, 2);
 }
 
-/** Build a tag like "vp09.02.10.10.…" or "av01.0.04M.10.…" */
+/**
+ * Build a tag like "vp09.02.10.10.…" or "av01.0.04M.10" or "avc1.42E01E".
+ */
 export function buildTag<O>(def: CodecDef<O>, opts: O): string {
   validateOpts(def, opts);
 
-  // Handle AV1 trailing defaults omission
   let parts = def.fields.map((f) => {
     if (f.format) {
       return f.format(f.encode(opts), opts);
@@ -74,7 +74,10 @@ export function buildTag<O>(def: CodecDef<O>, opts: O): string {
     }
   }
 
-  return `${def.fourcc}.${parts.join(".")}`;
+  // Filter out empty parts from fields that are packed into another field
+  const finalParts = parts.filter((p) => p !== "");
+
+  return `${def.fourcc}.${finalParts.join(".")}`;
 }
 
 /** Parse a tag back into a fully-populated opts object */
@@ -453,6 +456,90 @@ export const av1Def: CodecDef<Av1Opts> = {
       },
       group: "optional",
       label: "Full Range",
+    },
+  ],
+};
+
+/** Options for AVC (H.264) codec string */
+/** https://tools.ietf.org/html/rfc6381#section-3.3 */
+export interface AvcOpts {
+  /** profile_idc: e.g., 66 (Baseline), 77 (Main), 100 (High) */
+  profile: number;
+  /** 8-bit constraints byte (constraint_set0_flag to constraint_set5_flag) */
+  constraints: number;
+  /** level_idc: e.g., 30 (Level 3.0), 41 (Level 4.1) */
+  level: number;
+}
+
+export const avcDef: CodecDef<AvcOpts> = {
+  fourcc: "avc1",
+  fields: [
+    {
+      key: "profile",
+      mandatory: true,
+      default: 66, // Baseline
+      allowed: [66, 77, 88, 100, 110, 122, 144, 244, 83, 86],
+      encode: (o) => o.profile,
+      decode: (v, t) => {
+        t.profile = v;
+      },
+      label: "Profile",
+      format: (_v, opts) => {
+        // This field formats all three properties into the 6-char hex string
+        const p = opts.profile;
+        const c = opts.constraints ?? 0;
+        const l = opts.level;
+        const profileHex = p.toString(16).padStart(2, "0");
+        const constraintsHex = c.toString(16).padStart(2, "0");
+        const levelHex = l.toString(16).padStart(2, "0");
+        return `${profileHex}${constraintsHex}${levelHex}`;
+      },
+      parse: (segment, target) => {
+        // This field parses the 6-char hex string into all three properties
+        if (segment.length !== 6) {
+          throw new Error(
+            `Invalid avcoti segment: ${segment}. Must be 6 hex characters.`,
+          );
+        }
+        target.profile = parseInt(segment.substring(0, 2), 16);
+        target.constraints = parseInt(segment.substring(2, 4), 16);
+        target.level = parseInt(segment.substring(4, 6), 16);
+        return target.profile;
+      },
+    },
+    {
+      key: "constraints",
+      mandatory: false, // Mandatory, but marked false to work with parser
+      default: 0,
+      allowed: () => Array.from({ length: 256 }, (_, i) => i),
+      encode: (o) => o.constraints,
+      decode: (v, t) => {
+        // Only set from default if not already parsed by the profile field
+        if (t.constraints === undefined) {
+          t.constraints = v;
+        }
+      },
+      label: "Constraints",
+      format: () => "", // Handled by profile field
+      parse: () => 0, // Handled by profile field
+    },
+    {
+      key: "level",
+      mandatory: false, // Mandatory, but marked false to work with parser
+      default: 30, // Level 3.0
+      allowed: [
+        10, 9, 11, 12, 13, 20, 21, 22, 30, 31, 32, 40, 41, 42, 50, 51, 52,
+      ],
+      encode: (o) => o.level,
+      decode: (v, t) => {
+        // Only set from default if not already parsed by the profile field
+        if (t.level === undefined) {
+          t.level = v;
+        }
+      },
+      label: "Level",
+      format: () => "", // Handled by profile field
+      parse: () => 0, // Handled by profile field
     },
   ],
 };

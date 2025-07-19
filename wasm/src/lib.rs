@@ -42,10 +42,32 @@ pub async fn palettify(bytes: Vec<u8>) -> Result<Vec<u8>> {
 }
 
 #[wasm_bindgen]
-pub async fn palettify_frame(bytes: &mut [u8], width: u32, height: u32) -> Result<()> {
+pub struct Dimensions {
+    pub width: u32,
+    pub height: u32,
+}
+
+#[wasm_bindgen]
+pub async fn get_dimensions() -> Result<Dimensions> {
     let instance = get_gpu_instance().await?;
     let config = instance.config.read();
-    process_pixels(bytes, width, height, &config).await
+    Ok(Dimensions {
+        width: config.resize_width.unwrap(),
+        height: config.resize_height.unwrap(),
+    })
+}
+
+#[wasm_bindgen]
+pub async fn palettify_frame(bytes: &mut [u8]) -> Result<()> {
+    let instance = get_gpu_instance().await?;
+    let config = instance.config.read();
+    process_pixels(
+        bytes,
+        config.resize_width.unwrap(),
+        config.resize_height.unwrap(),
+        &config,
+    )
+    .await
 }
 
 #[wasm_bindgen]

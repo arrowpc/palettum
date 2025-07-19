@@ -432,11 +432,7 @@ export class VideoHandler {
 
       ctx.putImageData(currentImageData, 0, 0);
 
-      await palettify_frame(
-        new Uint8Array(currentImageData.data.buffer),
-        resizedWidth,
-        resizedHeight,
-      );
+      await palettify_frame(new Uint8Array(currentImageData.data.buffer));
 
       ctx.putImageData(currentImageData, 0, 0);
 
@@ -534,12 +530,15 @@ export class VideoHandler {
         });
         decoder.configure(decoderConfig as VideoDecoderConfig);
 
+        const { get_dimensions } = await import("palettum");
+        let dims = await get_dimensions();
+
         let encConfig: VideoEncoderConfig;
         if (decoderConfig.codedWidth && decoderConfig.codedHeight) {
           encConfig = {
             codec: vc,
-            width: decoderConfig.codedWidth,
-            height: decoderConfig.codedHeight,
+            width: dims.width,
+            height: dims.height,
             bitrateMode: "quantizer",
             latencyMode: "quality",
             // TODO: Figure out why this breaks

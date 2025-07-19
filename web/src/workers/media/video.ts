@@ -227,6 +227,7 @@ export class VideoHandler {
     await libav.mkreadaheadfile("input", this.file);
     const [ifc, streams] = await libav.ff_init_demuxer_file("input");
     this.ifc = ifc;
+    this.istreams = streams;
 
     const vIdx = streams.findIndex(
       (s) => s.codec_type === libav.AVMEDIA_TYPE_VIDEO,
@@ -270,6 +271,7 @@ export class VideoHandler {
   private frames!: AdaptiveFrameBuffer;
   private vStream!: Stream;
   private vStreamIndex = -1;
+  private istreams: Stream[] = [];
 
   private ifc = 0;
   private rpkt = 0;
@@ -459,44 +461,38 @@ export class VideoHandler {
 
   async export(
     onProgress?: (progress: number, message: string) => void,
-    opts?: any,
   ): Promise<Blob> {
-    if (!this.libav || !this.bridge) {
+    if (this.disposed || !this.libav || !this.bridge) {
       throw new Error("LibAV not initialized for export.");
     }
 
     this.pause();
 
-    const tempLibav = this.libav;
+    const libav = this.libav;
     const bridge = this.bridge;
 
-    // Probe for duration
-    await tempLibav.mkreadaheadfile("input-export-probe", this.file);
-    const [probeIfc, probeStreams] =
-      await tempLibav.ff_init_demuxer_file("input-export-probe");
-
-    const videoStream = probeStreams.find(
-      (s) => s.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO,
-    );
-
-    if (!videoStream || !videoStream.duration || !videoStream.time_base_num) {
+    const totalDurationUs = this.vStream.duration * this.vStream.time_base_num;
+    if (totalDurationUs <= 0) {
       throw new Error(
         "Could not determine video duration from stream metadata.",
       );
     }
 
-    const durationInSeconds = videoStream.duration * videoStream.time_base_num;
-    const totalDuration = durationInSeconds * 1_000_000;
-
-    await tempLibav.avformat_close_input_js(probeIfc);
-    await tempLibav.unlink("input-export-probe");
-
     onProgress?.(0, "Analyzing input file...");
-    await tempLibav.mkreadaheadfile("input-export", this.file);
-    const [ifc, istreams] =
-      await tempLibav.ff_init_demuxer_file("input-export");
-    const rpkt = await tempLibav.av_packet_alloc();
-    const wpkt = await tempLibav.av_packet_alloc();
+
+    const [ts_lo, ts_hi] = toLibAVTimestamp(0);
+    await libav.av_seek_frame(
+      this.ifc,
+      -1,
+      ts_lo,
+      ts_hi,
+      libav.AVSEEK_FLAG_BACKWARD,
+    );
+
+    const istreams = this.istreams;
+
+    const rpkt_export = await libav.av_packet_alloc();
+    const wpkt_export = await libav.av_packet_alloc();
 
     onProgress?.(0, "Configuring decoders & encoders...");
 
@@ -518,11 +514,10 @@ export class VideoHandler {
     for (let i = 0; i < istreams.length; i++) {
       const istream = istreams[i];
       iToO.push(-1);
-      if (istream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO) {
-        const decoderConfig = await bridge.videoStreamToConfig(
-          tempLibav,
-          istream,
-        );
+      const currentOstreamIndex = ostreamIndex;
+
+      if (istream.codec_type === libav.AVMEDIA_TYPE_VIDEO) {
+        const decoderConfig = await bridge.videoStreamToConfig(libav, istream);
         if (!decoderConfig) continue;
         if (
           !(
@@ -534,7 +529,7 @@ export class VideoHandler {
           continue;
 
         const decoder = new VideoDecoder({
-          output: (frame) => decoderStreams[o].push(frame),
+          output: (frame) => decoderStreams[currentOstreamIndex].push(frame),
           error: (e) => console.error("Video Decoder Error:", e),
         });
         decoder.configure(decoderConfig as VideoDecoderConfig);
@@ -562,23 +557,21 @@ export class VideoHandler {
         });
 
         const encoder = new VideoEncoder({
-          output: (chunk, meta) => encoderStreams[o].push({ chunk, meta }),
+          output: (chunk, meta) =>
+            encoderStreams[currentOstreamIndex].push({ chunk, meta }),
           error: (e) => console.error("Video Encoder Error:", e),
         });
         encoder.configure(encConfig);
 
-        const o = ostreamIndex++;
-        iToO[i] = o;
+        iToO[i] = currentOstreamIndex;
         decoders.push(decoder);
         encoders.push({ encoder, config: encConfig });
         decoderStreams.push(new BufferStream());
         encoderStreams.push(new BufferStream());
-        ostreams.push(await bridge.configToVideoStream(tempLibav, encConfig));
-      } else if (istream.codec_type === tempLibav.AVMEDIA_TYPE_AUDIO) {
-        const decoderConfig = await bridge.audioStreamToConfig(
-          tempLibav,
-          istream,
-        );
+        ostreams.push(await bridge.configToVideoStream(libav, encConfig));
+        ostreamIndex++;
+      } else if (istream.codec_type === libav.AVMEDIA_TYPE_AUDIO) {
+        const decoderConfig = await bridge.audioStreamToConfig(libav, istream);
         if (!decoderConfig) continue;
         if (
           !(
@@ -590,7 +583,7 @@ export class VideoHandler {
           continue;
 
         const decoder = new AudioDecoder({
-          output: (frame) => decoderStreams[o].push(frame),
+          output: (frame) => decoderStreams[currentOstreamIndex].push(frame),
           error: (e) => console.error("Audio Decoder Error:", e),
         });
         decoder.configure(decoderConfig as AudioDecoderConfig);
@@ -601,18 +594,19 @@ export class VideoHandler {
           numberOfChannels: decoderConfig.numberOfChannels,
         };
         const encoder = new AudioEncoder({
-          output: (chunk, meta) => encoderStreams[o].push({ chunk, meta }),
+          output: (chunk, meta) =>
+            encoderStreams[currentOstreamIndex].push({ chunk, meta }),
           error: (e) => console.error("Audio Encoder Error:", e),
         });
         encoder.configure(encConfig);
 
-        const o = ostreamIndex++;
-        iToO[i] = o;
+        iToO[i] = currentOstreamIndex;
         decoders.push(decoder);
         encoders.push({ encoder, config: encConfig });
         decoderStreams.push(new BufferStream());
         encoderStreams.push(new BufferStream());
-        ostreams.push(await bridge.configToAudioStream(tempLibav, encConfig));
+        ostreams.push(await bridge.configToAudioStream(libav, encConfig));
+        ostreamIndex++;
       }
     }
 
@@ -621,10 +615,14 @@ export class VideoHandler {
     // --- Pipeline Execution ---
     const demuxerPromise = (async () => {
       while (true) {
-        const [res, packets] = await tempLibav.ff_read_frame_multi(ifc, rpkt);
+        const [res, packets] = await libav.ff_read_frame_multi(
+          this.ifc,
+          rpkt_export,
+          { limit: this.readChunkBytes },
+        );
 
         // Report progress based on how much of the input file has been read
-        const ifcWithPb = ifc as LibAVFormatContext;
+        const ifcWithPb = this.ifc as LibAVFormatContext;
         if (ifcWithPb.pb && ifcWithPb.pb.size > 0) {
           const demuxProgress = ifcWithPb.pb.pos / ifcWithPb.pb.size;
           onProgress?.(Math.round(demuxProgress * 100), "Decoding video...");
@@ -637,13 +635,13 @@ export class VideoHandler {
           const istream = istreams[Number(idx)];
           for (const packet of packets[idx]) {
             const chunk =
-              istream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO
+              istream.codec_type === libav.AVMEDIA_TYPE_VIDEO
                 ? bridge.packetToEncodedVideoChunk(packet, istream)
                 : bridge.packetToEncodedAudioChunk(packet, istream);
             dec.decode(chunk);
           }
         }
-        if (res === tempLibav.AVERROR_EOF) break;
+        if (res === libav.AVERROR_EOF) break;
       }
       for (let i = 0; i < decoders.length; i++) {
         await decoders[i].flush();
@@ -662,7 +660,7 @@ export class VideoHandler {
 
           if (encoder instanceof VideoEncoder) {
             onProgress?.(
-              Math.round((frame.timestamp / totalDuration) * 100),
+              Math.round((frame.timestamp / this.duration / 1000) * 100),
               "palettifying...",
             );
 
@@ -697,7 +695,7 @@ export class VideoHandler {
     });
 
     // --- Muxing ---
-    const [ofc, , pb] = await tempLibav.ff_init_muxer(
+    const [ofc, , pb] = await libav.ff_init_muxer(
       { filename: "output.mkv", open: true, codecpars: true },
       ostreams,
     );
@@ -709,16 +707,16 @@ export class VideoHandler {
       if (done) continue;
       const ostream = ostreams[i];
       const packet =
-        ostream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO
+        ostream.codec_type === libav.AVMEDIA_TYPE_VIDEO
           ? await bridge.encodedVideoChunkToPacket(
-              tempLibav,
+              libav,
               value.chunk,
               value.meta,
               ostream,
               i,
             )
           : await bridge.encodedAudioChunkToPacket(
-              tempLibav,
+              libav,
               value.chunk,
               value.meta,
               ostream,
@@ -727,8 +725,8 @@ export class VideoHandler {
       starterPackets.push(packet);
     }
 
-    await tempLibav.avformat_write_header(ofc, 0);
-    await tempLibav.ff_write_multi(ofc, wpkt, starterPackets);
+    await libav.avformat_write_header(ofc, 0);
+    await libav.ff_write_multi(ofc, wpkt_export, starterPackets);
 
     const muxerPromises = encoderReaders.map((reader, i) => {
       return (async () => {
@@ -737,26 +735,26 @@ export class VideoHandler {
           const { done, value } = await reader.read();
           if (done) break;
           const packet =
-            ostream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO
+            ostream.codec_type === libav.AVMEDIA_TYPE_VIDEO
               ? await bridge.encodedVideoChunkToPacket(
-                  tempLibav,
+                  libav,
                   value.chunk,
                   value.meta,
                   ostream,
                   i,
                 )
               : await bridge.encodedAudioChunkToPacket(
-                  tempLibav,
+                  libav,
                   value.chunk,
                   value.meta,
                   ostream,
                   i,
                 );
-          await tempLibav.ff_write_multi(ofc, wpkt, [packet]);
+          await libav.ff_write_multi(ofc, wpkt_export, [packet]);
 
-          if (ostream.codec_type === tempLibav.AVMEDIA_TYPE_VIDEO) {
+          if (ostream.codec_type === libav.AVMEDIA_TYPE_VIDEO) {
             onProgress?.(
-              Math.round((value.chunk.timestamp / totalDuration) * 100),
+              Math.round((value.chunk.timestamp / totalDurationUs) * 100),
               "Assembling final file...",
             );
           }
@@ -766,16 +764,18 @@ export class VideoHandler {
 
     await Promise.all([demuxerPromise, ...encoderPromises, ...muxerPromises]);
 
-    await tempLibav.av_write_trailer(ofc);
+    await libav.av_write_trailer(ofc);
 
     // --- Cleanup ---
-    await tempLibav.avformat_close_input_js(ifc);
-    await tempLibav.ff_free_muxer(ofc, pb);
-    await tempLibav.av_packet_free(rpkt);
-    await tempLibav.av_packet_free(wpkt);
-    await tempLibav.unlink("input-export");
 
-    const output = await tempLibav.readFile("output.mkv");
+    decoders.forEach((d) => d.close());
+    encoders.forEach((e) => e.encoder.close());
+
+    await libav.ff_free_muxer(ofc, pb);
+    await libav.av_packet_free(rpkt_export);
+    await libav.av_packet_free(wpkt_export);
+
+    const output = await libav.readFile("output.mkv");
 
     onProgress?.(100, "Done!");
 

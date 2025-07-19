@@ -25,6 +25,11 @@ thread_local! {
     static GPU_PROCESSOR: RefCell<Option<Arc<Processor>>> = RefCell::new(None);
 }
 
+#[cfg(target_arch = "wasm32")]
+thread_local! {
+    static GPU_INIT_ATTEMPTED_AND_FAILED: RefCell<bool> = RefCell::new(false);
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 static GPU_PROCESSOR: OnceCell<Arc<Processor>> = OnceCell::new();
 
@@ -40,6 +45,16 @@ async fn get_gpu_processor() -> Result<Arc<Processor>> {
         if let Some(arc) = result {
             return Ok(arc);
         }
+
+        let mut init_failed = false;
+        GPU_INIT_ATTEMPTED_AND_FAILED.with(|cell| {
+            init_failed = *cell.borrow();
+        });
+
+        if init_failed {
+            return Err(Error::Gpu("GPU processor initialization previously failed.".to_string()));
+        }
+
         match Processor::new().await {
             Ok(proc) => {
                 let arc = Arc::new(proc);
@@ -53,6 +68,9 @@ async fn get_gpu_processor() -> Result<Arc<Processor>> {
                     "Failed to initialize GPU processor: {:?}. Will fallback to CPU",
                     e
                 );
+                GPU_INIT_ATTEMPTED_AND_FAILED.with(|cell| {
+                    *cell.borrow_mut() = true;
+                });
                 Err(e)
             }
         }

@@ -462,6 +462,7 @@ export const av1Def: CodecDef<Av1Opts> = {
 
 /** Options for AVC (H.264) codec string */
 /** https://tools.ietf.org/html/rfc6381#section-3.3 */
+/** https://github.com/cisco/openh264/blob/0c9a557a9a6f1d267c4d372221669a8ae69ccda0/codec/api/wels/codec_app_def.h#L277  */
 export interface AvcOpts {
   /** profile_idc: e.g., 66 (Baseline), 77 (Main), 100 (High) */
   profile: number;
@@ -489,9 +490,9 @@ export const avcDef: CodecDef<AvcOpts> = {
         const p = opts.profile;
         const c = opts.constraints ?? 0;
         const l = opts.level;
-        const profileHex = p.toString(16).padStart(2, "0");
-        const constraintsHex = c.toString(16).padStart(2, "0");
-        const levelHex = l.toString(16).padStart(2, "0");
+        const profileHex = p.toString(16).padStart(2, "0").toUpperCase();
+        const constraintsHex = c.toString(16).padStart(2, "0").toUpperCase();
+        const levelHex = l.toString(16).padStart(2, "0").toUpperCase();
         return `${profileHex}${constraintsHex}${levelHex}`;
       },
       parse: (segment, target) => {
@@ -540,6 +541,131 @@ export const avcDef: CodecDef<AvcOpts> = {
       label: "Level",
       format: () => "", // Handled by profile field
       parse: () => 0, // Handled by profile field
+    },
+  ],
+};
+
+/** Options for HEVC (H.265) codec string */
+/** https://www.w3.org/TR/webcodecs-hevc-codec-registration/ */
+/** https://www.rfc-editor.org/rfc/rfc7798#section-7.1 */
+export interface HevcOpts {
+  /** general_profile_space: 0-3. Encoded as '', 'A', 'B', 'C'. */
+  profileSpace: 0 | 1 | 2 | 3;
+  /** general_profile_idc: 0-31. */
+  profileId: number;
+  /** general_profile_compatibility_flags: 32-bit hex value. */
+  profileCompatibility: number;
+  /** general_tier_flag: 0 for Main (L), 1 for High (H). */
+  tier: 0 | 1;
+  /** general_level_idc: e.g., 93 for level 3.1. */
+  levelIdc: number;
+  /** 48-bit constraint flags (interop-constraints), as a 12-char hex string. */
+  constraints: number;
+}
+
+export const hevcDef: CodecDef<HevcOpts> = {
+  fourcc: "hvc1",
+  fields: [
+    {
+      key: "profileId",
+      mandatory: true,
+      default: 1, // Main Profile
+      allowed: Array.from({ length: 32 }, (_, i) => i),
+      encode: (o) => o.profileId,
+      decode: (v, t) => {
+        t.profileId = v;
+      },
+      label: "Profile",
+      format: (profileId, opts) => {
+        const spaceMap = ["", "A", "B", "C"];
+        const space = spaceMap[opts.profileSpace] || "";
+        return `${space}${profileId}`;
+      },
+      parse: (segment, target) => {
+        const spaceMatch = segment.match(/^([A-C])(\d+)$/);
+        if (spaceMatch) {
+          const spaceMap: { [key: string]: 1 | 2 | 3 } = {
+            A: 1,
+            B: 2,
+            C: 3,
+          };
+          target.profileSpace = spaceMap[spaceMatch[1]];
+          return parseInt(spaceMatch[2], 10);
+        }
+        target.profileSpace = 0;
+        return parseInt(segment, 10);
+      },
+    },
+    {
+      key: "profileSpace",
+      mandatory: true,
+      default: 0,
+      allowed: [0, 1, 2, 3],
+      encode: (o) => o.profileSpace,
+      decode: (v, t) => {
+        if (t.profileSpace === undefined) t.profileSpace = v as any;
+      },
+      format: () => "", // Handled by profileId
+      parse: () => 0, // Handled by profileId
+    },
+    {
+      key: "profileCompatibility",
+      mandatory: true,
+      default: 2, // Bit 1 set for Main Profile (profileId=1)
+      encode: (o) => o.profileCompatibility,
+      decode: (v, t) => {
+        t.profileCompatibility = v;
+      },
+      label: "Profile Compatibility",
+      format: (v) => v.toString(16).toUpperCase().padStart(8, "0"),
+      parse: (s) => parseInt(s, 16),
+    },
+    {
+      key: "levelIdc",
+      mandatory: true,
+      default: 93, // Level 3.1
+      allowed: Array.from({ length: 256 }, (_, i) => i),
+      encode: (o) => o.levelIdc,
+      decode: (v, t) => {
+        t.levelIdc = v;
+      },
+      label: "Level",
+      format: (levelIdc, opts) => {
+        const tierChar = opts.tier === 1 ? "H" : "L";
+        return `${tierChar}${levelIdc}`;
+      },
+      parse: (segment, target) => {
+        const tierMatch = segment.match(/^([LH])(\d+)$/);
+        if (!tierMatch)
+          throw new Error(`Invalid level/tier segment: ${segment}`);
+        target.tier = tierMatch[1] === "H" ? 1 : 0;
+        return parseInt(tierMatch[2], 10);
+      },
+    },
+    {
+      key: "tier",
+      mandatory: true,
+      default: 0, // Main tier
+      allowed: [0, 1],
+      encode: (o) => o.tier,
+      decode: (v, t) => {
+        if (t.tier === undefined) t.tier = v as any;
+      },
+      format: () => "", // Handled by levelIdc
+      parse: () => 0, // Handled by levelIdc
+    },
+    {
+      key: "constraints",
+      mandatory: true,
+      // Default from RFC 7798 for interop-constraints: B00000000000
+      default: 1970324836974592, // 0xB00000000000
+      encode: (o) => o.constraints,
+      decode: (v, t) => {
+        t.constraints = v;
+      },
+      label: "Constraints",
+      format: (v) => v.toString(16).toUpperCase().padStart(12, "0"),
+      parse: (s) => parseInt(s, 16),
     },
   ],
 };

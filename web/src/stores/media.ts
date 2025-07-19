@@ -1,6 +1,9 @@
 import { create } from "zustand";
 
+export type MediaType = "Gif" | "Image" | "Video";
+
 export interface MediaMeta {
+  type: MediaType;
   canPlay: boolean;
   canPause: boolean;
   canSeek: boolean;

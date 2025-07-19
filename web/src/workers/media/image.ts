@@ -5,6 +5,7 @@ export class ImageHandler {
   private file: Blob;
   public width = 0;
   public height = 0;
+  public type = "Image";
 
   constructor(file: File) {
     this.file = file;

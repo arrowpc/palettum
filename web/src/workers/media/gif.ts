@@ -18,6 +18,7 @@ export class GifHandler {
   public width = 0;
   public height = 0;
   public duration = 0;
+  public type = "Gif";
 
   constructor(file: File, opts?: GifHandlerOptions) {
     this.file = file;

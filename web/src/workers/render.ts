@@ -2,6 +2,7 @@ import { expose, proxy } from "comlink";
 import { getRenderer } from "./core/renderer";
 import { createMediaHandlerForFile } from "./media";
 import type { Config } from "palettum";
+import type { MediaType } from "@/stores";
 
 let mediaHandler: any | null = null;
 let renderer: any | null = null;
@@ -41,6 +42,7 @@ const api = {
     await mediaHandler.init();
 
     const mediaInfo: MediaInfo = {
+      type: mediaHandler.type,
       canPlay: typeof mediaHandler.play === "function",
       canPause: typeof mediaHandler.pause === "function",
       canSeek: typeof mediaHandler.seek === "function",
@@ -56,6 +58,7 @@ const api = {
       return null;
     }
     return {
+      type: mediaHandler.type,
       canPlay: typeof mediaHandler.play === "function",
       canPause: typeof mediaHandler.pause === "function",
       canSeek: typeof mediaHandler.seek === "function",
@@ -95,6 +98,7 @@ const api = {
 };
 
 export interface MediaInfo {
+  type: MediaType;
   canPlay: boolean;
   canPause: boolean;
   canSeek: boolean;

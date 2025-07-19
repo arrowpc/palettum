@@ -140,9 +140,10 @@ export class VideoHandler {
     this.onProgress = opts?.onProgress;
   }
 
-  width = 0;
-  height = 0;
-  duration = 0; // in seconds
+  public width = 0;
+  public height = 0;
+  public duration = 0; // in seconds
+  public type = "Video";
 
   play(): void {
     if (this.playing) return;
@@ -458,6 +459,7 @@ export class VideoHandler {
 
   async export(
     onProgress?: (progress: number, message: string) => void,
+    opts?: any,
   ): Promise<Blob> {
     if (!this.libav || !this.bridge) {
       throw new Error("LibAV not initialized for export.");

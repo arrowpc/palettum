@@ -60,12 +60,12 @@ export default function InputArea({ onFile, onDragStateChange }: Props) {
       onDrop={drop}
     >
       <div className="flex flex-col items-center gap-3 w-full max-w-[15rem] text-xl">
-        <div className="flex items-center w-full gap-2">
+        <div className="flex items-center w-full gap-2 hidden sm:flex">
           <span className="text-muted-foreground">Drag</span>
           <Separator className="flex-1" />
           <span className="text-muted-foreground">Paste</span>
         </div>
-        <div className="flex items-center w-full gap-2">
+        <div className="flex items-center w-full gap-2 hidden sm:flex">
           <Separator className="flex-1" />
           <span className="text-muted-foreground">or</span>
           <Separator className="flex-1" />

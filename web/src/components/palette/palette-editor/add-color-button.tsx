@@ -34,7 +34,7 @@ export const AddColorButton: React.FC<AddColorButtonProps> = React.memo(
             <div
               className={cn(
                 "absolute inset-0 rounded-md flex items-center justify-center",
-                "bg-background/50 group-hover:bg-background/30",
+                "group-hover:bg-background/20",
                 "transition-all duration-150",
               )}
             >

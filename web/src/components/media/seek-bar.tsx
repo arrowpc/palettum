@@ -20,9 +20,7 @@ export default function SeekBar({ className }: Props) {
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
-    if (isPlaying) {
-      renderer.pause();
-    }
+    renderer.pause();
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {

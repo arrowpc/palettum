@@ -75,7 +75,15 @@ export default function CanvasPreview({
         setIsLoading(false);
       }
     })();
-  }, [renderer, file, setMediaMeta, setIsLoading, onClear, setProgress, setIsPlaying]);
+  }, [
+    renderer,
+    file,
+    setMediaMeta,
+    setIsLoading,
+    onClear,
+    setProgress,
+    setIsPlaying,
+  ]);
 
   const handlePlayPause = (e: React.MouseEvent) => {
     e.stopPropagation();

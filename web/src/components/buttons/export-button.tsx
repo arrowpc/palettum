@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
 import { CircularProgress } from "@/components/ui/experimental/circular-progress";
 import { proxy } from "comlink";
+import { useShallow } from "zustand/react/shallow";
+import { useConfigStore, useMediaStore } from "@/stores";
 
 type ExportState = "idle" | "loading" | "progress";
 
@@ -12,6 +14,11 @@ export function ExportButton() {
   const [exportState, setExportState] = useState<ExportState>("idle");
   const [exportProgress, setExportProgress] = useState(0);
   const [exportMessage, setExportMessage] = useState("Exporting...");
+
+  const { config } = useConfigStore(
+    useShallow((state) => ({ config: state.config })),
+  );
+  const { file } = useMediaStore(useShallow((state) => ({ file: state.file })));
 
   const handleExport = async () => {
     if (!renderer) {
@@ -35,12 +42,14 @@ export function ExportButton() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      let filename = `palettized_image`;
-      if (blob.type === "video/x-matroska") {
-        filename += ".mkv";
-      } else {
-        filename += `.${blob.type.split("/")[1]}`;
-      }
+
+      const originalFilename = file?.name.split(".")[0] || "image";
+      const extension = blob.type.split("/")[1];
+      const mapping = config.mapping?.toLowerCase();
+      const paletteId = config.palette?.id;
+
+      const filename = `${originalFilename}_${mapping}_${paletteId}.${extension}`;
+
       a.download = filename;
       document.body.appendChild(a);
       a.click();

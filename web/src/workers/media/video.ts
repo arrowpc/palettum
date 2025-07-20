@@ -507,9 +507,6 @@ export class VideoHandler {
       const ostreams: any[] = [];
       let ostreamIndex = 0;
 
-      // https://www.webmproject.org/vp9/mp4/
-      const vc = "vp09.01.50.08.03.01.01.00.01";
-
       for (let i = 0; i < istreams.length; i++) {
         const istream = istreams[i];
         iToO.push(-1);
@@ -540,27 +537,42 @@ export class VideoHandler {
           let dims = await get_dimensions();
 
           let encConfig: VideoEncoderConfig;
+
+          // https://www.webmproject.org/vp9/mp4/
+          const baseCodec = "vp09.01.50.08.03.01.01.00.01";
+          const fallbackCodec = "vp09.00.50.08.03.01.01.00.01";
+
           if (decoderConfig.codedWidth && decoderConfig.codedHeight) {
-            encConfig = {
-              codec: vc,
+            const testConfig: VideoEncoderConfig = {
+              codec: baseCodec,
               width: dims.width,
               height: dims.height,
               bitrateMode: "quantizer",
               latencyMode: "quality",
-              // TODO: Figure out why this breaks
-              // hardwareAcceleration: "prefer-hardware",
             };
+
+            try {
+              const tempEncoder = new VideoEncoder({
+                output: () => {},
+                error: () => {},
+              });
+              tempEncoder.configure(testConfig);
+              tempEncoder.close();
+              encConfig = testConfig;
+            } catch (e) {
+              console.warn(
+                "Advanced VideoEncoderConfig options (bitrateMode, latencyMode) not supported. Falling back to basic config and VP9 profile 0",
+                e,
+              );
+              encConfig = {
+                codec: fallbackCodec,
+                width: dims.width,
+                height: dims.height,
+              };
+            }
           } else {
             throw new Error("Width or height undefined");
           }
-
-          // TODO: Use a preferential system instead of giving up if the base
-          // config isn't supported
-          VideoDecoder.isConfigSupported(encConfig).then((result) => {
-            if (!result.supported) {
-              throw new Error("Codec is not supported");
-            }
-          });
 
           const encoder = new VideoEncoder({
             output: (chunk, meta) =>

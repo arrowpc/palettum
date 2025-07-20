@@ -9,7 +9,8 @@ import React, {
   type TouchEvent as ReactTouchEvent,
   type WheelEvent as ReactWheelEvent,
 } from "react";
-import { ZoomIn, ZoomOut, RotateCcw, X } from "lucide-react";
+import { ZoomIn, ZoomOut, RotateCcw, X, Play, Pause } from "lucide-react";
+import SeekBar from "./seek-bar";
 import { useDebounceCallback } from "usehooks-ts";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -77,7 +78,7 @@ const ViewerDialogHeader = memo(() => {
 });
 ViewerDialogHeader.displayName = "ViewerDialogHeader";
 
-interface ToolbarProps {
+interface ZoomControlsToolbarProps {
   zoomLevel: number;
   zoomLimits: { min: number; max: number };
   resetView: () => void;
@@ -91,8 +92,15 @@ interface ToolbarProps {
   onClose: () => void;
 }
 
-const Toolbar: React.FC<ToolbarProps> = memo(
-  ({ zoomLevel, zoomLimits, resetView, handleZoom, isDefaultView }) => {
+const ZoomControlsToolbar: React.FC<ZoomControlsToolbarProps> = memo(
+  ({
+    zoomLevel,
+    zoomLimits,
+    resetView,
+    handleZoom,
+    isDefaultView,
+    onClose,
+  }) => {
     const isMinZoom = Math.abs(zoomLevel - zoomLimits.min) < 0.001;
     const isMaxZoom = Math.abs(zoomLevel - zoomLimits.max) < 0.001;
 
@@ -149,7 +157,62 @@ const Toolbar: React.FC<ToolbarProps> = memo(
     );
   },
 );
-Toolbar.displayName = "Toolbar";
+ZoomControlsToolbar.displayName = "ZoomControlsToolbar";
+
+interface MediaControlsToolbarProps {
+  isMobile: boolean;
+}
+
+const MediaControlsToolbar: React.FC<MediaControlsToolbarProps> = memo(
+  ({ isMobile }) => {
+    const isPlaying = useMediaStore((s) => s.isPlaying);
+    const setIsPlaying = useMediaStore((s) => s.setIsPlaying);
+    const meta = useMediaStore((s) => s.meta);
+    const renderer = useRenderer();
+
+    const handlePlayPause = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (isPlaying) {
+        renderer.pause();
+      } else {
+        renderer.play();
+      }
+      setIsPlaying(!isPlaying);
+    };
+
+    if (!meta?.canPlay) return null;
+
+    return (
+      <div
+        className={cn(
+          "absolute z-50 flex items-center gap-2",
+          isMobile
+            ? "bottom-2 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] px-4"
+            : "top-2 left-2 right-[11rem]",
+        )}
+      >
+        <Button
+          onClick={handlePlayPause}
+          className={cn(
+            "bg-secondary hover:bg-secondary-hover text-foreground w-8 h-8 p-0",
+            "transition-colors shadow-sm",
+          )}
+          aria-label={isPlaying ? "Pause" : "Play"}
+        >
+          {isPlaying ? (
+            <Pause className="w-4 h-4" />
+          ) : (
+            <Play className="w-4 h-4" />
+          )}
+        </Button>
+        <div className="flex-1">
+          <SeekBar />
+        </div>
+      </div>
+    );
+  },
+);
+MediaControlsToolbar.displayName = "MediaControlsToolbar";
 
 const StableDialogContent = memo(
   ({ children }: { children: React.ReactNode }) => {
@@ -171,6 +234,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
   const [touchDistance, setTouchDistance] = useState(0);
   const [canvasReady, setCanvasReady] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [isMobile, setIsMobile] = useState(false);
   const resizedWidth = useMediaStore((s) => s.resizedWidth);
   const resizedHeight = useMediaStore((s) => s.resizedHeight);
 
@@ -541,6 +605,18 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
     };
   }, []);
 
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(
+        window.matchMedia("(hover: none) and (pointer: coarse)").matches,
+      );
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   const CanvasDisplay = (
     <div className="absolute inset-0 flex items-center justify-center">
       <canvas
@@ -594,7 +670,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
     </div>
   );
 
-  const toolbarProps = useMemo(
+  const zoomControlsProps = useMemo(
     () => ({
       zoomLevel,
       zoomLimits,
@@ -604,6 +680,13 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
       onClose,
     }),
     [zoomLevel, zoomLimits, resetView, handleZoom, isDefaultView, onClose],
+  );
+
+  const mediaControlsProps = useMemo(
+    () => ({
+      isMobile,
+    }),
+    [isMobile],
   );
 
   useEffect(() => {
@@ -639,7 +722,8 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
       <ViewerBackground />
       <StableDialogContent>
         <ViewerDialogHeader />
-        <Toolbar {...toolbarProps} />
+        <ZoomControlsToolbar {...zoomControlsProps} />
+        <MediaControlsToolbar {...mediaControlsProps} />
         {ViewportContent}
       </StableDialogContent>
     </Dialog>

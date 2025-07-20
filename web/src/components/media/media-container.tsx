@@ -81,6 +81,7 @@ export default function MediaContainer() {
               setShowViewer(true);
             }}
             borderRadius={`${borderRadius}px`}
+            onClear={clear}
           />
         ) : (
           <InputArea

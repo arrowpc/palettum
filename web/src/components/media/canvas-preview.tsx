@@ -5,12 +5,14 @@ import { Maximize, Play, Pause } from "lucide-react";
 import { MEDIA_CANVAS_ID } from "@/lib/constants";
 import { useMediaStore, type MediaMeta } from "@/stores";
 import SeekBar from "./seek-bar";
+import { toast } from "sonner";
 
 interface Props {
   file: File;
   onCanvasClick: () => void;
   borderRadius: string;
   className?: string;
+  onClear: () => void;
 }
 
 export default function CanvasPreview({
@@ -18,6 +20,7 @@ export default function CanvasPreview({
   onCanvasClick,
   borderRadius,
   className,
+  onClear,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hasRun = useRef(false);
@@ -64,13 +67,15 @@ export default function CanvasPreview({
         console.log("[CanvasPreview] loaded media info:", info);
         setMediaMeta(info);
         if (info.canPlay) setIsPlaying(true);
-      } catch (err) {
+      } catch (err: any) {
         console.error("[CanvasPreview] error in effect:", err);
+        toast.error("Failed to load media: " + err.message);
+        onClear();
       } finally {
         setIsLoading(false);
       }
     })();
-  }, [renderer, file, setMediaMeta, setIsLoading]);
+  }, [renderer, file, setMediaMeta, setIsLoading, onClear]);
 
   const handlePlayPause = (e: React.MouseEvent) => {
     e.stopPropagation();

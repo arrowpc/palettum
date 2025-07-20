@@ -12,6 +12,7 @@ import {
   Copy,
   Download,
   Edit2,
+  Sparkle,
   Trash2,
 } from "lucide-react";
 import { rgbToHex, cn } from "@/lib/utils";
@@ -151,8 +152,8 @@ const PalettePreview: React.FC<Props> = ({
         <div className="flex items-center gap-3 min-w-0">
           <h3 className="font-medium text-foreground truncate">{palette.id}</h3>
           {palette.kind === "Default" && (
-            <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded">
-              Default
+            <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded flex items-center gap-1">
+              <Sparkle className="w-3 h-3" />
             </span>
           )}
         </div>

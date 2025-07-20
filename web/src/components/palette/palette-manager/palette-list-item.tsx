@@ -5,6 +5,7 @@ import {
   Edit2,
   ExternalLink,
   MoreVertical,
+  Sparkle,
   Trash2,
 } from "lucide-react";
 import { rgbToHex, cn, getDisplayedColors } from "@/lib/utils";
@@ -29,7 +30,7 @@ const ListActionButton = React.memo<{
   label: string;
   disabled?: boolean;
   showTooltip: boolean;
-  isParentHovered: boolean; // New prop to control visibility
+  isParentHovered: boolean;
 }>(({ icon: Icon, onClick, label, disabled, showTooltip, isParentHovered }) => (
   <TooltipWrapper content={label} shouldRender={showTooltip}>
     <button
@@ -160,8 +161,8 @@ const PaletteListItem: React.FC<Props> = ({
             {palette.id}
           </span>
           {palette.kind === "Default" && (
-            <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded">
-              Default
+            <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded flex items-center gap-1">
+              <Sparkle className="w-3 h-3" />
             </span>
           )}
           {palette.source && (

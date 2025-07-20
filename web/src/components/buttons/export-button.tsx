@@ -50,7 +50,10 @@ export function ExportButton() {
       a.href = url;
 
       const originalFilename = file?.name.split(".")[0] || "media";
-      const extension = blob.type.split("/")[1];
+      let extension = blob.type.split("/")[1];
+      if (extension === "x-matroska") {
+        extension = "mkv";
+      }
       const mapping = config.mapping?.toLowerCase();
       const paletteId = config.palette?.id;
 

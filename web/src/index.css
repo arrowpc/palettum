@@ -3,7 +3,7 @@
 
 @custom-variant dark (&:is(.dark *));
 
-@theme inline {
+@theme {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -138,6 +138,38 @@
   }
   button {
     @apply cursor-pointer;
+  }
+}
+
+@layer components {
+  .animate-pixel-fade-in {
+    animation: pixel-fade-in 0.4s ease-out forwards;
+  }
+
+  .animate-rotate {
+    animation: rotate 1.5s linear infinite;
+  }
+}
+
+@keyframes pixel-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.2);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg) scale(2);
+  }
+  to {
+    transform: rotate(-360deg) scale(2);
   }
 }
 

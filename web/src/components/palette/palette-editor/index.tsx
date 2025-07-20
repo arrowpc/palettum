@@ -1,6 +1,5 @@
-// TODO:
-// @ts-nocheck
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import * as Comlink from "comlink";
 import { cn } from "@/lib/utils";
 import {
   LIMITS,
@@ -10,14 +9,16 @@ import {
   isSameColor,
   validatePalette,
 } from "@/lib/utils";
-import { type Palette, type Rgb, palette_from_media } from "palettum";
+import { type Palette, type Rgb } from "palettum";
 import { toast } from "sonner";
 
 import { PaletteHeader } from "./palette-header";
 import { ColorPickerControl } from "./color-picker-control";
-// import { ImageColorExtractor } from "./image-color-extractor";
+import { ImageColorExtractor } from "./image-color-extractor";
 import { ColorDisplayArea } from "./color-display-area";
 import { PaletteEditorActions } from "./palette-editor-actions";
+import type { Extractor } from "@/workers/core/extractor";
+import ExtractorWorker from "@/workers/extractor?worker";
 
 interface PaletteEditorProps {
   palette: Palette;
@@ -50,9 +51,11 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   const [isPickerActive, setIsPickerActive] = useState<boolean>(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null!);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
+  const extractorWorkerRef = useRef<Worker | null>(null);
+  const extractorRef = useRef<Comlink.Remote<typeof Extractor> | null>(null);
 
   const maxColorsToRequestFromImage = Math.max(
     1,
@@ -67,6 +70,17 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   );
   const [suggestedColors, setSuggestedColors] = useState<Rgb[]>([]);
   const [isExtractingColors, setIsExtractingColors] = useState<boolean>(false);
+
+  useEffect(() => {
+    extractorWorkerRef.current = new ExtractorWorker();
+    extractorRef.current = Comlink.wrap<typeof Extractor>(
+      extractorWorkerRef.current,
+    );
+
+    return () => {
+      extractorWorkerRef.current?.terminate();
+    };
+  }, []);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -324,12 +338,20 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     });
 
     try {
-      const buffer = await uploadedImageFile.arrayBuffer();
-      const bytes = new Uint8Array(buffer);
-      const extracted = palette_from_media(bytes, numColorsToExtract);
+      const extracted = await extractorRef.current?.extract(
+        uploadedImageFile,
+        numColorsToExtract,
+      );
+
+      if (!extracted) {
+        toast.error("Color extraction failed. Please try again.", {
+          id: toastId,
+        });
+        return;
+      }
 
       const newSuggestions = extracted.colors.filter(
-        (extractedColor) =>
+        (extractedColor: Rgb) =>
           !palette.colors.some((paletteColor) =>
             isSameColor(paletteColor, extractedColor),
           ) &&
@@ -368,7 +390,13 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     } finally {
       setIsExtractingColors(false);
     }
-  }, [uploadedImageFile, numColorsToExtract, palette.colors, suggestedColors]);
+  }, [
+    uploadedImageFile,
+    numColorsToExtract,
+    palette.colors,
+    suggestedColors,
+    extractorRef,
+  ]);
 
   const handleAcceptAllSuggestions = useCallback(() => {
     if (suggestedColors.length === 0) {
@@ -525,7 +553,6 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
               onEyeDropper={handleEyeDropper}
               isMobile={isMobile}
             />
-            {/*
             <ImageColorExtractor
               imagePreviewUrl={imagePreviewUrl}
               onImageFileChange={handleImageFileChange}
@@ -540,7 +567,6 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
               uploadedImageFile={uploadedImageFile}
               isMobile={isMobile}
             />
-            */}
           </div>
 
           <ColorDisplayArea

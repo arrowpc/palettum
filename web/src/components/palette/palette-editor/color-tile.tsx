@@ -22,6 +22,7 @@ interface ColorTileProps {
   dismissSpecificSuggestion?: (color: Rgb) => void;
   itemIndex?: number;
   removeFromPaletteByIndex?: (index: number) => void;
+  className?: string;
 }
 
 export const ColorTile = React.memo(function ColorTile({
@@ -32,6 +33,7 @@ export const ColorTile = React.memo(function ColorTile({
   dismissSpecificSuggestion,
   itemIndex,
   removeFromPaletteByIndex,
+  className,
 }: ColorTileProps) {
   const hex = rgbToHex(color);
 
@@ -48,6 +50,7 @@ export const ColorTile = React.memo(function ColorTile({
               isSuggested
                 ? "border border-transparent"
                 : "border border-border",
+              className,
             )}
             style={{ backgroundColor: hex }}
           >

@@ -70,6 +70,7 @@ export const ColorDisplayArea = React.memo(function ColorDisplayArea({
           {suggestedColors.map((color, loopIndex) => (
             <ColorTile
               key={`suggested-${rgbToHex(color)}-${loopIndex}`}
+              className="animate-pixel-fade-in"
               color={color}
               isMobile={isMobile}
               isSuggested

@@ -1,17 +1,16 @@
-// TODO:
-// @ts-nocheck
 import React from "react";
-import { cn } from "@/lib/utils";
-// import SharedImagePreview from "../SharedImagePreview";
-import { ImageIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 
 interface ImageColorExtractorProps {
-  imagePreviewUrl: string | null;
   onImageFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onRemoveImage: (e?: React.MouseEvent) => void;
+  onRemoveImage: () => void;
+  imagePreviewUrl: string | null;
   fileInputRef: React.RefObject<HTMLInputElement>;
   numColorsToExtract: number;
-  onNumColorsToExtractChange: (num: number) => void;
+  onNumColorsToExtractChange: (value: number) => void;
   currentMaxColorsToExtract: number;
   onExtractColors: () => void;
   isExtractingColors: boolean;
@@ -20,129 +19,95 @@ interface ImageColorExtractorProps {
   isMobile: boolean;
 }
 
-export const ImageColorExtractor: React.FC<ImageColorExtractorProps> =
-  React.memo(
-    ({
-      imagePreviewUrl,
-      onImageFileChange,
-      onRemoveImage,
-      fileInputRef,
-      numColorsToExtract,
-      onNumColorsToExtractChange,
-      currentMaxColorsToExtract,
-      onExtractColors,
-      isExtractingColors,
-      canExtractMore,
-      uploadedImageFile,
-      isMobile,
-    }) => {
-      const handleUploadPlaceholderClick = () => {
-        if (!isExtractingColors && canExtractMore && fileInputRef.current) {
-          fileInputRef.current.click();
-        }
-      };
+export const ImageColorExtractor: React.FC<ImageColorExtractorProps> = ({
+  onImageFileChange,
+  onRemoveImage,
+  imagePreviewUrl,
+  fileInputRef,
+  numColorsToExtract,
+  onNumColorsToExtractChange,
+  currentMaxColorsToExtract,
+  onExtractColors,
+  isExtractingColors,
+  canExtractMore,
+  uploadedImageFile,
+  isMobile,
+}) => {
+  return (
+    <div className="flex flex-col gap-3 p-4 border rounded-lg">
+      <div className="flex items-center justify-between">
+        <Label
+          htmlFor="image-upload"
+          className="text-sm font-medium cursor-pointer hover:text-primary"
+        >
+          Upload Image/GIF
+        </Label>
+        <Input
+          id="image-upload"
+          type="file"
+          accept="image/png, image/jpeg, image/gif"
+          onChange={onImageFileChange}
+          ref={fileInputRef}
+          className="hidden"
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => fileInputRef.current?.click()}
+        >
+          Browse
+        </Button>
+      </div>
 
-      const previewIsInteractive = !isExtractingColors && canExtractMore;
-
-      const previewTitle =
-        !canExtractMore && uploadedImageFile
-          ? "Palette full, cannot change image"
-          : imagePreviewUrl
-            ? "Click to view full size or change image"
-            : "Click to upload image";
-
-      return (
-        <div className="p-3 border border-border/70 rounded-md bg-secondary/20 space-y-3">
-          <div
-            className={cn(
-              "flex gap-3",
-              isMobile ? "items-start" : "flex-col items-center",
-            )}
-          >
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={onImageFileChange}
-              accept="image/*,.gif"
-              className="hidden"
-              disabled={isExtractingColors || !canExtractMore}
-            />
-            <div
-              className={cn(
-                "flex-1 space-y-1.5",
-                isMobile ? "w-auto" : "w-full",
-              )}
-            >
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={onExtractColors}
-                  disabled={
-                    !uploadedImageFile ||
-                    isExtractingColors ||
-                    !canExtractMore ||
-                    numColorsToExtract <= 0
-                  }
-                  className="w-full py-1.5 px-2 bg-primary hover:bg-primary-hover text-primary-foreground text-xs sm:text-sm rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Extract
-                </button>
-                <label
-                  htmlFor="numColorsToExtract"
-                  className="text-xs text-muted-foreground sr-only"
-                >
-                  Number of colors
-                </label>
-                <input
-                  type="number"
-                  id="numColorsToExtract"
-                  value={numColorsToExtract}
-                  onChange={(e) =>
-                    onNumColorsToExtractChange(
-                      Math.max(
-                        1,
-                        Math.min(
-                          currentMaxColorsToExtract,
-                          parseInt(e.target.value) || 1,
-                        ),
-                      ),
-                    )
-                  }
-                  min="1"
-                  max={currentMaxColorsToExtract}
-                  className={cn(
-                    "w-12 px-1 py-0.5 border rounded-md text-xs text-center bg-background border-border focus:ring-1 focus:ring-ring",
-                    (!uploadedImageFile ||
-                      isExtractingColors ||
-                      !canExtractMore ||
-                      numColorsToExtract <= 0) &&
-                      "opacity-50 cursor-not-allowed",
-                  )}
-                  disabled={
-                    !uploadedImageFile ||
-                    isExtractingColors ||
-                    !canExtractMore ||
-                    numColorsToExtract <= 0
-                  }
-                />
-                <span
-                  className={cn(
-                    "text-xs text-muted-foreground",
-                    (!uploadedImageFile || !canExtractMore) && "opacity-60",
-                  )}
-                >
-                  colors
-                </span>
-              </div>
-              {!canExtractMore && uploadedImageFile && (
-                <p className="text-xs text-destructive">
-                  Palette full. Remove colors to extract.
-                </p>
-              )}
-            </div>
+      {imagePreviewUrl && uploadedImageFile && (
+        <div className="relative group aspect-video bg-muted rounded-md overflow-hidden">
+          <img
+            src={imagePreviewUrl}
+            alt="Preview"
+            className="w-full h-full object-contain"
+          />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <Button variant="destructive" size="sm" onClick={onRemoveImage}>
+              Remove
+            </Button>
           </div>
         </div>
-      );
-    },
-  );
+      )}
 
-ImageColorExtractor.displayName = "ImageColorExtractor";
+      {uploadedImageFile && canExtractMore && (
+        <div className="space-y-4 pt-2">
+          <div className="space-y-3">
+            <Label className="flex items-center justify-between">
+              <span>Colors to Extract</span>
+              <span className="text-sm font-normal bg-muted px-2 py-1 rounded-md">
+                {numColorsToExtract}
+              </span>
+            </Label>
+            <Slider
+              value={[numColorsToExtract]}
+              onValueChange={([val]) => onNumColorsToExtractChange(val)}
+              min={1}
+              max={currentMaxColorsToExtract}
+              step={1}
+              disabled={isExtractingColors}
+            />
+          </div>
+          <Button
+            onClick={onExtractColors}
+            disabled={isExtractingColors || !uploadedImageFile}
+            className="w-full"
+            size={isMobile ? "sm" : "default"}
+          >
+            {isExtractingColors ? "Extracting..." : "Extract Colors"}
+          </Button>
+        </div>
+      )}
+
+      {!canExtractMore && uploadedImageFile && (
+        <p className="text-xs text-center text-muted-foreground pt-2">
+          Palette is full. Cannot extract more colors.
+        </p>
+      )}
+    </div>
+  );
+};

@@ -1,32 +1,47 @@
 import { Slider } from "@/components/ui/slider";
 import React from "react";
+import { useMediaStore } from "@/stores";
+import { useRenderer } from "@/providers/renderer-provider";
 
 interface Props {
-  value: number;
-  max: number;
-  onChange: (value: number) => void;
   className?: string;
-  onPointerDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
-  onPointerUp?: (event: React.PointerEvent<HTMLDivElement>) => void;
 }
 
-export default function SeekBar({
-  value,
-  max,
-  onChange,
-  className,
-  onPointerDown,
-  onPointerUp,
-}: Props) {
+export default function SeekBar({ className }: Props) {
+  const progress = useMediaStore((s) => s.progress);
+  const setProgress = useMediaStore((s) => s.setProgress);
+  const isPlaying = useMediaStore((s) => s.isPlaying);
+  const meta = useMediaStore((s) => s.meta);
+  const renderer = useRenderer();
+
+  const handleValueChange = ([v]: number[]) => {
+    setProgress(v);
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (isPlaying) {
+      renderer.pause();
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    renderer.seek(progress);
+    if (isPlaying) {
+      renderer.play();
+    }
+  };
+
   return (
     <Slider
-      value={[value]}
-      max={max}
+      value={[progress]}
+      max={meta?.duration ?? 1}
       step={1}
-      onValueChange={([v]) => onChange(v)}
+      onValueChange={handleValueChange}
       className={className}
-      onPointerDown={onPointerDown}
-      onPointerUp={onPointerUp}
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
     />
   );
 }

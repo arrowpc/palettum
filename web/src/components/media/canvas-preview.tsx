@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { proxy, transfer } from "comlink";
 import { useRenderer } from "@/providers/renderer-provider";
 import { Maximize, Play, Pause } from "lucide-react";
@@ -26,14 +26,14 @@ export default function CanvasPreview({
   const hasRun = useRef(false);
 
   const renderer = useRenderer();
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-
+  const isPlaying = useMediaStore((s) => s.isPlaying);
+  const setIsPlaying = useMediaStore((s) => s.setIsPlaying);
   const setMediaMeta = useMediaStore((s) => s.setMediaMeta);
   const setIsLoading = useMediaStore((s) => s.setIsLoading);
   const isLoading = useMediaStore((s) => s.isLoading);
   const meta = useMediaStore((s) => s.meta);
   const canPlay = meta?.canPlay ?? false;
+  const setProgress = useMediaStore((s) => s.setProgress);
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -75,7 +75,7 @@ export default function CanvasPreview({
         setIsLoading(false);
       }
     })();
-  }, [renderer, file, setMediaMeta, setIsLoading, onClear]);
+  }, [renderer, file, setMediaMeta, setIsLoading, onClear, setProgress, setIsPlaying]);
 
   const handlePlayPause = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -85,10 +85,6 @@ export default function CanvasPreview({
       renderer.play();
     }
     setIsPlaying(!isPlaying);
-  };
-
-  const handleSeek = (value: number) => {
-    setProgress(value);
   };
 
   return (
@@ -164,25 +160,7 @@ export default function CanvasPreview({
                 "
                 onClick={(e) => e.stopPropagation()}
               >
-                <SeekBar
-                  value={progress}
-                  max={meta?.duration ?? 1}
-                  onChange={handleSeek}
-                  className="w-full"
-                  onPointerDown={(e) => {
-                    e.stopPropagation();
-                    if (isPlaying) {
-                      renderer.pause();
-                    }
-                  }}
-                  onPointerUp={(e) => {
-                    e.stopPropagation();
-                    renderer.seek(progress);
-                    if (isPlaying) {
-                      renderer.play();
-                    }
-                  }}
-                />
+                <SeekBar className="w-full" />
               </div>
             )}
           </div>

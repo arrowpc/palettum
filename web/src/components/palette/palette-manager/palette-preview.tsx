@@ -123,15 +123,15 @@ const PalettePreview: React.FC<Props> = ({
       { icon: Copy, onClick: onDuplicate, label: "Duplicate" },
       { icon: Download, onClick: onExport, label: "Export" },
       {
-        icon: Edit2,
-        onClick: onEdit,
-        label: "Edit",
-        disabled: palette.kind === "Default",
-      },
-      {
         icon: Trash2,
         onClick: onDelete,
         label: "Delete",
+        disabled: palette.kind === "Default",
+      },
+      {
+        icon: Edit2,
+        onClick: onEdit,
+        label: "Edit",
         disabled: palette.kind === "Default",
       },
     ],
@@ -169,6 +169,21 @@ const PalettePreview: React.FC<Props> = ({
                 disabled={disabled}
               />
             ))}
+          </div>
+          {/* Mobile Actions */}
+          <div className="flex sm:hidden items-center gap-1">
+            <ActionButton
+              icon={Trash2}
+              onClick={onDelete}
+              label="Delete"
+              disabled={palette.kind === "Default"}
+            />
+            <ActionButton
+              icon={Edit2}
+              onClick={onEdit}
+              label="Edit"
+              disabled={palette.kind === "Default"}
+            />
           </div>
 
           {/* Palette Navigation */}

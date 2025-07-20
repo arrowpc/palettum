@@ -32,14 +32,16 @@ export default function SeekBar({ className }: Props) {
   };
 
   return (
-    <Slider
-      value={[progress]}
-      max={meta?.duration ?? 1}
-      step={1}
-      onValueChange={handleValueChange}
-      className={className}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-    />
+    <div className={`${className ?? ""}`}>
+      <Slider
+        value={[progress]}
+        max={meta?.duration ?? 1}
+        step={1}
+        onValueChange={handleValueChange}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        className="w-full"
+      />
+    </div>
   );
 }

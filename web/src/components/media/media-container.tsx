@@ -3,6 +3,7 @@ import { cn, checkAlphaChannel } from "@/lib/utils";
 import InputArea from "./input-area";
 import CanvasPreview from "./canvas-preview";
 import CanvasViewer from "./canvas-viewer";
+import MediaControls from "./media-controls";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
 import { useRenderer } from "@/providers/renderer-provider";
 import { CircleX } from "lucide-react";
@@ -49,7 +50,6 @@ export default function MediaContainer() {
 
   const handleFile = async (f: File) => {
     setFile(f);
-
     const hasAlpha = await checkAlphaChannel(f);
     setHasAlpha(hasAlpha);
   };
@@ -72,28 +72,25 @@ export default function MediaContainer() {
     <div
       ref={containerRef}
       className="relative w-full aspect-[16/9] group overflow-hidden"
+      style={
+        {
+          "--toggle-switch-width": "120px",
+        } as React.CSSProperties
+      }
     >
       <div className={frameClass} style={{ borderRadius: `${borderRadius}px` }}>
         {file ? (
           <CanvasPreview
             file={file}
-            onCanvasClick={() => {
-              setShowViewer(true);
-            }}
+            onCanvasClick={() => setShowViewer(true)}
             borderRadius={`${borderRadius}px`}
             onClear={clear}
           />
         ) : (
-          <InputArea
-            onFile={(f) => {
-              handleFile(f);
-            }}
-            onDragStateChange={(d) => {
-              setDragging(d);
-            }}
-          />
+          <InputArea onFile={handleFile} onDragStateChange={setDragging} />
         )}
       </div>
+
       <DashedBorder
         isSolid={!!file}
         dash={50}
@@ -109,7 +106,7 @@ export default function MediaContainer() {
           <CircleX
             aria-label="Clear media"
             onClick={clear}
-            className="absolute h-10 w-10 fill-primary cursor-pointer hover:opacity-80 transition-opacity z-20"
+            className="absolute h-10 w-10 fill-primary cursor-pointer hover:opacity-80 transition-opacity z-30"
             style={{
               top: cornerOffset,
               right: cornerOffset,
@@ -125,6 +122,11 @@ export default function MediaContainer() {
               { label: "Blend", value: "Smoothed" },
               { label: "Match", value: "Palettized" },
             ]}
+          />
+
+          <MediaControls
+            borderRadius={borderRadius}
+            cornerOffset={cornerOffset}
           />
         </>
       )}

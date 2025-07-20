@@ -1,10 +1,9 @@
 import { useEffect, useRef } from "react";
 import { proxy, transfer } from "comlink";
 import { useRenderer } from "@/providers/renderer-provider";
-import { Maximize, Play, Pause } from "lucide-react";
+import { Maximize } from "lucide-react";
 import { MEDIA_CANVAS_ID } from "@/lib/constants";
 import { useMediaStore, type MediaMeta } from "@/stores";
-import SeekBar from "./seek-bar";
 import { toast } from "sonner";
 
 interface Props {
@@ -26,13 +25,10 @@ export default function CanvasPreview({
   const hasRun = useRef(false);
 
   const renderer = useRenderer();
-  const isPlaying = useMediaStore((s) => s.isPlaying);
   const setIsPlaying = useMediaStore((s) => s.setIsPlaying);
   const setMediaMeta = useMediaStore((s) => s.setMediaMeta);
   const setIsLoading = useMediaStore((s) => s.setIsLoading);
   const isLoading = useMediaStore((s) => s.isLoading);
-  const meta = useMediaStore((s) => s.meta);
-  const canPlay = meta?.canPlay ?? false;
   const setProgress = useMediaStore((s) => s.setProgress);
 
   useEffect(() => {
@@ -85,16 +81,6 @@ export default function CanvasPreview({
     setIsPlaying,
   ]);
 
-  const handlePlayPause = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isPlaying) {
-      renderer.pause();
-    } else {
-      renderer.play();
-    }
-    setIsPlaying(!isPlaying);
-  };
-
   return (
     <div className="block w-full h-full relative">
       <canvas
@@ -125,52 +111,15 @@ export default function CanvasPreview({
         style={{ borderRadius }}
       >
         <div
-          className="absolute inset-0 flex items-center justify-center bg-primary/0 group-hover/canvas:bg-black/10 transition-colors duration-200"
+          className="absolute inset-0 flex items-center justify-center bg-transparent hover:bg-black/5 transition-colors duration-200"
           style={{ borderRadius }}
         >
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex gap-2">
-              {canPlay && (
-                <div
-                  className="p-2 bg-primary/80 backdrop-blur-sm rounded-md flex items-center gap-1.5 opacity-0 
-                group-hover/canvas:opacity-100 scale-90 group-hover/canvas:scale-100 transition-all duration-200"
-                  onClick={handlePlayPause}
-                >
-                  {isPlaying ? (
-                    <Pause className="w-4 h-4 stroke-3" />
-                  ) : (
-                    <Play className="w-4 h-4 stroke-3" />
-                  )}
-                  <span className="text-base">
-                    {isPlaying ? "Pause" : "Play"}
-                  </span>
-                </div>
-              )}
-              <div
-                className="p-2 bg-primary/80 backdrop-blur-sm rounded-md flex items-center gap-1.5 opacity-0 
-              group-hover/canvas:opacity-100 scale-90 group-hover/canvas:scale-100 transition-all duration-200"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onCanvasClick();
-                }}
-              >
-                <Maximize className="w-4 h-4 stroke-3" />
-                <span className="text-base">Inspect</span>
-              </div>
-            </div>
-            {canPlay && (
-              <div
-                className="
-                  w-full flex items-center gap-2 text-xs
-                  px-2 py-1 bg-primary/80 backdrop-blur-sm
-                  rounded-md opacity-0 group-hover/canvas:opacity-100
-                  transition-opacity duration-200
-                "
-                onClick={(e) => e.stopPropagation()}
-              >
-                <SeekBar className="w-full" />
-              </div>
-            )}
+          <div
+            className="p-2 bg-primary backdrop-blur-sm rounded-md flex items-center gap-1.5 opacity-0 
+            group-hover/canvas:opacity-100 scale-90 group-hover/canvas:scale-100 transition-all duration-200"
+          >
+            <Maximize className="w-4 h-4 text-white" />
+            <span className="text-sm text-white">Inspect</span>
           </div>
         </div>
       </div>

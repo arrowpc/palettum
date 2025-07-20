@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRenderer } from "@/providers/renderer-provider";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
@@ -6,6 +6,7 @@ import { CircularProgress } from "@/components/ui/experimental/circular-progress
 import { proxy } from "comlink";
 import { useShallow } from "zustand/react/shallow";
 import { useConfigStore, useMediaStore } from "@/stores";
+import { toast } from "sonner";
 
 type ExportState = "idle" | "loading" | "progress";
 
@@ -14,6 +15,8 @@ export function ExportButton() {
   const [exportState, setExportState] = useState<ExportState>("idle");
   const [exportProgress, setExportProgress] = useState(0);
   const [exportMessage, setExportMessage] = useState("Exporting...");
+
+  const isExportInProgressRef = useRef(false);
 
   const { config } = useConfigStore(
     useShallow((state) => ({ config: state.config })),
@@ -29,13 +32,16 @@ export function ExportButton() {
     setExportState("loading");
     setExportProgress(0);
     setExportMessage("Exporting...");
+    isExportInProgressRef.current = true;
 
     try {
       const blob = await renderer.export(
         proxy((progress: number, message: string) => {
-          setExportState("progress");
-          setExportProgress(progress);
-          setExportMessage(message);
+          if (isExportInProgressRef.current) {
+            setExportState("progress");
+            setExportProgress(progress);
+            setExportMessage(message);
+          }
         }),
       );
 
@@ -43,7 +49,7 @@ export function ExportButton() {
       const a = document.createElement("a");
       a.href = url;
 
-      const originalFilename = file?.name.split(".")[0] || "image";
+      const originalFilename = file?.name.split(".")[0] || "media";
       const extension = blob.type.split("/")[1];
       const mapping = config.mapping?.toLowerCase();
       const paletteId = config.palette?.id;
@@ -55,10 +61,17 @@ export function ExportButton() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      isExportInProgressRef.current = false;
+      setExportState("idle");
+      setExportProgress(0);
+      setExportMessage("Exporting...");
     } catch (error) {
-      console.error("Failed to export image:", error);
-      alert("Failed to export image. Please try again.");
-    } finally {
+      isExportInProgressRef.current = false;
+      toast.error(
+        "Failed to export media: " +
+          (error instanceof Error ? error.message : String(error)),
+      );
       setExportState("idle");
       setExportProgress(0);
       setExportMessage("Exporting...");

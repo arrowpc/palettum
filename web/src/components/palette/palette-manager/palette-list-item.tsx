@@ -64,12 +64,12 @@ const PaletteListItem: React.FC<Props> = ({
   const [isHovered, setIsHovered] = React.useState(false);
   const colorCycleIndex = useColorCycle(
     palette.colors.length,
-    isHovered && palette.colors.length > 4,
+    isHovered && palette.colors.length > 3,
     200,
   );
 
   const displayedColors = useMemo(() => {
-    return getDisplayedColors(palette, 4, colorCycleIndex);
+    return getDisplayedColors(palette, 3, colorCycleIndex);
   }, [palette, colorCycleIndex]);
 
   const handleAction = useCallback(
@@ -145,10 +145,10 @@ const PaletteListItem: React.FC<Props> = ({
             style={{ backgroundColor: rgbToHex(color) }}
           />
         ))}
-        {palette.colors.length > 4 && (
+        {palette.colors.length > 3 && (
           <div className="w-6 h-6 bg-muted flex items-center justify-center">
             <span className="text-xs font-medium text-muted-foreground">
-              +{palette.colors.length - 4}
+              +{palette.colors.length - 3}
             </span>
           </div>
         )}

@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 import { PaletteHeader } from "./palette-header";
 import { ColorPickerControl } from "./color-picker-control";
-import { ImageColorExtractor } from "./image-color-extractor";
+import { MediaColorExtractor } from "./media-color-extractor";
 import { ColorDisplayArea } from "./color-display-area";
 import { PaletteEditorActions } from "./palette-editor-actions";
 import type { Extractor } from "@/workers/core/extractor";
@@ -26,7 +26,7 @@ interface PaletteEditorProps {
   onSave: (palette: Palette) => Promise<void>;
 }
 
-const MAX_COLORS_FROM_IMAGE_INPUT = 255;
+const MAX_COLORS_FROM_MEDIA_INPUT = 255;
 const DEFAULT_COLORS_TO_EXTRACT = 8;
 
 export const PaletteEditor: React.FC<PaletteEditorProps> = ({
@@ -52,21 +52,21 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null!);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  const [uploadedImageFile, setUploadedImageFile] = useState<File | null>(null);
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
+  const [uploadedMediaFile, setUploadedMediaFile] = useState<File | null>(null);
   const extractorWorkerRef = useRef<Worker | null>(null);
   const extractorRef = useRef<Comlink.Remote<typeof Extractor> | null>(null);
 
-  const maxColorsToRequestFromImage = Math.max(
+  const maxColorsToRequestFromMedia = Math.max(
     1,
     Math.min(
-      MAX_COLORS_FROM_IMAGE_INPUT,
+      MAX_COLORS_FROM_MEDIA_INPUT,
       LIMITS.MAX_COLORS - palette.colors.length,
     ),
   );
 
   const [numColorsToExtract, setNumColorsToExtract] = useState<number>(
-    Math.min(DEFAULT_COLORS_TO_EXTRACT, maxColorsToRequestFromImage),
+    Math.min(DEFAULT_COLORS_TO_EXTRACT, maxColorsToRequestFromMedia),
   );
   const [suggestedColors, setSuggestedColors] = useState<Rgb[]>([]);
   const [isExtractingColors, setIsExtractingColors] = useState<boolean>(false);
@@ -116,17 +116,17 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
 
   useEffect(() => {
     return () => {
-      if (imagePreviewUrl && imagePreviewUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(imagePreviewUrl);
+      if (mediaPreviewUrl && mediaPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(mediaPreviewUrl);
       }
     };
-  }, [imagePreviewUrl]);
+  }, [mediaPreviewUrl]);
 
   useEffect(() => {
     const newMax = Math.max(
       1,
       Math.min(
-        MAX_COLORS_FROM_IMAGE_INPUT,
+        MAX_COLORS_FROM_MEDIA_INPUT,
         LIMITS.MAX_COLORS - palette.colors.length,
       ),
     );
@@ -224,7 +224,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     toast.success("Color added to palette!");
   }, [selectedColor, palette.colors]);
 
-  const removeColorFromPalette = useCallback((indexToRemove: number) => {
+  const removeFromPalette = useCallback((indexToRemove: number) => {
     setPalette((p) => ({
       ...p,
       colors: p.colors.filter((_, i) => i !== indexToRemove),
@@ -232,7 +232,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     toast.info("Color removed from palette.");
   }, []);
 
-  const addSuggestedColorToPalette = useCallback(
+  const addSuggestedToPalette = useCallback(
     (colorToAdd: Rgb) => {
       if (palette.colors.length >= LIMITS.MAX_COLORS) {
         toast.error(`Palette full (max ${LIMITS.MAX_COLORS} colors).`);
@@ -288,40 +288,40 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     }
   }, [palette, suggestedColors, onSave]);
 
-  const handleImageFileChange = useCallback(
+  const handleMediaFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) {
-        if (imagePreviewUrl && imagePreviewUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(imagePreviewUrl);
+        if (mediaPreviewUrl && mediaPreviewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(mediaPreviewUrl);
         }
-        setUploadedImageFile(file);
-        setImagePreviewUrl(URL.createObjectURL(file));
+        setUploadedMediaFile(file);
+        setMediaPreviewUrl(URL.createObjectURL(file));
         setSuggestedColors([]); // Clear old suggestions
-        toast.info("Image loaded. Ready to extract colors.");
+        toast.info("Media loaded. Ready to extract colors.");
       }
     },
-    [imagePreviewUrl],
+    [mediaPreviewUrl],
   );
 
-  const handleRemoveImage = useCallback(
+  const handleRemoveMedia = useCallback(
     (e?: React.MouseEvent) => {
       e?.stopPropagation();
-      if (imagePreviewUrl && imagePreviewUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(imagePreviewUrl);
+      if (mediaPreviewUrl && mediaPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(mediaPreviewUrl);
       }
-      setImagePreviewUrl(null);
-      setUploadedImageFile(null);
+      setMediaPreviewUrl(null);
+      setUploadedMediaFile(null);
       setSuggestedColors([]);
       if (fileInputRef.current) fileInputRef.current.value = "";
-      toast.info("Image removed.");
+      toast.info("Media removed.");
     },
-    [imagePreviewUrl],
+    [mediaPreviewUrl],
   );
 
-  const handleExtractColorsFromImage = useCallback(async () => {
-    if (!uploadedImageFile) {
-      toast.warning("Please select an image first to extract colors.");
+  const handleExtractColorsFromMedia = useCallback(async () => {
+    if (!uploadedMediaFile) {
+      toast.warning("Please select a media file first to extract colors.");
       return;
     }
     if (palette.colors.length >= LIMITS.MAX_COLORS) {
@@ -339,7 +339,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
 
     try {
       const extracted = await extractorRef.current?.extract(
-        uploadedImageFile,
+        uploadedMediaFile,
         numColorsToExtract,
       );
 
@@ -360,11 +360,11 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
           ),
       );
       setSuggestedColors((prev) =>
-        [...prev, ...newSuggestions].slice(0, MAX_COLORS_FROM_IMAGE_INPUT),
+        [...prev, ...newSuggestions].slice(0, MAX_COLORS_FROM_MEDIA_INPUT),
       ); // Add new, unique suggestions
 
       if (extracted.colors.length === 0) {
-        toast.info("No distinct colors found in the image.", { id: toastId });
+        toast.info("No distinct colors found in the media.", { id: toastId });
       } else if (newSuggestions.length === 0) {
         toast.info(
           `All extracted colors are already in your palette or suggestions.`,
@@ -384,14 +384,14 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     } catch (err) {
       console.error("Extraction error:", err);
       toast.error(
-        "Color extraction failed. Please try a different image or format.",
+        "Color extraction failed. Please try a different media file or format.",
         { id: toastId },
       );
     } finally {
       setIsExtractingColors(false);
     }
   }, [
-    uploadedImageFile,
+    uploadedMediaFile,
     numColorsToExtract,
     palette.colors,
     suggestedColors,
@@ -460,10 +460,10 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     setSuggestedColors([]);
   }, [suggestedColors]);
 
-  const currentMaxColorsToExtract = Math.max(
+  const maxExtractable = Math.max(
     1,
     Math.min(
-      MAX_COLORS_FROM_IMAGE_INPUT,
+      MAX_COLORS_FROM_MEDIA_INPUT,
       LIMITS.MAX_COLORS - palette.colors.length,
     ),
   );
@@ -521,7 +521,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
         className={cn(
           "bg-background rounded-lg p-4 sm:p-6 flex flex-col border border-border shadow-xl overflow-hidden",
           "w-full max-w-[95vw] sm:max-w-[480px] md:max-w-[600px] lg:max-w-[700px]",
-          "max-h-[90vh]",
+          "max-h-[90vh] overflow-y-auto",
         )}
       >
         <PaletteHeader
@@ -537,7 +537,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
         >
           <div
             className={cn(
-              "flex flex-col gap-4 sm:gap-6",
+              "flex flex-col gap-4 sm:gap-6 min-h-0 overflow-y-auto",
               isMobile ? "w-full order-1" : "w-[260px] order-2",
             )}
           >
@@ -553,18 +553,18 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
               onEyeDropper={handleEyeDropper}
               isMobile={isMobile}
             />
-            <ImageColorExtractor
-              imagePreviewUrl={imagePreviewUrl}
-              onImageFileChange={handleImageFileChange}
-              onRemoveImage={handleRemoveImage}
+            <MediaColorExtractor
+              mediaPreviewUrl={mediaPreviewUrl}
+              onMediaFileChange={handleMediaFileChange}
+              onRemove={handleRemoveMedia}
               fileInputRef={fileInputRef}
               numColorsToExtract={numColorsToExtract}
               onNumColorsToExtractChange={setNumColorsToExtract}
-              currentMaxColorsToExtract={currentMaxColorsToExtract}
-              onExtractColors={handleExtractColorsFromImage}
+              maxExtractable={maxExtractable}
+              onExtractColors={handleExtractColorsFromMedia}
               isExtractingColors={isExtractingColors}
               canExtractMore={canExtractMore}
-              uploadedImageFile={uploadedImageFile}
+              mediaFile={uploadedMediaFile}
               isMobile={isMobile}
             />
           </div>
@@ -574,8 +574,8 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
             suggestedColors={suggestedColors}
             hexValueSelected={hexValue}
             onAddSelectedColorToPalette={addSelectedColorToPalette}
-            onRemoveFromPalette={removeColorFromPalette}
-            onAddSuggestedToPalette={addSuggestedColorToPalette}
+            onRemoveFromPalette={removeFromPalette}
+            onAddSuggestedToPalette={addSuggestedToPalette}
             onDismissSuggestion={dismissSuggestion}
             onAcceptAllSuggestions={handleAcceptAllSuggestions}
             onRejectAllSuggestions={handleRejectAllSuggestions}

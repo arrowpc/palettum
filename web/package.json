@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@libav.js/variant-webcodecs": "^6.7.7",
+    "@radix-ui/react-collapsible": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-separator": "^1.1.7",

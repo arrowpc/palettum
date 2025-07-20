@@ -14,13 +14,10 @@ export default function ResizeFilter() {
   ];
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <label className="text-lg font-medium">Filter</label>
-      <ToggleSwitch
-        options={options}
-        value={value ?? "lanczos"}
-        onChange={(v) => setConfig(setting, v as Filter)}
-      />
-    </div>
+    <ToggleSwitch
+      options={options}
+      value={value ?? "lanczos"}
+      onChange={(v) => setConfig(setting, v as Filter)}
+    />
   );
 }

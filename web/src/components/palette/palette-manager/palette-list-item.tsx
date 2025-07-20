@@ -160,25 +160,56 @@ const PaletteListItem: React.FC<Props> = ({
           <span className="font-medium text-foreground truncate">
             {palette.id}
           </span>
-          {palette.kind === "Default" && (
-            <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded flex items-center gap-1">
-              <Sparkle className="w-3 h-3" />
-            </span>
-          )}
-          {palette.source && (
-            <TooltipWrapper content="View source" shouldRender={isHovered}>
-              <a
-                href={palette.source}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <ExternalLink className="w-3 h-3" />
-              </a>
-            </TooltipWrapper>
-          )}
+          {/* Desktop */}
+          <div className="hidden sm:flex items-center gap-2">
+            {palette.kind === "Default" && (
+              <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded flex items-center gap-1">
+                <Sparkle className="w-3 h-3" />
+              </span>
+            )}
+            {palette.source && (
+              <TooltipWrapper content="View source" shouldRender={isHovered}>
+                <a
+                  href={palette.source}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </TooltipWrapper>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Mobile */}
+      <div className="sm:hidden flex items-center gap-2 ml-auto pr-2">
+        {palette.kind === "Default" && (
+          <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded flex items-center gap-1">
+            <Sparkle className="w-3 h-3" />
+          </span>
+        )}
+        {palette.source && (
+          <TooltipWrapper content="View source" shouldRender={isHovered}>
+            <a
+              href={palette.source}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </TooltipWrapper>
+        )}
+        <button
+          onClick={handleMobileMenuClick}
+          className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <MoreVertical className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Desktop Actions */}
@@ -195,14 +226,6 @@ const PaletteListItem: React.FC<Props> = ({
           />
         ))}
       </div>
-
-      {/* Mobile Menu Button */}
-      <button
-        onClick={handleMobileMenuClick}
-        className="sm:hidden p-2 text-muted-foreground hover:text-foreground transition-colors"
-      >
-        <MoreVertical className="w-4 h-4" />
-      </button>
     </div>
   );
 };

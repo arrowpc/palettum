@@ -144,17 +144,15 @@ const initialPaletteSelectionOrder = loadPaletteSelectionOrder();
 let initialSelectedPalette: Palette | undefined;
 
 if (allInitialPalettes.length > 0) {
-  if (initialPaletteSelectionOrder.length > 0) {
+  const savedId = loadSelectedPaletteId();
+  if (savedId) {
+    initialSelectedPalette = allInitialPalettes.find((p) => p.id === savedId);
+  }
+
+  if (!initialSelectedPalette && initialPaletteSelectionOrder.length > 0) {
     for (const id of initialPaletteSelectionOrder) {
       initialSelectedPalette = allInitialPalettes.find((p) => p.id === id);
       if (initialSelectedPalette) break;
-    }
-  }
-
-  if (!initialSelectedPalette) {
-    const savedId = loadSelectedPaletteId(); // Legacy support
-    if (savedId) {
-      initialSelectedPalette = allInitialPalettes.find((p) => p.id === savedId);
     }
   }
 

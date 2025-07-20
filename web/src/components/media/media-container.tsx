@@ -108,8 +108,8 @@ export default function MediaContainer() {
             onClick={clear}
             className="absolute h-10 w-10 fill-primary cursor-pointer hover:opacity-80 transition-opacity z-30"
             style={{
-              top: cornerOffset,
-              right: cornerOffset,
+              top: `max(20px, ${cornerOffset})`,
+              right: `max(20px, ${cornerOffset})`,
               transform: "translate(50%, -50%)",
             }}
           />

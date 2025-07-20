@@ -12,6 +12,7 @@ import PaletteEditor from "@/components/palette/palette-editor";
 import { usePaletteStore } from "@/stores";
 import { generateUniqueId } from "@/lib/utils";
 import { type Palette } from "palettum";
+import { toast } from "sonner";
 
 const PaletteManager: React.FC = () => {
   const {
@@ -171,7 +172,7 @@ const PaletteManager: React.FC = () => {
         setDropdownOpen(false);
       } catch (err) {
         console.error("Failed to import palette:", err);
-        alert(
+        toast.error(
           `Failed to import palette: ${
             err instanceof Error ? err.message : "Unknown error"
           }. Please check the file format.`,

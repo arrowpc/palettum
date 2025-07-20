@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { mutative } from "zustand-mutative";
 import { type Palette } from "palettum";
+import { toast } from "sonner";
 import { LIMITS } from "@/lib/utils";
 import { useConfigStore } from "./config";
 
@@ -246,10 +247,6 @@ export const usePaletteStore = create<PaletteState>()(
         if (existingIndexForNewId !== -1) {
           state.palettes[existingIndexForNewId] = updatedPalette;
         } else {
-          // If it's a new ID (from a rename), it might not exist, so push.
-          // Or if it was a new palette to begin with.
-          // The original logic in handleSavePalette is a bit ambiguous.
-          // This logic handles both creating and updating.
           state.palettes.push(updatedPalette);
         }
 
@@ -263,8 +260,23 @@ export const usePaletteStore = create<PaletteState>()(
       });
     },
     deletePalette: (paletteId) => {
+      let deletedPaletteCopy: Palette | undefined;
+
       set((state) => {
-        state.palettes = state.palettes.filter((p) => p.id !== paletteId);
+        const originalIndex = state.palettes.findIndex(
+          (p) => p.id === paletteId,
+        );
+
+        if (originalIndex === -1) {
+          return; // Palette not found, nothing to delete
+        }
+
+        const dp = state.palettes[originalIndex];
+        // Create a deep clone to get a plain object, not a proxy
+        // Otherwise we get a revoked proxy error on undo
+        deletedPaletteCopy = JSON.parse(JSON.stringify(dp));
+
+        state.palettes.splice(originalIndex, 1);
         state.paletteSelectionOrder = state.paletteSelectionOrder.filter(
           (id) => id !== paletteId,
         );
@@ -276,21 +288,13 @@ export const usePaletteStore = create<PaletteState>()(
           let nextSelected: Palette | undefined;
 
           if (currentOrder.length > 0) {
-            const deletedIndex = currentOrder.indexOf(paletteId);
-            if (deletedIndex !== -1) {
-              // Find the next available palette in the order
-              for (let i = 1; i < currentOrder.length; i++) {
-                const nextIndex = (deletedIndex + i) % currentOrder.length;
-                const nextPaletteId = currentOrder[nextIndex];
-                nextSelected = state.palettes.find(
-                  (p) => p.id === nextPaletteId,
-                );
-                if (nextSelected) break;
-              }
+            for (let i = 0; i < currentOrder.length; i++) {
+              const nextPaletteId = currentOrder[i];
+              nextSelected = state.palettes.find((p) => p.id === nextPaletteId);
+              if (nextSelected) break;
             }
           }
 
-          // Fallback if no palette from the order is available
           if (!nextSelected) {
             nextSelected =
               state.palettes.find((p) => p.kind === "Default") ||
@@ -302,23 +306,50 @@ export const usePaletteStore = create<PaletteState>()(
             saveSelectedPaletteId(nextSelected.id);
             useConfigStore.getState().setSelectedPalette({ ...nextSelected });
           } else {
-            // This case should ideally not be reached if there are default palettes
-            const defaultPalettes = loadDefaultPalettes();
-            if (defaultPalettes.length > 0) {
-              const newSelected = defaultPalettes[0];
-              state.selectedPalette = newSelected;
-              saveSelectedPaletteId(newSelected.id);
-              useConfigStore.getState().setSelectedPalette({ ...newSelected });
-            } else {
-              // Critical state: no palettes left
-              console.error("No palettes available to select.");
+            if (state.palettes.length === 0) {
+              console.error("No palettes available after deletion.");
+              toast.error("No palettes available to select.");
+              state.selectedPalette = {
+                id: "placeholder-palette",
+                colors: [],
+                kind: "Default",
+                source: undefined,
+              } as Palette;
+              saveSelectedPaletteId(state.selectedPalette.id);
+              useConfigStore
+                .getState()
+                .setSelectedPalette({ ...state.selectedPalette });
             }
           }
         }
       });
+
+      if (deletedPaletteCopy) {
+        toast.success(`Palette '${deletedPaletteCopy.id}' deleted.`, {
+          action: {
+            label: "Undo",
+            onClick: () => {
+              set((state) => {
+                state.palettes.push(deletedPaletteCopy!);
+                state.paletteSelectionOrder.unshift(deletedPaletteCopy!.id);
+
+                state.selectedPalette = deletedPaletteCopy!;
+                saveSelectedPaletteId(deletedPaletteCopy!.id);
+                useConfigStore
+                  .getState()
+                  .setSelectedPalette({ ...deletedPaletteCopy! });
+
+                savePalettes(state.palettes);
+                savePaletteSelectionOrder(state.paletteSelectionOrder);
+                toast.info(`Palette '${deletedPaletteCopy!.id}' restored.`);
+              });
+            },
+          },
+          duration: 5000,
+        });
+      }
     },
   })),
 );
 
-// Initialize config store with the initial selected palette
 useConfigStore.getState().setSelectedPalette(initialSelectedPalette!);

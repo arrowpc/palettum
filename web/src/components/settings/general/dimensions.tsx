@@ -3,6 +3,7 @@ import { RotateCcw, Link2, Unlink2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useMediaStore } from "@/stores/media";
+import { useShallow } from "zustand/react/shallow";
 import { useConfigStore } from "@/stores/config";
 import { MAX_DIMENSION } from "@/lib/constants";
 
@@ -70,7 +71,14 @@ const DraggableDimensionLabel = ({
 };
 
 export const Dimensions: React.FC = () => {
-  const { resizedWidth, resizedHeight, setResizedDims, meta } = useMediaStore();
+  const { resizedWidth, resizedHeight, setResizedDims, meta } = useMediaStore(
+    useShallow((state) => ({
+      resizedWidth: state.resizedWidth,
+      resizedHeight: state.resizedHeight,
+      setResizedDims: state.setResizedDims,
+      meta: state.meta,
+    })),
+  );
   const setConfig = useConfigStore((s) => s.setConfig);
 
   const [dimensions, setDimensions] = useState({

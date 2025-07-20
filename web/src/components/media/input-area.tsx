@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 
-const ACCEPTED = "image/*,video/*";
+const ACCEPTED = "image/png,image/jpeg,image/webp,image/gif,video/*";
 
 interface Props {
   onFile: (f: File) => void;

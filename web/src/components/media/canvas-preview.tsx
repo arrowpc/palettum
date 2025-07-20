@@ -37,7 +37,7 @@ export default function CanvasPreview({
     if (!el) return;
 
     if (hasRun.current) {
-      console.warn("[CanvasPreview] transfer already done, skipping");
+      console.debug("[CanvasPreview] transfer already done, skipping");
       return;
     }
     hasRun.current = true;

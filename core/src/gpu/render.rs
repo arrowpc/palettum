@@ -233,23 +233,22 @@ impl Renderer {
 
     pub fn set_config(&mut self, config: Config) -> Result<(), JsValue> {
         *self.instance.config.write() = config;
-        let ctx = self
-            .context
-            .as_ref()
-            .ok_or_else(|| JsValue::from_str("No active context"))?;
-        let full_tex_exists = {
-            let full_tex_guard = ctx
-                .full_tex
-                .read()
-                .map_err(|_| JsValue::from_str("Failed to read full_tex"))?;
-            full_tex_guard.is_some()
-        };
-        if full_tex_exists {
-            self.try_draw()?;
+        if let Some(ctx) = self.context.as_ref() {
+            let full_tex_exists = {
+                let full_tex_guard = ctx
+                    .full_tex
+                    .read()
+                    .map_err(|_| JsValue::from_str("Failed to read full_tex"))?;
+                full_tex_guard.is_some()
+            };
+            if full_tex_exists {
+                self.try_draw()?;
+            }
+        } else {
+            log::debug!(" No active context when setting config");
         }
         Ok(())
     }
-
     pub fn clear_current_canvas(&mut self) -> Result<(), JsValue> {
         let canvas = self.canvas.as_ref().ok_or("canvas missing")?;
         let context = self.context.as_ref().unwrap();

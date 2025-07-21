@@ -5,12 +5,7 @@ import { useRenderer } from "@/providers/renderer-provider";
 import SeekBar from "./seek-bar";
 import { cn } from "@/lib/utils";
 
-interface Props {
-  borderRadius: number;
-  cornerOffset: string;
-}
-
-export default function MediaControls({ borderRadius, cornerOffset }: Props) {
+export default function MediaControls() {
   const [isMobile, setIsMobile] = useState(false);
 
   const isPlaying = useMediaStore((s) => s.isPlaying);

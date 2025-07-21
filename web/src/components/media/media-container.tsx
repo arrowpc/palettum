@@ -124,10 +124,7 @@ export default function MediaContainer() {
             ]}
           />
 
-          <MediaControls
-            borderRadius={borderRadius}
-            cornerOffset={cornerOffset}
-          />
+          <MediaControls />
         </>
       )}
 

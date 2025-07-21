@@ -1,8 +1,8 @@
 <p align="center">
   <a href="https://palettum.com" target="_blank">
-    <img src="https://i.nuuls.com/ibW4Z.png" alt="palettum logo" width="100" />
+    <img src="https://i.nuuls.com/5BwS3.png" alt="palettum logo" width="200" />
   </a>
-</p><h1 align="center">palettum</h1><p align="center">
+</p><p align="center">
   Palettum is a color remapping tool for images and GIFs.<br>
   It lets you apply any custom palette by either snapping each pixel to its closest color (ideal for pixel-art styles), blending the palette as a filter for a smoother effect, or both.
 </p><p align="center">

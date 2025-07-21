@@ -14,8 +14,7 @@ const LOGGER_ENV: &str = "RUST_LOG";
 pub fn init(multi: MultiProgress) -> Result<LevelFilter> {
     #[cfg(feature = "video")]
     {
-        use crate::logger::ffmpeg_next::log::set_level;
-        use palettum::ffmpeg_next;
+        use palettum::ffmpeg_next::log::set_level;
         set_level(palettum::ffmpeg_next::log::Level::Error);
     }
 

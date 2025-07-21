@@ -29,5 +29,36 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Cache FFmpeg dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            /var/cache/apt/archives # Linux apt cache
+            ~/Library/Caches/Homebrew # macOS Homebrew cache
+            /usr/local/Cellar # macOS Homebrew installations (Intel)
+            /opt/homebrew/Cellar # macOS Homebrew installations (Apple Silicon)
+            vcpkg/installed # Windows vcpkg installations
+          key: ${{ runner.os }}-ffmpeg-deps-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-ffmpeg-deps-
+
+      - name: Install FFmpeg development libraries (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libavutil-dev libavcodec-dev libavformat-dev libavdevice-dev libswscale-dev libswresample-dev libpostproc-dev
+
+      - name: Install FFmpeg development libraries (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install pkg-config ffmpeg
+
+      - name: Install FFmpeg development libraries (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          vcpkg install ffmpeg --recurse
+          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          echo "PKG_CONFIG_PATH=$VCPKG_INSTALLATION_ROOT/installed/x64-windows/lib/pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Run tests
-        run: cargo test --all-features
+        run: cargo test

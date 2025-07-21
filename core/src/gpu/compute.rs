@@ -51,7 +51,7 @@ impl Processor {
                 force_fallback_adapter: false,
             })
             .await
-            .map_err(|e| Error::Gpu(format!("No suitable GPU adapter found: {}", e)))?;
+            .map_err(|e| Error::Gpu(format!("No suitable GPU adapter found: {e}")))?;
 
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
@@ -59,7 +59,7 @@ impl Processor {
                 ..Default::default()
             })
             .await
-            .map_err(|e| Error::Gpu(format!("Device request failed: {}", e)))?;
+            .map_err(|e| Error::Gpu(format!("Device request failed: {e}")))?;
 
         let mapping_layout = Self::create_bind_group_layout(&device);
 
@@ -206,9 +206,8 @@ impl Processor {
 
         if max_rows_per_chunk == 0 && height > 0 {
             return Err(Error::Gpu(format!(
-                "Cannot determine a valid chunk size (max_rows_per_chunk is 0 but height {} > 0). \
-                 Image width ({}) might be too large. Max buffer size: {}, max binding size: {}",
-                height, width, max_buffer_size, max_bindable_storage_buffer_size
+                "Cannot determine a valid chunk size (max_rows_per_chunk is 0 but height {height} > 0). \
+                 Image width ({width}) might be too large. Max buffer size: {max_buffer_size}, max binding size: {max_bindable_storage_buffer_size}"
             )));
         }
 
@@ -241,7 +240,7 @@ impl Processor {
                 self.context
                     .device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("RGBA Image Chunk Buffer {}", chunk_index)),
+                        label: Some(&format!("RGBA Image Chunk Buffer {chunk_index}")),
                         contents: current_image_data_slice,
                         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
                     });
@@ -251,14 +250,14 @@ impl Processor {
                 self.context
                     .device
                     .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some(&format!("Config Chunk Buffer {}", chunk_index)),
+                        label: Some(&format!("Config Chunk Buffer {chunk_index}")),
                         contents: bytemuck::bytes_of(&gpu_chunk_config),
                         usage: wgpu::BufferUsages::UNIFORM,
                     });
 
             let result_chunk_buffer_size = current_image_data_slice.len() as u64;
             let result_chunk_buffer = self.context.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(&format!("Result RGBA Chunk Buffer {}", chunk_index)),
+                label: Some(&format!("Result RGBA Chunk Buffer {chunk_index}")),
                 size: result_chunk_buffer_size,
                 usage: wgpu::BufferUsages::STORAGE
                     | wgpu::BufferUsages::COPY_SRC
@@ -270,14 +269,14 @@ impl Processor {
                 self.context
                     .device
                     .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                        label: Some(&format!("Image Proc. Commands Chunk {}", chunk_index)),
+                        label: Some(&format!("Image Proc. Commands Chunk {chunk_index}")),
                     });
 
             let general_bind_group =
                 self.context
                     .device
                     .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some(&format!("General Bind Group Chunk {}", chunk_index)),
+                        label: Some(&format!("General Bind Group Chunk {chunk_index}")),
                         layout: &self.context.mapping_layout,
                         entries: &[
                             wgpu::BindGroupEntry {
@@ -297,7 +296,7 @@ impl Processor {
 
             {
                 let mut compute_pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some(&format!("Compute Pass Chunk {}", chunk_index)),
+                    label: Some(&format!("Compute Pass Chunk {chunk_index}")),
                     timestamp_writes: None,
                 });
 
@@ -346,7 +345,7 @@ impl Processor {
             }
 
             let staging_chunk_buffer = self.context.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some(&format!("Staging Chunk Buffer {}", chunk_index)),
+                label: Some(&format!("Staging Chunk Buffer {chunk_index}")),
                 size: result_chunk_buffer_size,
                 usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
                 mapped_at_creation: false,
@@ -381,14 +380,12 @@ impl Processor {
                 }
                 Ok(Err(e)) => {
                     return Err(Error::Gpu(format!(
-                        "Buffer mapping error for chunk {}: {:?}",
-                        chunk_index, e
+                        "Buffer mapping error for chunk {chunk_index}: {e}"
                     )));
                 }
                 Err(e) => {
                     return Err(Error::Gpu(format!(
-                        "Channel receive error for chunk {}: {:?}",
-                        chunk_index, e
+                        "Channel receive error for chunk {chunk_index}: {e}"
                     )));
                 }
             }

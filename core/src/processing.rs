@@ -83,10 +83,7 @@ async fn get_gpu_processor() -> Result<Arc<Processor>> {
         let result = GPU_PROCESSOR
             .get_or_try_init(async {
                 Processor::new().await.map(Arc::new).map_err(|e| {
-                    log::warn!(
-                        "Failed to initialize GPU Processor: {:?}. Will fallback to CPU",
-                        e
-                    );
+                    log::warn!("Failed to initialize GPU Processor: {e:?}. Will fallback to CPU");
                     e
                 })
             })
@@ -143,20 +140,14 @@ pub fn generate_lookup_table(
         const LUT_SIZE_HEURISTIC_DIVISOR: usize = 4;
         if size > 0 && table_size > size / LUT_SIZE_HEURISTIC_DIVISOR {
             log::debug!(
-                "Skipping LUT generation: LUT size ({}) > image size ({}) / {}",
-                table_size,
-                size,
-                LUT_SIZE_HEURISTIC_DIVISOR
+                "Skipping LUT generation: LUT size ({table_size}) > image size ({size}) / {LUT_SIZE_HEURISTIC_DIVISOR}"
             );
             return Vec::new();
         }
     }
 
     log::debug!(
-        "Generating lookup table (quant={}, bins={}, size={})...",
-        q,
-        bins_per_channel,
-        table_size
+        "Generating lookup table (quant={q}, bins={bins_per_channel}, size={table_size})..."
     );
 
     let mut lookup = vec![Rgb([0, 0, 0]); table_size];
@@ -348,7 +339,7 @@ fn process_non_dithered_pixels(
                                 pixel_chunk.copy_from_slice(&mapped_pixel.0);
                             }
                             Err(e) => {
-                                log::error!("Error processing pixel in thread: {:?}", e);
+                                log::error!("Error processing pixel in thread: {e:?}");
                             }
                         }
                     }

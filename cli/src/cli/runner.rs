@@ -53,7 +53,7 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                         // Directory
                         let out_dir = determine_output(args.output.as_deref(), input, args.mapping);
                         let files = process_files(input, &out_dir)
-                            .with_context(|| format!("Failed to process files in {:?}", input))?;
+                            .with_context(|| format!("Failed to process files in {input:?}"))?;
                         let dir_name = input
                             .file_name()
                             .unwrap_or_default()
@@ -106,7 +106,7 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
 
                 if let Some(p) = output.parent() {
                     std::fs::create_dir_all(p)
-                        .with_context(|| format!("Failed to create output directory {:?}", p))?;
+                        .with_context(|| format!("Failed to create output directory {p:?}"))?;
                 }
 
                 if !input.exists() {
@@ -126,7 +126,7 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     );
                 }
                 let mut media = load_media_from_path(&input)
-                    .with_context(|| format!("Failed to load media from {:?}", input))?;
+                    .with_context(|| format!("Failed to load media from {input:?}"))?;
 
                 let mut output_with_ext = output.clone();
                 output_with_ext.set_extension(media.default_extension());
@@ -139,14 +139,14 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
 
                 media
                     .resize(args.width, args.height, args.scale, args.filter)
-                    .with_context(|| format!("Failed to resize {:?}", input))?;
+                    .with_context(|| format!("Failed to resize {input:?}"))?;
                 media
                     .palettify(&config)
                     .await
-                    .with_context(|| format!("Failed to palettify {:?}", input))?;
+                    .with_context(|| format!("Failed to palettify {input:?}"))?;
                 media
                     .write_to_file(&output)
-                    .with_context(|| format!("Failed to write output {:?}", output))?;
+                    .with_context(|| format!("Failed to write output {output:?}"))?;
 
                 let dt: Duration = start.elapsed();
                 info!("Done in {}", s.secondary.apply_to(format_duration(dt)));
@@ -235,19 +235,18 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                         );
 
                         let result: Result<()> = async {
-                            let mut media = load_media_from_path(&input).with_context(|| {
-                                format!("Failed to load media from {:?}", input)
-                            })?;
+                            let mut media = load_media_from_path(&input)
+                                .with_context(|| format!("Failed to load media from {input:?}"))?;
                             media
                                 .resize(width, height, scale, filter)
-                                .with_context(|| format!("Failed to resize {:?}", input))?;
+                                .with_context(|| format!("Failed to resize {input:?}"))?;
                             media
                                 .palettify(&cfg)
                                 .await
-                                .with_context(|| format!("Failed to palettify {:?}", input))?;
+                                .with_context(|| format!("Failed to palettify {input:?}"))?;
                             media
                                 .write_to_file(&output)
-                                .with_context(|| format!("Failed to write output {:?}", output))?;
+                                .with_context(|| format!("Failed to write output {output:?}"))?;
                             Ok(())
                         }
                         .await;
@@ -353,7 +352,7 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 extracted_output(&args.input)
             };
             palette_to_file(&palette, &output)
-                .with_context(|| format!("Failed to write palette to {:?}", output))?;
+                .with_context(|| format!("Failed to write palette to {output:?}"))?;
 
             let mut json_output = output.clone();
             json_output.set_extension("json");
@@ -404,16 +403,16 @@ pub fn format_duration(duration: Duration) -> String {
     let secs = duration.as_secs() as f64 + (duration.subsec_nanos() as f64 / 1_000_000_000.0);
 
     if duration.as_secs() == 0 && millis > 0 {
-        format!("{}ms", millis)
+        format!("{millis}ms")
     } else {
-        format!("{:.3}s", secs)
+        format!("{secs:.3}s")
     }
 }
 
 // TODO: Check if directory already exists & implement --force flag for palettify command
 fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
     fs::create_dir_all(dst_dir)
-        .with_context(|| format!("Failed to create directory {:?}", dst_dir))?;
+        .with_context(|| format!("Failed to create directory {dst_dir:?}"))?;
 
     let entries: Vec<walkdir::DirEntry> = WalkDir::new(src_dir)
         .into_iter()
@@ -428,16 +427,16 @@ fn process_files(src_dir: &Path, dst_dir: &Path) -> Result<Vec<PathBuf>> {
 
             let rel_path = path
                 .strip_prefix(src_dir)
-                .with_context(|| format!("Failed to strip prefix {:?} from {:?}", src_dir, path))?;
+                .with_context(|| format!("Failed to strip prefix {src_dir:?} from {path:?}"))?;
             let dst_path = dst_dir.join(rel_path);
 
             if let Some(parent) = dst_path.parent() {
                 fs::create_dir_all(parent)
-                    .with_context(|| format!("Failed to create directory {:?}", parent))?;
+                    .with_context(|| format!("Failed to create directory {parent:?}"))?;
             }
 
             fs::copy(path, &dst_path)
-                .with_context(|| format!("Failed to copy {:?} to {:?}", path, dst_path))?;
+                .with_context(|| format!("Failed to copy {path:?} to {dst_path:?}"))?;
 
             let ext = path
                 .extension()

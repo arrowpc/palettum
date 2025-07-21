@@ -36,7 +36,7 @@ pub async fn palettify(bytes: Vec<u8>) -> Result<Vec<u8>> {
     media.palettify(&config).await?;
 
     let duration = start_time.elapsed();
-    log::info!("Palettification completed in {:?}", duration);
+    log::info!("Palettification completed in {duration:?}");
 
     media.write_to_memory()
 }

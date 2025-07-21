@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
     let exit_code = match run_cli(args, multi).await {
         Ok(()) => 0,
         Err(e) => {
-            log::error!("{:?}", e);
+            log::error!("{e:?}");
             1
         }
     };

@@ -106,7 +106,7 @@ pub fn get_all_palettes() -> Vec<Palette> {
 pub fn find_palette(id: &str) -> Option<Palette> {
     let palette = get_all_palettes().into_iter().find(|p| p.id == id);
     if palette.is_none() {
-        log::debug!("Palette with id '{}' not found.", id);
+        log::debug!("Palette with id '{id}' not found.");
     }
     palette
 }

@@ -37,9 +37,9 @@ pub fn init(multi: MultiProgress) -> Result<LevelFilter> {
         let styled_level = style.apply_to(level_text);
 
         if level == Level::Info {
-            writeln!(buf, "{}{}", styled_level, message)
+            writeln!(buf, "{styled_level}{message}")
         } else {
-            writeln!(buf, "{}[{}] {}", styled_level, target, message)
+            writeln!(buf, "{styled_level}[{target}] {message}")
         }
     });
 

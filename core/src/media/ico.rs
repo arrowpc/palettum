@@ -157,8 +157,7 @@ impl Ico {
                 if target_width.is_none() && target_height.is_none() {
                     // No operation specified
                     log::debug!(
-                        "Skipping resize for icon {}: No target dimensions or scale provided.",
-                        i
+                        "Skipping resize for icon {i}: No target dimensions or scale provided."
                     );
                     continue;
                 }
@@ -167,22 +166,13 @@ impl Ico {
 
             if final_width != orig_width || final_height != orig_height {
                 log::debug!(
-                    "Resizing icon {} from {}x{} to {}x{} using filter {:?}",
-                    i,
-                    orig_width,
-                    orig_height,
-                    final_width,
-                    final_height,
-                    filter
+                    "Resizing icon {i} from {orig_width}x{orig_height} to {final_width}x{final_height} using filter {filter:?}"
                 );
                 *buffer = image::imageops::resize(buffer, final_width, final_height, filter.into());
                 self.widths[i] = final_width;
                 self.heights[i] = final_height;
             } else {
-                log::debug!(
-                    "Skipping resize for icon {}: Target dimensions match original.",
-                    i
-                );
+                log::debug!("Skipping resize for icon {i}: Target dimensions match original.");
             }
         }
 
@@ -196,7 +186,7 @@ impl Ico {
             let width = self.widths[i];
             let height = self.heights[i];
 
-            log::debug!("Processing icon pixels {} ({}x{})", i, width, height);
+            log::debug!("Processing icon pixels {i} ({width}x{height})");
             processing::process_pixels(buffer.as_mut(), width, height, config).await?;
         }
 

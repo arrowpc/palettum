@@ -96,10 +96,7 @@ pub async fn get_gpu_instance() -> Result<Arc<GpuInstance>> {
                         Ok(arc)
                     }
                     Err(e) => {
-                        log::warn!(
-                            "Failed to initialize GPU Context: {:?}. Will fallback to CPU",
-                            e
-                        );
+                        log::warn!("Failed to initialize GPU Context: {e}. Will fallback to CPU");
                         Err(e)
                     }
                 }
@@ -189,7 +186,7 @@ impl GpuConfig {
 pub fn preprocess(files: &HashMap<PathBuf, String>, current_file: &str) -> Result<String> {
     let mut content = files
         .get(&PathBuf::from(current_file))
-        .ok_or_else(|| format!("File not found: {}", current_file))
+        .ok_or_else(|| format!("File not found: {current_file}"))
         .unwrap()
         .clone();
 
@@ -200,7 +197,7 @@ pub fn preprocess(files: &HashMap<PathBuf, String>, current_file: &str) -> Resul
                 let include_path = include_path.trim().trim_matches('"');
                 let included = files
                     .get(&PathBuf::from(include_path))
-                    .ok_or_else(|| format!("Included file not found: {}", include_path))
+                    .ok_or_else(|| format!("Included file not found: {include_path}"))
                     .unwrap();
                 new_content.push_str(included);
                 new_content.push('\n');

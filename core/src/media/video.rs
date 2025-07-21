@@ -44,7 +44,7 @@ impl Video {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        path.push(format!("ffmpeg_temp_{}.tmp", nanos));
+        path.push(format!("ffmpeg_temp_{nanos}.tmp"));
 
         let mut file = File::create(&path)?;
         file.write_all(bytes)?;
@@ -152,7 +152,7 @@ impl Video {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_nanos();
-        temp_path.push(format!("ffmpeg_output_{}.mp4", nanos));
+        temp_path.push(format!("ffmpeg_output_{nanos}.mp4"));
 
         self.write_to_file(&temp_path)?;
 

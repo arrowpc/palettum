@@ -142,8 +142,7 @@ impl Image {
                             Some(&idx) => indices.push(idx),
                             None => {
                                 log::error!(
-                                "Pixel color ({},{},{}) not found in palette! Defaulting to index 0.",
-                                r, g, b
+                                "Pixel color ({r},{g},{b}) not found in palette! Defaulting to index 0."
                             );
                                 indices.push(0);
                             }
@@ -248,7 +247,7 @@ impl Image {
         config.validate()?;
 
         log::debug!("Processing image pixels ({}x{})", self.width, self.height);
-        log::debug!("{}", config);
+        log::debug!("{config}");
         processing::process_pixels(self.buffer.as_mut(), self.width, self.height, config).await?;
         log::debug!("Pixel processing complete.");
 

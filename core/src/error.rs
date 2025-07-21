@@ -101,6 +101,9 @@ pub enum Error {
 
     #[error("{0}")]
     Internal(String),
+
+    #[error("Video feature not enabled.")]
+    VideoFeatureDisabled,
 }
 
 /// Result type of the core library

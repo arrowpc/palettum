@@ -119,11 +119,15 @@ impl Media {
 }
 
 pub fn load_media_from_path(path: &Path) -> Result<Media> {
-    #[cfg(feature = "video")]
-    {
-        // TODO: Actual proper video detection
-        if path.extension().unwrap().to_str().unwrap() == "mp4" {
+    // TODO: Actual proper video detection
+    if path.extension().unwrap().to_str().unwrap() == "mp4" {
+        #[cfg(feature = "video")]
+        {
             return Ok(Media::Video(Video::from_file(path)?));
+        }
+        #[cfg(not(feature = "video"))]
+        {
+            return Err(Error::VideoFeatureDisabled);
         }
     }
 

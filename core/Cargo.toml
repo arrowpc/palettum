@@ -37,7 +37,7 @@ js-sys = "0.3.77"
 console_error_panic_hook = "0.1.7"
 wasm-bindgen-futures = "0.4.50"
 web-sys = { version = "0.3.77", features = ["HtmlCanvasElement", "ImageBitmap", "OffscreenCanvasRenderingContext2d", "ImageData", "OffscreenCanvas"] }
-ffmpeg-next = { version = "7.1.0", optional = true, default-features = false, features = [ "format", "codec", "software-scaling", "static", "build-lib-x264", "build-license-gpl"] }
+ffmpeg-next = { version = "7.1.0", optional = true, default-features = false, features = [ "format", "codec", "software-scaling"] }
 parking_lot = { version = "0.12" }
 
 [features]
@@ -45,3 +45,4 @@ serde = ["dep:serde"]
 wasm = ["serde", "dep:wasm-bindgen", "dep:tsify", "image/serde" ]
 cli = ["dep:clap", "dep:tabled" ]
 video = ["dep:ffmpeg-next"]
+ffmpeg-static = ["ffmpeg-next/static", "ffmpeg-next/build-lib-x264", "ffmpeg-next/build-license-gpl"]

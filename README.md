@@ -3,8 +3,8 @@
     <img src="https://i.nuuls.com/5BwS3.png" alt="palettum logo" width="200" />
   </a>
 </p><p align="center">
-  Palettum is a color remapping tool for images and GIFs.<br>
-  It lets you apply any custom palette by either snapping each pixel to its closest color (ideal for pixel-art styles), blending the palette as a filter for a smoother effect, or both.
+  Palettum is a web app and CLI tool that  lets you recolor images, GIFs, and videos with any custom palette of your choosing.<br>
+  It lets you apply any custom palette by either snapping each pixel to its closest color (ideal for pixel-art styles), or blending the palette as a filter for a smoother effect.
 </p><p align="center">
   <a href="https://palettum.com" target="_blank">
     <b>Try it out here</b>
@@ -19,10 +19,6 @@
 > Unfinished
 
 #### GIF Pixel Art
-
-> **Settings used:**  
-> `--mapping smoothed-palettized  --smoothing-style idw  --lab-scales 10.0, 10.0, 2.0`
->
 > **Original artwork by [lgarabato](https://www.artstation.com/lgarabato)**
 
 <table>
@@ -72,32 +68,31 @@ cargo build -p cli
 
 The executable will be located in the `target/debug/` directory (or `target/release/` if you add the `--release` flag).
 
-### WebAssembly (WASM) for Web App
+### Web App
 
-The web application uses a WebAssembly module compiled from the Rust code.
+The web application uses a WebAssembly module compiled from Rust code.
 
-1.  **Build the WASM package:**
-    Run the build script from the project root. This script compiles the Rust code to WASM and places the necessary files into the `web/src/wasm/pkg` directory.
+To set up and run the web application:
 
+1.  **Navigate to the web frontend:**
     ```bash
-    ./build-wasm.sh # won't work on windows, script content will be moved to package.json scripts soon™
+    cd web
     ```
 
-2.  **Set up the web frontend:**
-    The web frontend is located in the `web/` directory and uses Bun.
+2.  **Install dependencies:**
+    ```bash
+    bun install
+    ```
 
-    - Navigate to the web directory:
-      ```bash
-      cd web
-      ```
-    - Install dependencies:
-      ```bash
-      bun install
-      ```
-    - Run the development server:
-      ```bash
-      bun run dev
-      ```
+3.  **Compile the WASM binary (release mode):**
+    ```bash
+    bun run wasm:build:release
+    ```
+
+4.  **Run the development server:**
+    ```bash
+    bun run dev
+    ```
 
 ---
 

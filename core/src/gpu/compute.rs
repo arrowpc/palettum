@@ -370,8 +370,7 @@ impl Processor {
                 }
             });
 
-            #[cfg(not(target_arch = "wasm32"))]
-            self.context.device.poll(wgpu::MaintainBase::Wait);
+            self.context.device.poll(wgpu::PollType::Wait)?;
 
             match receiver.await {
                 Ok(Ok(())) => {

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use wgpu::PollError;
 
 use thiserror::Error as ThisError;
 
@@ -95,6 +96,9 @@ pub enum Error {
     #[error("GPU error: {0}")]
     Gpu(String),
 
+    #[error("GPU polling error: {0}")]
+    GpuPollingErrorl(#[from] PollError),
+
     #[error("{0}")]
     Internal(String),
 }
@@ -102,10 +106,10 @@ pub enum Error {
 /// Result type of the core library
 pub type Result<T> = core::result::Result<T, Error>;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(feature = "wasm")]
 use wasm_bindgen::JsValue;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(feature = "wasm")]
 impl From<Error> for JsValue {
     fn from(err: Error) -> JsValue {
         JsValue::from_str(&err.to_string())

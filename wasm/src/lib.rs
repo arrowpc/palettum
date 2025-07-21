@@ -26,7 +26,7 @@ pub async fn palettify(bytes: Vec<u8>) -> Result<Vec<u8>> {
     let bytes = bytes.to_vec();
     let mut media = load_media_from_memory(&bytes)?;
     let instance = get_gpu_instance().await?;
-    let config = instance.config.read();
+    let config = instance.config.read().clone();
     media.resize(
         config.resize_width,
         config.resize_height,
@@ -50,7 +50,7 @@ pub struct Dimensions {
 #[wasm_bindgen]
 pub async fn get_dimensions() -> Result<Dimensions> {
     let instance = get_gpu_instance().await?;
-    let config = instance.config.read();
+    let config = instance.config.read().clone();
     Ok(Dimensions {
         width: config.resize_width.unwrap(),
         height: config.resize_height.unwrap(),
@@ -60,7 +60,7 @@ pub async fn get_dimensions() -> Result<Dimensions> {
 #[wasm_bindgen]
 pub async fn palettify_frame(bytes: &mut [u8]) -> Result<()> {
     let instance = get_gpu_instance().await?;
-    let config = instance.config.read();
+    let config = instance.config.read().clone();
     process_pixels(
         bytes,
         config.resize_width.unwrap(),
@@ -99,7 +99,7 @@ impl ResizedFrame {
 #[wasm_bindgen]
 pub async fn resize_frame(bytes: Vec<u8>, width: u32, height: u32) -> Result<ResizedFrame> {
     let instance = get_gpu_instance().await?;
-    let config = instance.config.read();
+    let config = instance.config.read().clone();
     let mut image = Image {
         buffer: image::RgbaImage::from_raw(width, height, bytes).ok_or(
             palettum::error::Error::Internal(
@@ -155,9 +155,9 @@ impl Gif {
 
     pub fn get_frame_data(&self, frame_idx: usize) -> Result<Clamped<Uint8Array>> {
         if frame_idx >= self.gif.frames.len() {
-            return Err(
-                palettum::error::Error::Internal("Frame index out of bounds".to_string()).into(),
-            );
+            return Err(palettum::error::Error::Internal(
+                "Frame index out of bounds".to_string(),
+            ));
         }
         let frame = &self.gif.frames[frame_idx];
 
@@ -171,14 +171,14 @@ impl Gif {
 
     pub async fn palettify(&mut self) -> Result<()> {
         let instance = get_gpu_instance().await?;
-        let config = instance.config.read();
+        let config = instance.config.read().clone();
         self.gif.palettify(&config).await?;
         Ok(())
     }
 
     pub async fn resize(&mut self) -> Result<()> {
         let instance = get_gpu_instance().await?;
-        let config = instance.config.read();
+        let config = instance.config.read().clone();
         self.gif.resize(
             config.resize_width,
             config.resize_height,

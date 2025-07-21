@@ -52,7 +52,9 @@ async fn get_gpu_processor() -> Result<Arc<Processor>> {
         });
 
         if init_failed {
-            return Err(Error::Gpu("GPU processor initialization previously failed.".to_string()));
+            return Err(Error::Gpu(
+                "GPU processor initialization previously failed.".to_string(),
+            ));
         }
 
         match Processor::new().await {
@@ -90,7 +92,7 @@ async fn get_gpu_processor() -> Result<Arc<Processor>> {
             })
             .await;
 
-        result.map(Arc::clone).map_err(|e| e)
+        result.map(Arc::clone)
     }
 }
 
@@ -403,7 +405,7 @@ pub async fn process_pixels(
     if let Ok(gpu_processor) = get_gpu_processor().await {
         log::debug!("Processing with GPU");
         let result = gpu_processor
-            .process_image(image_data, width, height, &config)
+            .process_image(image_data, width, height, config)
             .await?;
 
         if image_data.len() == result.len() {
@@ -426,7 +428,7 @@ pub async fn process_pixels(
 
     let lookup_table = if config.quant_level > 0 {
         let img_size = width as usize * height as usize;
-        Some(generate_lookup_table(&config, &lab_colors, Some(img_size)))
+        Some(generate_lookup_table(config, &lab_colors, Some(img_size)))
     } else {
         None
     };
@@ -435,7 +437,7 @@ pub async fn process_pixels(
         image_data,
         width,
         height,
-        &config,
+        config,
         &lab_colors,
         lookup_table.as_deref(),
     )

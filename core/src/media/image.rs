@@ -249,7 +249,7 @@ impl Image {
 
         log::debug!("Processing image pixels ({}x{})", self.width, self.height);
         log::debug!("{}", config);
-        processing::process_pixels(self.buffer.as_mut(), self.width, self.height, &config).await?;
+        processing::process_pixels(self.buffer.as_mut(), self.width, self.height, config).await?;
         log::debug!("Pixel processing complete.");
 
         if config.mapping != Mapping::Smoothed {

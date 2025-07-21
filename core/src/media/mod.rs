@@ -1,7 +1,6 @@
 mod gif;
 mod ico;
 mod image;
-
 #[cfg(feature = "video")]
 mod video;
 
@@ -50,11 +49,7 @@ impl Media {
     }
 
     pub fn from_memory(bytes: &[u8]) -> Result<Self> {
-        #[cfg(feature = "video")]
-        {
-            todo!()
-        }
-
+        // TODO: Actual proper video detection
         let format = guess_format(bytes)?;
         match format {
             ImageFormat::Gif => Ok(Media::Gif(Gif::from_memory(bytes)?)),
@@ -144,14 +139,8 @@ pub fn load_media_from_path(path: &Path) -> Result<Media> {
 }
 
 pub fn load_media_from_memory(bytes: &[u8]) -> Result<Media> {
-    #[cfg(feature = "video")]
-    {
-        todo!()
-    }
-
-    log::info!("Here");
+    // TODO: Actual proper video detection
     let format = guess_format(bytes)?;
-    log::info!("There");
     match format {
         ImageFormat::Gif => Ok(Media::Gif(Gif::from_memory(bytes)?)),
         ImageFormat::Ico => Ok(Media::Ico(Ico::from_memory(bytes)?)),

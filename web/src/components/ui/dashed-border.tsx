@@ -40,8 +40,6 @@ const DashedBorder: React.FC<DashedBorderProps> = ({
         <rect
           x={strokeWidth / 2}
           y={strokeWidth / 2}
-          width={`calc(100% - ${strokeWidth}px)`}
-          height={`calc(100% - ${strokeWidth}px)`}
           rx={borderRadius}
           ry={borderRadius}
           fill="none"
@@ -49,6 +47,8 @@ const DashedBorder: React.FC<DashedBorderProps> = ({
           strokeWidth={strokeWidth}
           strokeDasharray={strokeDasharray}
           style={{
+            width: `calc(100% - ${strokeWidth}px)`,
+            height: `calc(100% - ${strokeWidth}px)`,
             transition: `stroke-dasharray ${animationDuration}ms ease-in-out`,
           }}
         />

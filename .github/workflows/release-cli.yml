@@ -1,29 +1,31 @@
 name: Build and Release CLI
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - "cli/**"
       - "core/**"
       - "wasm/**"
       - "Cargo.toml"
-      - ".github/workflows/code-quality.yml"
+      - ".github/workflows/release-cli.yml"
     tags:
       - "v*"
 
 jobs:
   build:
-    name: Build - ${{ matrix.platform.os_name }}
+    name: Build - ${{ matrix.platform.os_name }} (${{ matrix.build_type.name }})
     strategy:
+      fail-fast: false
       matrix:
         platform:
           - os_name: Linux-x86_64
             os: ubuntu-24.04
-            target: x86_64-unknown-linux-musl
+            target: x86_64-unknown-linux-gnu
 
           - os_name: Linux-aarch64
             os: ubuntu-24.04
-            target: aarch64-unknown-linux-musl
+            target: aarch64-unknown-linux-gnu
 
           - os_name: Linux-riscv64
             os: ubuntu-24.04
@@ -45,24 +47,151 @@ jobs:
             os: macos-15
             target: aarch64-apple-darwin
 
+        build_type:
+          - name: none
+            features: "--no-default-features"
+            suffix: ""
+          - name: video
+            features: "--no-default-features --features video"
+            suffix: "-video"
+          - name: gpu
+            features: "--no-default-features --features gpu"
+            suffix: "-gpu"
+          - name: video-gpu
+            features: "--no-default-features --features video,gpu"
+            suffix: "-video-gpu"
+        exclude:
+          - platform:
+              target: riscv64gc-unknown-linux-gnu
+            build_type:
+              name: video
+          - platform:
+              target: riscv64gc-unknown-linux-gnu
+            build_type:
+              name: video-gpu
+
     runs-on: ${{ matrix.platform.os }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install FFmpeg (Ubuntu)
+        if: runner.os == 'Linux' && contains(matrix.build_type.name, 'video')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libavutil-dev libavcodec-dev libavformat-dev \
+            libavdevice-dev libswscale-dev libswresample-dev \
+            libpostproc-dev
+
+      - name: Install FFmpeg (macOS)
+        if: runner.os == 'macOS' && contains(matrix.build_type.name, 'video')
+        run: |
+          brew update
+          brew install ffmpeg
+
+      - name: Set up MSBuild (Windows)
+        if: runner.os == 'Windows' && contains(matrix.build_type.name, 'video')
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Download & extract FFmpeg (Windows)
+        if: runner.os == 'Windows' && contains(matrix.build_type.name, 'video')
+        shell: powershell
+        run: |
+          $target = "${{ matrix.platform.target }}"
+          $ffmpegUrl = ""
+          $ffmpegArchiveName = ""
+
+          if ($target -eq "x86_64-pc-windows-msvc") {
+            $ffmpegUrl = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2025-07-20-14-02/ffmpeg-n7.1.1-56-gc2184b65d2-win64-gpl-shared-7.1.zip'
+            $ffmpegArchiveName = 'ffmpeg-x64.zip'
+            Write-Host "Downloading x64 FFmpeg from BtbN..."
+          } elseif ($target -eq "aarch64-pc-windows-msvc") {
+            $ffmpegUrl = 'https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2025-07-20-14-02/ffmpeg-n7.1.1-56-gc2184b65d2-winarm64-gpl-shared-7.1.zip'
+            $ffmpegArchiveName = 'ffmpeg-arm64.zip'
+            Write-Host "Downloading AARCH64 FFmpeg from BtbN..."
+          } else {
+            Write-Error "Unsupported Windows target for FFmpeg download: $target"
+            exit 1
+          }
+
+          $archive = Join-Path $Env:USERPROFILE $ffmpegArchiveName
+          $dest    = Join-Path $Env:USERPROFILE 'ffmpeg'
+
+          Invoke-WebRequest $ffmpegUrl -OutFile $archive -MaximumRedirection 5
+          Write-Host "Extracting FFmpeg to $dest"
+          $seven = Join-Path $env:ProgramFiles '7-Zip\7z.exe'
+          & $seven x $archive "-o$dest" -y
+          Remove-Item $archive
+
+          $nestedDirs = Get-ChildItem -Path $dest | Where-Object { $_.PSIsContainer }
+          if ($nestedDirs.Count -eq 1) {
+              Write-Host "Found nested directory: $($nestedDirs[0].FullName). Moving contents up."
+              Get-ChildItem -Path $nestedDirs[0].FullName | Move-Item -Destination $dest -Force
+              Remove-Item -Path $nestedDirs[0].FullName -Recurse -Force
+          } else {
+              Write-Host "No single nested directory found or contents already at top level."
+          }
+
+          Add-Content -Path $Env:GITHUB_ENV -Value "FFMPEG_DIR=$dest"
+          Add-Content -Path $Env:GITHUB_ENV -Value "INCLUDE=$dest\include;$Env:INCLUDE"
+          Add-Content -Path $Env:GITHUB_ENV -Value "LIB=$dest\lib;$Env:LIB"
+          Add-Content -Path $Env:GITHUB_ENV -Value "PATH=$dest\bin;$Env:PATH"
+
+      - name: Configure MSVC Environment via vcvarsall (Windows)
+        if: |
+          runner.os == 'Windows' &&
+          contains(matrix.build_type.name, 'video') &&
+          (matrix.platform.target == 'x86_64-pc-windows-msvc' || matrix.platform.target == 'aarch64-pc-windows-msvc')
+        shell: powershell
+        run: |
+          $target = "${{ matrix.platform.target }}"
+          $vcvars_arch = ""
+
+          if ($target -eq "x86_64-pc-windows-msvc") {
+            $vcvars_arch = "x64"
+            Write-Host "Running vcvarsall.bat x64 for x86_64 target..."
+          } elseif ($target -eq "aarch64-pc-windows-msvc") {
+            $vcvars_arch = "x64_arm64"
+            Write-Host "Running vcvarsall.bat x64_arm64 for aarch64 target..."
+          } else {
+            Write-Error "Unsupported Windows target for vcvarsall.bat: $target"
+            exit 1
+          }
+
+          $scriptContent = @"
+          @echo off
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" $vcvars_arch >nul
+          set
+          "@
+
+          $tempScriptPath = Join-Path $env:TEMP "run_vcvars.bat"
+          $scriptContent | Out-File $tempScriptPath -Encoding UTF8
+
+          $vcvarsOutput = cmd.exe /c $tempScriptPath
+
+          foreach ($line in $vcvarsOutput) {
+            if ($line -match "^(.+?)=(.*)$") {
+              $varName = $matches[1]
+              $varValue = $matches[2]
+              Add-Content -Path $Env:GITHUB_ENV -Value "$varName=$varValue"
+            }
+          }
+          Remove-Item $tempScriptPath
 
       - name: Build palettum-cli
         uses: houseabsolute/actions-rust-cross@v1
         with:
           command: build
           target: ${{ matrix.platform.target }}
-          args: "--release -p cli"
+          args: "--release -p cli ${{ matrix.build_type.features }}"
           strip: true
 
-      - name: Publish artifact
+      - name: Publish artifact as Draft Release
         if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: houseabsolute/actions-rust-release@v0
         with:
-          executable-name: palettum
+          executable-name: palettum${{ matrix.build_type.suffix }}
           target: ${{ matrix.platform.target }}
           changes-file: ""
 
@@ -70,6 +199,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: houseabsolute/actions-rust-release@v0
         with:
-          executable-name: palettum
+          executable-name: palettum${{ matrix.build_type.suffix }}
           target: ${{ matrix.platform.target }}
           changes-file: ""

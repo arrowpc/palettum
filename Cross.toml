@@ -1,0 +1,8 @@
+[target.x86_64-unknown-linux-gnu]
+dockerfile = ".cross/x86_64-unknown-linux-gnu/Dockerfile"
+
+[target.aarch64-unknown-linux-gnu]
+dockerfile = ".cross/aarch64-unknown-linux-gnu/Dockerfile"
+
+[target.riscv64gc-unknown-linux-gnu]
+dockerfile = ".cross/riscv64gc-unknown-linux-gnu/Dockerfile"

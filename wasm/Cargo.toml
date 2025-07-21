@@ -9,7 +9,7 @@ description.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-palettum = { path = "../core", features = ["wasm"] }
+palettum = { path = "../core", default-features = false, features = ["wasm", "gpu"] }
 image.workspace = true
 log.workspace = true
 wasm-bindgen.workspace = true

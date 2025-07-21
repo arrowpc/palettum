@@ -10,7 +10,7 @@ name = "palettum"
 path = "src/main.rs"
 
 [dependencies]
-palettum = { path = "../core", features = ["cli"] }
+palettum = { path = "../core", default-features = false, features = ["cli"] }
 clap.workspace = true
 log.workspace = true
 env_logger.workspace = true
@@ -42,9 +42,10 @@ chrono = { version = "0.4.41", optional = true }
 # viuer = { version = "0.8.1", optional = true }
 
 [features]
-default = ["video"]
+default = ["video", "gpu"]
 # tui = ["dep:ratatui", "dep:ratatui-image", "dep:ratatui-explorer", "dep:crossterm", "dep:viuer"]
 profiler = ["dep:pprof", "dep:chrono", "profiler-flamegraph"]
 profiler-flamegraph = ["pprof/flamegraph"]
 ffmpeg-static = ["palettum/ffmpeg-static"]
 video = ["palettum/video"]
+gpu = ["palettum/gpu"]

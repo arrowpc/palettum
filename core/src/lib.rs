@@ -11,6 +11,7 @@ pub mod smoothed;
 pub use config::Config;
 pub use error::{Error, Result};
 pub use media::{Gif, Ico, Image, Media};
+#[cfg(feature = "gpu")]
 pub mod gpu;
 
 pub use processing::process_pixels;

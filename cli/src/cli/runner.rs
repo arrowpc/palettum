@@ -89,6 +89,12 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 let output = output.clone();
                 let start = Instant::now();
 
+                let num_threads_for_config = if cfg!(feature = "gpu") {
+                    num_cpus::get()
+                } else {
+                    args.threads.max(1)
+                };
+
                 let config = Arc::new(
                     Config::builder()
                         .palette(args.palette.clone())
@@ -99,7 +105,7 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                         .dither_strength(args.dither_strength)
                         .smooth_formula(args.smooth_formula)
                         .smooth_strength(args.smooth_strength)
-                        .num_threads(args.threads.max(1))
+                        .num_threads(num_threads_for_config)
                         .quant_level(args.quantization)
                         .build(),
                 );
@@ -179,10 +185,10 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 None
             };
 
-            let total_threads = if args.threads > 0 {
-                args.threads
-            } else {
+            let total_threads = if cfg!(feature = "gpu") {
                 num_cpus::get()
+            } else {
+                args.threads
             };
             let file_threads = total_threads.min(total_files);
 
@@ -211,7 +217,11 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     let height = args.height;
                     let scale = args.scale;
                     let filter = args.filter;
-                    let pixel_threads = (total_threads / file_threads).max(1);
+                    let pixel_threads = if cfg!(feature = "gpu") {
+                        num_cpus::get()
+                    } else {
+                        (total_threads / file_threads).max(1)
+                    };
 
                     file_jobs.push(async move {
                         job_pbs.get(&job_name).unwrap();

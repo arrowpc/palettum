@@ -12,27 +12,30 @@ use rayon::{prelude::*, ThreadPoolBuilder};
 
 use std::collections::HashMap;
 
+#[cfg(feature = "gpu")]
 use crate::gpu::compute::Processor;
+#[cfg(feature = "gpu")]
 use std::sync::Arc;
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
 use async_once_cell::OnceCell;
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(feature = "gpu", target_arch = "wasm32"))]
 use std::cell::RefCell;
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(feature = "gpu", target_arch = "wasm32"))]
 thread_local! {
     static GPU_PROCESSOR: RefCell<Option<Arc<Processor>>> = RefCell::new(None);
 }
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(all(feature = "gpu", target_arch = "wasm32"))]
 thread_local! {
     static GPU_INIT_ATTEMPTED_AND_FAILED: RefCell<bool> = RefCell::new(false);
 }
 
-#[cfg(not(target_arch = "wasm32"))]
+#[cfg(all(feature = "gpu", not(target_arch = "wasm32")))]
 static GPU_PROCESSOR: OnceCell<Arc<Processor>> = OnceCell::new();
 
+#[cfg(feature = "gpu")]
 async fn get_gpu_processor() -> Result<Arc<Processor>> {
     #[cfg(target_arch = "wasm32")]
     {
@@ -393,6 +396,7 @@ pub async fn process_pixels(
     height: u32,
     config: &Config,
 ) -> Result<()> {
+    #[cfg(feature = "gpu")]
     if let Ok(gpu_processor) = get_gpu_processor().await {
         log::debug!("Processing with GPU");
         let result = gpu_processor

@@ -29,20 +29,28 @@ include_dir = "0.7"
 env_home = "0.1.0"
 ico = "0.4.0"
 png = "0.17.16"
-wgpu = { version = "26.0.1", features = ["webgl"] }
-bytemuck = { version = "1.23.0", features = ["derive"] }
-futures = "0.3.31"
-async-once-cell = "0.5.4"
-js-sys = "0.3.77"
-console_error_panic_hook = "0.1.7"
-wasm-bindgen-futures = "0.4.50"
-web-sys = { version = "0.3.77", features = ["HtmlCanvasElement", "ImageBitmap", "OffscreenCanvasRenderingContext2d", "ImageData", "OffscreenCanvas"] }
 ffmpeg-next = { version = "7.1.0", optional = true, default-features = false, features = [ "format", "codec", "software-scaling"] }
-parking_lot = { version = "0.12" }
+parking_lot = { version = "0.12", optional = true }
+wgpu = { version = "26.0.1", optional = true }
+bytemuck = { version = "1.23.0", features = ["derive"], optional = true }
+futures = { version = "0.3.31", optional = true }
+async-once-cell = { version = "0.5.4", optional = true }
+js-sys = { version = "0.3.77", optional = true }
+console_error_panic_hook = { version = "0.1.7", optional = true }
+wasm-bindgen-futures = { version = "0.4.50", optional = true }
+web-sys = { version = "0.3.77", features = ["HtmlCanvasElement", "ImageBitmap", "OffscreenCanvasRenderingContext2d", "ImageData", "OffscreenCanvas"], optional = true }
 
 [features]
+default = ["video", "gpu"]
 serde = ["dep:serde"]
-wasm = ["serde", "dep:wasm-bindgen", "dep:tsify", "image/serde" ]
+wasm = ["serde", "dep:wasm-bindgen", "dep:tsify", "image/serde", "wgpu/webgl", "dep:js-sys", "dep:console_error_panic_hook", "dep:wasm-bindgen-futures", "dep:web-sys" ]
 cli = ["dep:clap", "dep:tabled" ]
 video = ["dep:ffmpeg-next"]
 ffmpeg-static = ["ffmpeg-next/static", "ffmpeg-next/build-lib-x264", "ffmpeg-next/build-license-gpl"]
+gpu = [
+    "dep:wgpu",
+    "dep:bytemuck",
+    "dep:futures",
+    "dep:async-once-cell",
+    "dep:parking_lot",
+]

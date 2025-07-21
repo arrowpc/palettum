@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+#[cfg(feature = "gpu")]
 use wgpu::PollError;
 
 use thiserror::Error as ThisError;
@@ -96,8 +97,9 @@ pub enum Error {
     #[error("GPU error: {0}")]
     Gpu(String),
 
+    #[cfg(feature = "gpu")]
     #[error("GPU polling error: {0}")]
-    GpuPollingErrorl(#[from] PollError),
+    GpuPollingError(#[from] PollError),
 
     #[error("{0}")]
     Internal(String),

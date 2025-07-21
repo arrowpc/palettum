@@ -30,13 +30,12 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - name: Cache FFmpeg dependencies
-        uses: actions/cache@v4
+      - name: Cache APT packages
+        uses: awalsh128/cache-apt-pkgs-action@latest
+        if: runner.os == 'Linux'
         with:
-          path: /var/cache/apt/archives
-          key: ${{ runner.os }}-ffmpeg-deps-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-ffmpeg-deps-
+          packages: libavutil-dev libavcodec-dev libavformat-dev libavdevice-dev libswscale-dev libswresample-dev libpostproc-dev
+          version: 1.0
       - name: Install FFmpeg development libraries
         run: |
           sudo apt-get update

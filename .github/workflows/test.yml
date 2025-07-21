@@ -20,45 +20,73 @@ jobs:
         rust: [stable]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Cache FFmpeg dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            /var/cache/apt/archives # Linux apt cache
-            ~/Library/Caches/Homebrew # macOS Homebrew cache
-            /usr/local/Cellar # macOS Homebrew installations (Intel)
-            /opt/homebrew/Cellar # macOS Homebrew installations (Apple Silicon)
-            vcpkg/installed # Windows vcpkg installations
-          key: ${{ runner.os }}-ffmpeg-deps-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-ffmpeg-deps-
-
-      - name: Install FFmpeg development libraries (Linux)
+      - name: Install FFmpeg (Ubuntu)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libavutil-dev libavcodec-dev libavformat-dev libavdevice-dev libswscale-dev libswresample-dev libpostproc-dev
+          sudo apt-get install -y \
+            libavutil-dev libavcodec-dev libavformat-dev \
+            libavdevice-dev libswscale-dev libswresample-dev \
+            libpostproc-dev
 
-      - name: Install FFmpeg development libraries (macOS)
+      - name: Gather Homebrew paths
         if: runner.os == 'macOS'
         run: |
-          brew install pkg-config ffmpeg
+          echo "BREW_CACHE=$(brew --cache)" >> $GITHUB_ENV
+          echo "BREW_CELLAR=$(brew --cellar)" >> $GITHUB_ENV
+          echo "FFMPEG_PREFIX=$(brew --prefix ffmpeg)" >> $GITHUB_ENV
 
-      - name: Install FFmpeg development libraries (Windows)
-        if: runner.os == 'Windows'
+      - name: Install FFmpeg (macOS)
+        if: runner.os == 'macOS'
         run: |
-          vcpkg install ffmpeg --recurse
-          echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          echo "PKG_CONFIG_PATH=$VCPKG_INSTALLATION_ROOT/installed/x64-windows/lib/pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          brew update
+          brew install ffmpeg
+
+      - name: Expose FFmpeg libs to the loader (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "DYLD_LIBRARY_PATH=${{ env.FFMPEG_PREFIX }}/lib:$DYLD_LIBRARY_PATH" \
+            >> $GITHUB_ENV
+
+      - name: Set up MSBuild (Windows)
+        if: runner.os == 'Windows'
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Download & extract FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $url     = 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full-shared.7z'
+          $archive = Join-Path $Env:USERPROFILE 'ffmpeg.7z'
+          $dest    = Join-Path $Env:USERPROFILE 'ffmpeg'
+
+          Invoke-WebRequest $url -OutFile $archive
+          $seven = Join-Path $Env:ProgramFiles '7-Zip\7z.exe'
+          & $seven x $archive "-o$dest" -y
+          Remove-Item $archive
+
+          $nestedDir = Get-ChildItem -Path $dest | Select-Object -First 1
+          Get-ChildItem -Path $nestedDir.FullName | Move-Item -Destination $dest
+          Remove-Item -Path $nestedDir.FullName
+
+          Add-Content -Path $Env:GITHUB_ENV -Value "FFMPEG_DIR=$dest"
+          Add-Content -Path $Env:GITHUB_ENV -Value "INCLUDE=$dest\include;$Env:INCLUDE"
+          Add-Content -Path $Env:GITHUB_ENV -Value "LIB=$dest\lib;$Env:LIB"
+          Add-Content -Path $Env:GITHUB_ENV -Value "PATH=$dest\bin;$Env:PATH"
 
       - name: Run tests
-        run: cargo test
+        shell: bash
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cmd.exe /c '"C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64 && cargo test'
+          else
+            cargo test
+          fi

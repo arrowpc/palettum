@@ -612,7 +612,8 @@ export class VideoHandler {
           const encConfig = {
             codec: "opus",
             sampleRate: decoderConfig.sampleRate,
-            numberOfChannels: decoderConfig.numberOfChannels,
+            // Yet another bandaid fix woo (for some reason the reported channel no. is not accurate so)
+            numberOfChannels: 2,
           };
           const encoder = new AudioEncoder({
             output: (chunk, meta) =>

@@ -376,7 +376,9 @@ pub(crate) fn process_pixels_cpu(
                         "Failed to create image view from buffer for dithering".to_string(),
                     )
                 })?;
-            palettized::floyd_steinberg(&mut image, config, lab_colors)
+            palettized::floyd_steinberg(&mut image, config, lab_colors)?;
+            image_data.copy_from_slice(image.as_raw());
+            Ok(())
         }
         Dithering::Bn => {
             let mut image =
@@ -385,7 +387,9 @@ pub(crate) fn process_pixels_cpu(
                         "Failed to create image view from buffer for dithering".to_string(),
                     )
                 })?;
-            palettized::blue_noise(&mut image, config, lab_colors)
+            palettized::blue_noise(&mut image, config, lab_colors)?;
+            image_data.copy_from_slice(image.as_raw());
+            Ok(())
         }
     }
 }

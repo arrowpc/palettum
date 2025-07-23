@@ -305,28 +305,12 @@ impl Processor {
                 match config.mapping {
                     Mapping::Palettized => {
                         compute_pass.set_pipeline(&self.context.palettized_pipeline);
+                        compute_pass.set_bind_group(1, &self.context.blue_noise_bind_group, &[]);
                         match config.dither_algorithm {
                             Dithering::Fs => {
                                 compute_pass.dispatch_workgroups(1, 1, 1);
                             }
-                            Dithering::Bn => {
-                                compute_pass.set_bind_group(
-                                    1,
-                                    &self.context.blue_noise_bind_group,
-                                    &[],
-                                );
-                                let dispatch_x =
-                                    gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
-                                let dispatch_y =
-                                    gpu_chunk_config.image_height.div_ceil(WORKGROUP_SIZE_Y);
-                                compute_pass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
-                            }
-                            Dithering::None => {
-                                compute_pass.set_bind_group(
-                                    1,
-                                    &self.context.blue_noise_bind_group,
-                                    &[],
-                                );
+                            Dithering::Bn | Dithering::None => {
                                 let dispatch_x =
                                     gpu_chunk_config.image_width.div_ceil(WORKGROUP_SIZE_X);
                                 let dispatch_y =

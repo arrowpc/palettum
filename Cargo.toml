@@ -24,7 +24,7 @@ tabled = "0.19.0"
 [workspace.package]
 edition = "2021"
 license = "AGPL-3.0"
-version = "0.5.2"
+version = "0.6.0"
 description = "Tool for recoloring images and GIFs with any palette of your choice"
 
 [profile.release]

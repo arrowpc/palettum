@@ -1,13 +1,18 @@
-name: Release CLI on Tag Push
+name: Build CLI on Code Changes
 
 on:
+  workflow_dispatch:
   push:
-    tags:
-      - "v*"
+    paths:
+      - "cli/**"
+      - "core/**"
+      - "wasm/**"
+      - "Cargo.toml"
+      - ".github/workflows/release-cli.yml"
 
 jobs:
-  build-and-release:
-    name: Build & Release - ${{ matrix.platform.os_name }} (${{ matrix.build_type.name }})
+  build:
+    name: Build - ${{ matrix.platform.os_name }} (${{ matrix.build_type.name }})
     strategy:
       fail-fast: false
       matrix:
@@ -53,7 +58,6 @@ jobs:
           - name: video-gpu
             features: "--no-default-features --features video,gpu"
             suffix: "-video-gpu"
-
         exclude:
           - platform:
               target: riscv64gc-unknown-linux-gnu
@@ -65,7 +69,6 @@ jobs:
               name: video-gpu
 
     runs-on: ${{ matrix.platform.os }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -117,13 +120,10 @@ jobs:
           & (Join-Path $env:ProgramFiles '7-Zip\7z.exe') x $archive "-o$dest" -y
           Remove-Item $archive
 
-          $nestedDirs = Get-ChildItem -Path $dest | Where-Object { $_.PSIsContainer }
-          if ($nestedDirs.Count -eq 1) {
-            Write-Host "Found nested directory: $($nestedDirs[0].FullName). Moving contents up."
-            Get-ChildItem -Path $nestedDirs[0].FullName | Move-Item -Destination $dest -Force
-            Remove-Item -Path $nestedDirs[0].FullName -Recurse -Force
-          } else {
-            Write-Host "No single nested directory found or contents already at top level."
+          $dirs = Get-ChildItem $dest | Where-Object PSIsContainer
+          if ($dirs.Count -eq 1) {
+            Get-ChildItem $dirs[0].FullName | Move-Item -Destination $dest -Force
+            Remove-Item $dirs[0].FullName -Recurse -Force
           }
 
           Add-Content -Path $Env:GITHUB_ENV -Value "FFMPEG_DIR=$dest"
@@ -181,10 +181,9 @@ jobs:
           args: "--release -p cli ${{ matrix.build_type.features }}"
           strip: true
 
-      - name: Publish GitHub Release
-        uses: houseabsolute/actions-rust-release@v0
+      - name: Upload CLI artifacts
+        uses: actions/upload-artifact@v4
         with:
-          executable-name: palettum
-          archive-name: palettum-${{ matrix.platform.target }}${{ matrix.build_type.suffix }}
-          target: ${{ matrix.platform.target }}
-          changes-file: ""
+          name: palettum-${{ matrix.platform.target }}${{ matrix.build_type.suffix }}
+          path: |
+            target/${{ matrix.platform.target }}/release/palettum*

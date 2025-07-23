@@ -92,7 +92,14 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                 let num_threads_for_config = if cfg!(feature = "gpu") {
                     num_cpus::get()
                 } else {
-                    args.threads.max(1)
+                    #[cfg(not(feature = "gpu"))]
+                    {
+                        args.threads.max(1)
+                    }
+                    #[cfg(feature = "gpu")]
+                    {
+                        num_cpus::get()
+                    }
                 };
 
                 let config = Arc::new(
@@ -188,7 +195,14 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
             let total_threads = if cfg!(feature = "gpu") {
                 num_cpus::get()
             } else {
-                args.threads
+                #[cfg(not(feature = "gpu"))]
+                {
+                    args.threads
+                }
+                #[cfg(feature = "gpu")]
+                {
+                    num_cpus::get()
+                }
             };
             let file_threads = total_threads.min(total_files);
 
@@ -220,7 +234,14 @@ pub async fn run_cli(cli: Cli, multi: MultiProgress) -> Result<()> {
                     let pixel_threads = if cfg!(feature = "gpu") {
                         num_cpus::get()
                     } else {
-                        (total_threads / file_threads).max(1)
+                        #[cfg(not(feature = "gpu"))]
+                        {
+                            (total_threads / file_threads).max(1)
+                        }
+                        #[cfg(feature = "gpu")]
+                        {
+                            num_cpus::get()
+                        }
                     };
 
                     file_jobs.push(async move {

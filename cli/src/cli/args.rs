@@ -227,13 +227,14 @@ pub struct PalettifyArgs {
 
     // PERFORMANCE OPTIONS
     /// Number of processing threads (0/1 to disable multi-threading)
-    #[cfg_attr(not(feature = "gpu"), arg(
+    #[cfg(not(feature = "gpu"))]
+    #[arg(
         short,
         long,
         value_name = "COUNT",
         default_value_t = num_cpus::get(),
         help_heading = "PERFORMANCE OPTIONS",
-    ))]
+    )]
     pub threads: usize,
 
     /// Color quantization level (0-5)

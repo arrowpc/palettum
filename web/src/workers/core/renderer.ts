@@ -1,11 +1,13 @@
 let renderer: any | null = null;
+import { getWasmPath } from "@/wasm-detect";
 
 /**
  * Lazily loads and returns the singleton renderer instance
  */
 export async function getRenderer() {
   if (renderer) return renderer;
-  const { Renderer } = await import("palettum");
+  const wasmPath = await getWasmPath();
+  const { Renderer } = await import(wasmPath);
   renderer = await new Renderer();
   return renderer;
 }

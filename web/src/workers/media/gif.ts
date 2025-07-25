@@ -1,5 +1,6 @@
 import { getRenderer } from "../core/renderer";
 import type { Gif } from "palettum";
+import { getWasmPath } from "@/wasm-detect";
 
 const LOOP = true;
 
@@ -26,9 +27,12 @@ export class GifHandler {
   }
 
   async init() {
-    const { Gif } = await import("palettum");
+    const wasmPath = await getWasmPath();
+    const { Gif } = await import(wasmPath);
     const buffer = await this.file.arrayBuffer();
     this.gif = new Gif(new Uint8Array(buffer));
+    this.gif = new Gif(new Uint8Array(buffer));
+    if (!this.gif) throw new Error("Failed to initialize GIF");
     this.width = this.gif.width;
     this.height = this.gif.height;
     this.duration = this.gif.num_frames;

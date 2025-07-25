@@ -1,4 +1,4 @@
-import { getWasmPath } from "@/wasm-detect";
+import wasm from "@/lib/wasm";
 import { getRenderer } from "../core/renderer";
 
 export class ImageHandler {
@@ -28,8 +28,7 @@ export class ImageHandler {
   async export(
     onProgress?: (progress: number, message: string) => void,
   ): Promise<Blob> {
-    const wasmPath = await getWasmPath();
-    const { palettify } = await import(wasmPath);
+    const { palettify } = await wasm;
     onProgress?.(0, "palettifying...");
     const palettizedBytes = await palettify(
       new Uint8Array(await this.file.arrayBuffer()),

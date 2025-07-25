@@ -1,6 +1,6 @@
 import { getRenderer } from "../core/renderer";
 import type { Gif } from "palettum";
-import { getWasmPath } from "@/wasm-detect";
+import wasm from "@/lib/wasm";
 
 const LOOP = true;
 
@@ -27,8 +27,7 @@ export class GifHandler {
   }
 
   async init() {
-    const wasmPath = await getWasmPath();
-    const { Gif } = await import(wasmPath);
+    const { Gif } = await wasm;
     const buffer = await this.file.arrayBuffer();
     this.gif = new Gif(new Uint8Array(buffer));
     this.gif = new Gif(new Uint8Array(buffer));

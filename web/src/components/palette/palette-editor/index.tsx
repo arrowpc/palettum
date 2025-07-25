@@ -222,6 +222,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     }
     setPalette((p) => ({ ...p, colors: [selectedColor, ...p.colors] }));
     toast.success("Color added to palette!");
+    setSelectedColor(DEFAULTS.COLOR);
   }, [selectedColor, palette.colors]);
 
   const removeFromPalette = useCallback((indexToRemove: number) => {

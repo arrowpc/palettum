@@ -222,6 +222,7 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
     }
     setPalette((p) => ({ ...p, colors: [selectedColor, ...p.colors] }));
     toast.success("Color added to palette!");
+    setSelectedColor(DEFAULTS.COLOR);
   }, [selectedColor, palette.colors]);
 
   const removeFromPalette = useCallback((indexToRemove: number) => {
@@ -516,7 +517,14 @@ export const PaletteEditor: React.FC<PaletteEditorProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-foreground/10 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+    <div
+      className="fixed inset-0 bg-foreground/10 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          addSelectedColorToPalette();
+        }
+      }}
+    >
       <div
         className={cn(
           "bg-background rounded-lg p-4 sm:p-6 flex flex-col border border-border shadow-xl overflow-hidden",

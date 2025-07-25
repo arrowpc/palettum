@@ -97,6 +97,22 @@ To set up and run the web application:
     bun run dev
     ```
 
+### Self-Hosting with Docker
+
+To build and run the web application using Docker:
+
+1.  **Build the Docker image:**
+    ```bash
+    docker build -t palettum .
+    ```
+
+2.  **Run the Docker container:**
+    ```bash
+    docker run -p 80:80 palettum
+    ```
+
+    The web application will then be accessible in your browser at `http://localhost`
+
 ---
 
 ## References

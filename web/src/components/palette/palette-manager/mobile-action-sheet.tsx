@@ -1,7 +1,7 @@
 import { Copy, Download, Edit2, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useLockBodyScroll } from "@/hooks/use-lock-body-scroll";
-import { type Palette } from "palettum";
+import type { Palette } from "palettum";
 
 interface Props {
   palette: Palette | null;

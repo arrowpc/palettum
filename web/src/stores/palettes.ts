@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { mutative } from "zustand-mutative";
-import { type Palette } from "palettum";
+import type { Palette } from "palettum";
 import { toast } from "sonner";
 import { LIMITS } from "@/lib/utils";
 import { useConfigStore } from "./config";

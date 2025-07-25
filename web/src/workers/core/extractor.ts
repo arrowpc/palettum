@@ -1,4 +1,4 @@
-import { type Palette } from "palettum";
+import type { Palette } from "palettum";
 
 export class Extractor {
   static async extract(file: File, kColors: number): Promise<Palette> {

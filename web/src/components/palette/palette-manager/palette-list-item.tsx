@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { rgbToHex, cn, getDisplayedColors } from "@/lib/utils";
 import { useColorCycle } from "@/hooks/use-color-cycle";
-import { type Palette } from "palettum";
+import type { Palette } from "palettum";
 import TooltipWrapper from "./tooltip-wrapper";
 
 interface Props {

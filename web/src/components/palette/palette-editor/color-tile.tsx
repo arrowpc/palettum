@@ -12,7 +12,7 @@ import {
   getContrastColor,
   getOppositeTextColor,
 } from "@/lib/utils";
-import { type Rgb } from "palettum";
+import type { Rgb } from "palettum";
 
 interface ColorTileProps {
   color: Rgb;

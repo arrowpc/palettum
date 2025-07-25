@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { mutative } from "zustand-mutative";
-import { type Config, type Palette } from "palettum";
+import type { Config, Palette } from "palettum";
 
 interface ConfigState {
   config: Config;

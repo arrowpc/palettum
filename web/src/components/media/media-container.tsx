@@ -7,7 +7,7 @@ import MediaControls from "./media-controls";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
 import { useRenderer } from "@/providers/renderer-provider";
 import { CircleX } from "lucide-react";
-import { type Mapping } from "palettum";
+import type { Mapping } from "palettum";
 import { useConfigStore } from "@/stores";
 import { useMediaStore } from "@/stores/media";
 import DashedBorder from "@/components/ui/dashed-border";

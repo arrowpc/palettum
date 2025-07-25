@@ -1,6 +1,6 @@
 import { useConfigStore } from "@/stores";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
-import { type DiffFormula } from "palettum";
+import type { DiffFormula } from "palettum";
 
 export default function Quality() {
   const setting = "diffFormula";

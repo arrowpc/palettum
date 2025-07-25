@@ -1,7 +1,7 @@
 import React, { useMemo, useCallback } from "react";
 import { Search, Plus, Upload } from "lucide-react";
 import { useOutsideClick } from "@/hooks/use-outside-click";
-import { type Palette } from "palettum";
+import type { Palette } from "palettum";
 import PaletteListItem from "./palette-list-item";
 
 interface Props {

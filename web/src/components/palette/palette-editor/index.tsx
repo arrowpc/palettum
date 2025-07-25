@@ -9,7 +9,7 @@ import {
   isSameColor,
   validatePalette,
 } from "@/lib/utils";
-import { type Palette, type Rgb } from "palettum";
+import type { Palette, Rgb } from "palettum";
 import { toast } from "sonner";
 
 import { PaletteHeader } from "./palette-header";

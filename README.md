@@ -72,6 +72,9 @@ The executable will be located in the `target/debug/` directory (or `target/rele
 
 The web application uses a WebAssembly module compiled from Rust code.
 
+> [!IMPORTANT]
+> It is highly recommended to use `rustup` for managing Rust toolchains rather than a system-wide installation. This helps avoid potential issues, especially when compiling for `wasm32-unknown-unknown` targets.
+
 To set up and run the web application:
 
 1.  **Navigate to the web frontend:**

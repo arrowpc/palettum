@@ -6,6 +6,7 @@ import type * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
 import { initLibAV } from "../libav";
 import { getRenderer } from "../core/renderer";
 import { BufferStream } from "../utils/buffer-stream";
+import wasm from "@/lib/wasm";
 
 type TimestampUs = number;
 
@@ -385,7 +386,7 @@ export class VideoHandler {
     let canvas: OffscreenCanvas | null = null;
     let ctx: OffscreenCanvasRenderingContext2D | null = null;
     return async function palettify(frame: any): Promise<VideoFrame> {
-      const { palettify_frame, resize_frame } = await import("palettum");
+      const { palettify_frame, resize_frame } = await wasm;
 
       const tempCanvas = new OffscreenCanvas(
         frame.codedWidth,
@@ -533,7 +534,7 @@ export class VideoHandler {
           });
           decoder.configure(decoderConfig as VideoDecoderConfig);
 
-          const { get_dimensions } = await import("palettum");
+          const { get_dimensions } = await wasm;
           let dims = await get_dimensions();
 
           let encConfig: VideoEncoderConfig;

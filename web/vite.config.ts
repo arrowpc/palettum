@@ -8,7 +8,6 @@ import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
 
 const PALETTES_PATH = path.resolve(__dirname, "../palettes");
-const PALETTUM_PATH = path.resolve(__dirname, "./src/wasm/pkg");
 
 const LIBAV_PKGS = [
   "@libav.js/variant-webcodecs",
@@ -116,7 +115,6 @@ export default defineConfig(({ command }): UserConfig => {
       alias: [
         { find: "@", replacement: path.resolve(__dirname, "./src") },
         { find: "palettes", replacement: PALETTES_PATH },
-        { find: "palettum", replacement: PALETTUM_PATH },
         ...libavAliases,
       ],
     },

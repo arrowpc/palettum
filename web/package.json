@@ -8,8 +8,12 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "wasm:build": "cd ../wasm && RUSTFLAGS='--cfg=web_sys_unstable_apis -C target-feature=+simd128' wasm-pack build --target bundler --out-dir ../web/src/wasm/pkg --debug && cd ../web",
-    "wasm:build:release": "cd ../wasm && RUSTFLAGS='--cfg=web_sys_unstable_apis -C target-feature=+simd128' wasm-pack build --target bundler --out-dir ../web/src/wasm/pkg --release && cd ../web"
+    "wasm:build:debug:simd": "cd ../wasm && RUSTFLAGS='--cfg=web_sys_unstable_apis -C target-feature=+simd128' wasm-pack build --target bundler --out-dir ../web/src/wasm/pkg --debug && cd ../web",
+    "wasm:build:debug:nosimd": "cd ../wasm && RUSTFLAGS='--cfg=web_sys_unstable_apis' wasm-pack build --target bundler --out-dir ../web/src/wasm/pkg-nosimd --debug && cd ../web",
+    "wasm:build:debug": "npm run wasm:build:debug:simd && npm run wasm:build:debug:nosimd",
+    "wasm:build:release:simd": "cd ../wasm && RUSTFLAGS='--cfg=web_sys_unstable_apis -C target-feature=+simd128' wasm-pack build --target bundler --out-dir ../web/src/wasm/pkg --release && cd ../web",
+    "wasm:build:release:nosimd": "cd ../wasm && cp Cargo.toml Cargo.toml.bak && sed -i.tmp 's/--enable-simd,//' Cargo.toml && RUSTFLAGS='--cfg=web_sys_unstable_apis' wasm-pack build --target bundler --out-dir ../web/src/wasm/pkg-nosimd --release && mv Cargo.toml.bak Cargo.toml && rm -f Cargo.toml.tmp && cd ../web",
+    "wasm:build:release": "npm run wasm:build:release:simd && npm run wasm:build:release:nosimd"
   },
   "dependencies": {
     "@libav.js/variant-webcodecs": "^6.7.7",

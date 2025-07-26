@@ -2,7 +2,7 @@ import React from "react";
 import { cn } from "@/lib/utils";
 import { ColorTile } from "./color-tile";
 import { AddColorButton } from "./add-color-button";
-import { type Rgb } from "palettum";
+import type { Rgb } from "palettum";
 import { rgbToHex, LIMITS } from "@/lib/utils";
 
 interface ColorDisplayAreaProps {

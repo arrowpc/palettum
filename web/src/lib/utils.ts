@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { type Rgb, type Palette } from "palettum";
+import type { Rgb, Palette } from "palettum";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

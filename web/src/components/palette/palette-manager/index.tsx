@@ -11,7 +11,7 @@ import MobileActionSheet from "./mobile-action-sheet";
 import PaletteEditor from "@/components/palette/palette-editor";
 import { usePaletteStore } from "@/stores";
 import { generateUniqueId } from "@/lib/utils";
-import { type Palette } from "palettum";
+import type { Palette } from "palettum";
 import { toast } from "sonner";
 
 const PaletteManager: React.FC = () => {

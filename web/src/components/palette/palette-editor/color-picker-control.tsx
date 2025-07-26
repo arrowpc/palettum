@@ -9,7 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { RGBInput } from "./rgb-input";
-import { type Rgb } from "palettum";
+import type { Rgb } from "palettum";
 
 interface ColorPickerControlProps {
   hexValue: string;

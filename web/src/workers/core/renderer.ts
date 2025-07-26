@@ -1,3 +1,5 @@
+import wasm from "@/lib/wasm";
+
 let renderer: any | null = null;
 
 /**
@@ -5,7 +7,7 @@ let renderer: any | null = null;
  */
 export async function getRenderer() {
   if (renderer) return renderer;
-  const { Renderer } = await import("palettum");
+  const { Renderer } = await wasm;
   renderer = await new Renderer();
   return renderer;
 }

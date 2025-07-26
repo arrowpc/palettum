@@ -16,7 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { rgbToHex, cn } from "@/lib/utils";
-import { type Palette } from "palettum";
+import type { Palette } from "palettum";
 import { useColorCycle } from "@/hooks/use-color-cycle";
 import TooltipWrapper from "./tooltip-wrapper";
 

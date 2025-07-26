@@ -1,6 +1,6 @@
 import { useConfigStore } from "@/stores";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
-import { type SmoothFormula } from "palettum";
+import type { SmoothFormula } from "palettum";
 
 export default function SmoothFormula() {
   const setting = "smoothFormula";

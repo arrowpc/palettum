@@ -1,16 +1,26 @@
+import { lazy, Suspense } from "react";
 import MediaContainer from "@/components/media/media-container";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { GitHubButton } from "@/components/buttons/github-button";
 import { ThemeToggle } from "@/components/buttons/theme-toggle";
 import PaletteManager from "@/components/palette/palette-manager";
-import SettingsPanel from "@/components/settings/settings-panel";
-import { ExportButton } from "@/components/buttons/export-button";
 import { useMediaStore } from "@/stores";
 import Footer from "@/components/footer";
 
-import("react-scan").then(({ scan }) => {
-  scan({ enabled: true });
-});
+const SettingsPanel = lazy(
+  () => import("@/components/settings/settings-panel"),
+);
+const ExportButton = lazy(() =>
+  import("@/components/buttons/export-button").then((module) => ({
+    default: module.ExportButton,
+  })),
+);
+
+if (process.env.NODE_ENV === "development") {
+  import("react-scan").then(({ scan }) => {
+    scan({ enabled: true });
+  });
+}
 
 function App() {
   const file = useMediaStore((state) => state.file);
@@ -31,10 +41,16 @@ function App() {
           <MediaContainer />
           <PaletteManager />
           {file && (
-            <>
+            <Suspense
+              fallback={
+                <div className="flex justify-center items-center">
+                  Loading...
+                </div>
+              }
+            >
               <SettingsPanel />
               <ExportButton />
-            </>
+            </Suspense>
           )}
           <Footer />
         </main>

@@ -135,6 +135,13 @@ export default defineConfig(({ command }): UserConfig => {
     build: {
       rollupOptions: {
         external: (id) => id.startsWith("/_libav/"),
+        output: {
+          manualChunks(id) {
+            if (id.includes("components/ui/experimental/toggle-switch.tsx")) {
+              return "toggle-switch-chunk";
+            }
+          },
+        },
       },
     },
 

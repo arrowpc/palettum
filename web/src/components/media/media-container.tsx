@@ -1,8 +1,10 @@
 import { useState, useRef, useLayoutEffect } from "react";
 import { cn, checkAlphaChannel } from "@/lib/utils";
-import InputArea from "./input-area";
-import CanvasPreview from "./canvas-preview";
-import CanvasViewer from "./canvas-viewer";
+import { lazy, Suspense } from "react";
+
+const InputArea = lazy(() => import("./input-area"));
+const CanvasPreview = lazy(() => import("./canvas-preview"));
+const CanvasViewer = lazy(() => import("./canvas-viewer"));
 import MediaControls from "./media-controls";
 import { ToggleSwitch } from "@/components/ui/experimental/toggle-switch";
 import { useRenderer } from "@/providers/renderer-provider";
@@ -81,16 +83,18 @@ export default function MediaContainer() {
       }
     >
       <div className={frameClass} style={{ borderRadius: `${borderRadius}px` }}>
-        {file ? (
-          <CanvasPreview
-            file={file}
-            onCanvasClick={() => setShowViewer(true)}
-            borderRadius={`${borderRadius}px`}
-            onClear={clear}
-          />
-        ) : (
-          <InputArea onFile={handleFile} onDragStateChange={setDragging} />
-        )}
+        <Suspense fallback={null}>
+          {file ? (
+            <CanvasPreview
+              file={file}
+              onCanvasClick={() => setShowViewer(true)}
+              borderRadius={`${borderRadius}px`}
+              onClear={clear}
+            />
+          ) : (
+            <InputArea onFile={handleFile} onDragStateChange={setDragging} />
+          )}
+        </Suspense>
       </div>
 
       <DashedBorder
@@ -131,15 +135,17 @@ export default function MediaContainer() {
       )}
 
       {showViewer && (
-        <CanvasViewer
-          onClose={() => {
-            setShowViewer(false);
-            if (renderer) {
-              renderer.dropCanvas(VIEWER_CANVAS_ID);
-              renderer.switchCanvas(MEDIA_CANVAS_ID);
-            }
-          }}
-        />
+        <Suspense fallback={null}>
+          <CanvasViewer
+            onClose={() => {
+              setShowViewer(false);
+              if (renderer) {
+                renderer.dropCanvas(VIEWER_CANVAS_ID);
+                renderer.switchCanvas(MEDIA_CANVAS_ID);
+              }
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

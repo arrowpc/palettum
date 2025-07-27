@@ -47,7 +47,7 @@ const MobileActionSheet: React.FC<Props> = ({
       <div className="relative w-full bg-card rounded-t-xl shadow-lg transform transition-transform duration-200">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="font-medium text-foreground truncate">{palette.id}</h3>
+          <h2 className="font-medium text-foreground truncate">{palette.id}</h2>
           <button
             onClick={onClose}
             className="p-2 text-muted-foreground hover:text-foreground transition-colors"

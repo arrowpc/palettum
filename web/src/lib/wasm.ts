@@ -23,4 +23,4 @@ async function loadWasm() {
   return wasm;
 }
 
-export default loadWasm();
+export default loadWasm;

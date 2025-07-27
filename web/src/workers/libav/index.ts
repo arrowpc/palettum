@@ -2,8 +2,8 @@ import {
   type LibAV as LibAVInstance,
   default as LibAV,
 } from "@libav.js/variant-webcodecs";
-import * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
-import * as LibAVWebCodecs from "libavjs-webcodecs-polyfill";
+
+import type * as LibAVWebCodecsBridge from "libavjs-webcodecs-bridge";
 
 export type LibAVCtx = {
   libav: LibAVInstance;
@@ -22,6 +22,11 @@ export async function initLibAV(): Promise<LibAVCtx> {
   if (initPromise) return initPromise;
 
   initPromise = (async () => {
+    const [LibAVWebCodecs, LibAVWebCodecsBridge] = await Promise.all([
+      import("libavjs-webcodecs-polyfill"),
+      import("libavjs-webcodecs-bridge"),
+    ]);
+
     await LibAVWebCodecs.load({
       polyfill: true,
       LibAV,

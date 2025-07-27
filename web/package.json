@@ -62,7 +62,8 @@
     "tw-animate-css": "^1.3.5",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.37.0",
-    "vite": "^6.3.5"
+    "vite": "^6.3.5",
+    "vite-plugin-preload": "^0.4.2"
   },
   "patchedDependencies": {
     "libavjs-webcodecs-polyfill@0.5.3": "patches/libavjs-webcodecs-polyfill@0.5.3.patch",

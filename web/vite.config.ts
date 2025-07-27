@@ -6,6 +6,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import wasm from "vite-plugin-wasm";
 import topLevelAwait from "vite-plugin-top-level-await";
+import preload from "vite-plugin-preload";
 
 const PALETTES_PATH = path.resolve(__dirname, "../palettes");
 
@@ -109,6 +110,7 @@ export default defineConfig(({ command }): UserConfig => {
       topLevelAwait(),
       enableCOEP,
       exposeLibAV,
+      preload(),
     ],
 
     resolve: {

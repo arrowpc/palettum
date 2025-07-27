@@ -121,10 +121,11 @@ export const MediaControlsToolbar: React.FC<MediaControlsToolbarProps> = memo(
     const isPlaying = useMediaStore((s) => s.isPlaying);
     const setIsPlaying = useMediaStore((s) => s.setIsPlaying);
     const meta = useMediaStore((s) => s.meta);
-    const renderer = useRenderer();
+    const { renderer } = useRenderer();
 
     const handlePlayPause = (e: React.MouseEvent) => {
       e.stopPropagation();
+      if (!renderer) return;
       setIsPlaying(!isPlaying);
       if (isPlaying) {
         renderer.pause();

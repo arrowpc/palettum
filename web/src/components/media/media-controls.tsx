@@ -11,7 +11,7 @@ export default function MediaControls() {
   const isPlaying = useMediaStore((s) => s.isPlaying);
   const setIsPlaying = useMediaStore((s) => s.setIsPlaying);
   const meta = useMediaStore((s) => s.meta);
-  const renderer = useRenderer();
+  const { renderer } = useRenderer();
 
   useEffect(() => {
     const checkMobile = () => {
@@ -27,6 +27,7 @@ export default function MediaControls() {
 
   const handlePlayPause = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!renderer) return;
     if (isPlaying) {
       renderer.pause();
     } else {

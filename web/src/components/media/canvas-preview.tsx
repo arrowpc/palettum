@@ -24,7 +24,7 @@ export default function CanvasPreview({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hasRun = useRef(false);
 
-  const renderer = useRenderer();
+  const { renderer } = useRenderer();
   const setIsPlaying = useMediaStore((s) => s.setIsPlaying);
   const setMediaMeta = useMediaStore((s) => s.setMediaMeta);
   const setIsLoading = useMediaStore((s) => s.setIsLoading);
@@ -49,6 +49,7 @@ export default function CanvasPreview({
     off.height = parent.offsetHeight;
 
     (async () => {
+      if (!renderer) return;
       try {
         setIsLoading(true);
         await renderer.init();

@@ -33,7 +33,7 @@ export default function MediaContainer() {
   const [borderRadius, setBorderRadius] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const renderer = useRenderer();
+  const { renderer } = useRenderer();
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -55,8 +55,10 @@ export default function MediaContainer() {
   };
 
   const clear = () => {
-    renderer.dispose();
-    renderer.dropCanvas(MEDIA_CANVAS_ID);
+    if (renderer) {
+      renderer.dispose();
+      renderer.dropCanvas(MEDIA_CANVAS_ID);
+    }
     resetMedia();
   };
 
@@ -132,8 +134,10 @@ export default function MediaContainer() {
         <CanvasViewer
           onClose={() => {
             setShowViewer(false);
-            renderer.dropCanvas(VIEWER_CANVAS_ID);
-            renderer.switchCanvas(MEDIA_CANVAS_ID);
+            if (renderer) {
+              renderer.dropCanvas(VIEWER_CANVAS_ID);
+              renderer.switchCanvas(MEDIA_CANVAS_ID);
+            }
           }}
         />
       )}

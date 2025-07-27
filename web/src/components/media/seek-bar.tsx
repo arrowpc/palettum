@@ -12,7 +12,7 @@ export default function SeekBar({ className }: Props) {
   const setProgress = useMediaStore((s) => s.setProgress);
   const isPlaying = useMediaStore((s) => s.isPlaying);
   const meta = useMediaStore((s) => s.meta);
-  const renderer = useRenderer();
+  const { renderer } = useRenderer();
 
   const handleValueChange = ([v]: number[]) => {
     setProgress(v);
@@ -20,11 +20,13 @@ export default function SeekBar({ className }: Props) {
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
+    if (!renderer) return;
     renderer.pause();
   };
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     e.stopPropagation();
+    if (!renderer) return;
     renderer.seek(progress);
     if (isPlaying) {
       renderer.play();

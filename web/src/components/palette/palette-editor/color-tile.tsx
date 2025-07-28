@@ -84,6 +84,7 @@ export const ColorTile = React.memo(function ColorTile({
                     className="p-1.5 rounded-full shadow-sm"
                     style={{ background: buttonBg }}
                     title="Add to palette"
+                    aria-label="Add to palette"
                   >
                     <Plus className="w-4 h-4" style={{ color: iconColor }} />
                   </button>
@@ -99,6 +100,7 @@ export const ColorTile = React.memo(function ColorTile({
                     className="p-1.5 rounded-full shadow-sm hover:scale-110 transition-transform duration-150"
                     style={{ background: buttonBg }}
                     title="Add to palette"
+                    aria-label="Add to palette"
                   >
                     <Plus className="w-4 h-4" style={{ color: iconColor }} />
                   </button>
@@ -110,6 +112,7 @@ export const ColorTile = React.memo(function ColorTile({
                     className="p-1.5 rounded-full shadow-sm hover:scale-110 transition-transform duration-150"
                     style={{ background: buttonBg }}
                     title="Dismiss suggestion"
+                    aria-label="Dismiss suggestion"
                   >
                     <X className="w-4 h-4" style={{ color: iconColor }} />
                   </button>
@@ -135,6 +138,7 @@ export const ColorTile = React.memo(function ColorTile({
                   className="p-1.5 rounded-full shadow-sm hover:scale-110 transition-transform duration-150"
                   style={{ background: buttonBg }}
                   title="Remove from palette"
+                  aria-label="Remove from palette"
                 >
                   <Trash2 className="w-4 h-4" style={{ color: iconColor }} />
                 </button>

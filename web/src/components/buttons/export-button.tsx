@@ -11,7 +11,7 @@ import { toast } from "sonner";
 type ExportState = "idle" | "loading" | "progress";
 
 export function ExportButton() {
-  const renderer = useRenderer();
+  const { renderer } = useRenderer();
   const [exportState, setExportState] = useState<ExportState>("idle");
   const [exportProgress, setExportProgress] = useState(0);
   const [exportMessage, setExportMessage] = useState("Exporting...");

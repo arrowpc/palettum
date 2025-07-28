@@ -27,7 +27,7 @@ export class GifHandler {
   }
 
   async init() {
-    const { Gif } = await wasm;
+    const { Gif } = await wasm();
     const buffer = await this.file.arrayBuffer();
     this.gif = new Gif(new Uint8Array(buffer));
     this.gif = new Gif(new Uint8Array(buffer));

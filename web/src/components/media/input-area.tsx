@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useRenderer } from "@/providers/renderer-provider";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -19,7 +20,13 @@ export default function InputArea({ onFile, onDragStateChange }: Props) {
     onDragStateChange?.(v);
   };
 
-  const handleFile = (f: File | undefined) => f && onFile(f);
+  const { initRenderer } = useRenderer();
+
+  const handleFile = async (f: File | undefined) => {
+    if (!f) return;
+    await initRenderer();
+    onFile(f);
+  };
 
   const dragEnter = (e: React.DragEvent) => {
     e.preventDefault();

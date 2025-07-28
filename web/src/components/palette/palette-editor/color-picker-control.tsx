@@ -81,6 +81,7 @@ export const ColorPickerControl = React.memo(function ColorPickerControl({
                         ? "bg-primary hover:bg-primary-hover border-primary text-primary-foreground"
                         : "hover:bg-muted border-border text-foreground",
                     )}
+                    aria-label="Use eyedropper"
                   >
                     <Pipette className="w-4 h-4" />
                   </button>

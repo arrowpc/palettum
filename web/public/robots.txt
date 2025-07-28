@@ -1,0 +1,8 @@
+User-agent: *
+
+Disallow: /__/
+Disallow: /_libav/
+Disallow: /node_modules/
+Disallow: /dist/
+
+Allow: /

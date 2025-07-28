@@ -1,5 +1,4 @@
 import * as React from "react";
-import { animate, motion, type PanInfo, useMotionValue } from "framer-motion";
 import { cva } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
@@ -27,30 +26,31 @@ const labelBase =
 
 const thumbShadow = "shadow-[0_6px_20px_theme(colors.primary/0.35)]";
 
-const SPRING = {
-  type: "spring" as const,
-  stiffness: 550,
-  damping: 46,
-  mass: 0.35,
-};
-
 const PRESS_SCALE = 0.88;
 const MUTED_OPACITY = 0.65;
+
+const SPRING_EASING = "cubic-bezier(0.34, 1.56, 0.64, 1)";
+const SPRING_DURATION = "450ms";
+
 export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
   (props, forwardRef) => {
     const { options, value, onChange, className, ...rest } = props;
 
     const wrapperRef = React.useRef<HTMLDivElement>(null);
     const labelRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+    const thumbRef = React.useRef<HTMLDivElement>(null);
 
     const [segments, setSegments] = React.useState<
       { offset: number; width: number }[]
     >([]);
     const [scale, setScale] = React.useState(1);
-
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [isPressed, setIsPressed] = React.useState(false);
     const [hoveredLabelIndex, setHoveredLabelIndex] = React.useState<
       number | null
     >(null);
+    const [dragStartX, setDragStartX] = React.useState(0);
+    const [thumbStartX, setThumbStartX] = React.useState(0);
 
     const measure = React.useCallback(() => {
       const segs = labelRefs.current.map((el) =>
@@ -107,63 +107,134 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
       [scaledSegments],
     );
 
-    const mvX = useMotionValue(0);
-    const mvW = useMotionValue(0);
-
     React.useEffect(() => {
-      if (!scaledSegments.length) return;
-      animate(mvX, scaledSegments[activeIdx].offset, SPRING as any);
-      animate(mvW, scaledSegments[activeIdx].width, SPRING as any);
-    }, [scaledSegments, activeIdx, mvX, mvW]);
+      if (!scaledSegments.length || !thumbRef.current || isDragging) return;
+
+      const thumb = thumbRef.current;
+      const targetSegment = scaledSegments[activeIdx];
+
+      thumb.style.transform = `translateX(${targetSegment.offset}px)`;
+      thumb.style.width = `${targetSegment.width}px`;
+    }, [scaledSegments, activeIdx, isDragging]);
 
     const constraints = React.useMemo(() => {
       if (!scaledSegments.length) return { left: 0, right: 0 };
+      const lastSegment = scaledSegments[scaledSegments.length - 1];
       return {
         left: scaledSegments[0].offset,
-        right: scaledSegments[scaledSegments.length - 1].offset,
+        right: lastSegment.offset,
       };
     }, [scaledSegments]);
 
-    const handleDrag = React.useCallback(
-      (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-        if (!wrapperRef.current) return;
-        const left = wrapperRef.current.getBoundingClientRect().left;
-        const currentHoveredIdx = nearestIdx((info.point.x - left) / scale);
+    const handleMouseDown = React.useCallback(
+      (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!wrapperRef.current || !thumbRef.current) return;
+
+        const currentTransform = thumbRef.current.style.transform;
+
+        const translateMatch = currentTransform.match(
+          /translateX\(([^)]+)px\)/,
+        );
+        const currentX = translateMatch
+          ? parseFloat(translateMatch[1])
+          : scaledSegments[activeIdx]?.offset || 0;
+
+        setIsDragging(true);
+        setIsPressed(true);
+        setDragStartX(e.clientX);
+        setThumbStartX(currentX);
+
+        e.preventDefault();
+      },
+      [scaledSegments, activeIdx],
+    );
+
+    const handleMouseMove = React.useCallback(
+      (e: MouseEvent) => {
+        if (!isDragging || !wrapperRef.current || !thumbRef.current) return;
+
+        const deltaX = e.clientX - dragStartX;
+        let newX = thumbStartX + deltaX;
+
+        const elasticFactor = 0.2;
+        const leftBound = constraints.left;
+        const rightBound = constraints.right;
+
+        if (newX < leftBound) {
+          const overshoot = leftBound - newX;
+          newX = leftBound - overshoot * elasticFactor;
+        } else if (newX > rightBound) {
+          const overshoot = newX - rightBound;
+          newX = rightBound + overshoot * elasticFactor;
+        }
+
+        thumbRef.current.style.transition = "none";
+        thumbRef.current.style.transform = `translateX(${newX}px) scale(${PRESS_SCALE})`;
+
+        const rect = wrapperRef.current.getBoundingClientRect();
+        const currentHoveredIdx = nearestIdx((e.clientX - rect.left) / scale);
+
         if (currentHoveredIdx !== hoveredLabelIndex) {
           setHoveredLabelIndex(currentHoveredIdx);
         }
       },
-      [nearestIdx, hoveredLabelIndex, scale],
+      [
+        isDragging,
+        dragStartX,
+        thumbStartX,
+        constraints,
+        nearestIdx,
+        hoveredLabelIndex,
+        scale,
+      ],
     );
 
-    const handleDragEnd = React.useCallback(
-      (_e: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
-        if (!wrapperRef.current) return;
-        const left = wrapperRef.current.getBoundingClientRect().left;
-        const idx = nearestIdx((info.point.x - left) / scale);
+    const handleMouseUp = React.useCallback(
+      (e: MouseEvent) => {
+        if (!isDragging || !wrapperRef.current || !thumbRef.current) return;
 
-        animate(mvX, scaledSegments[idx].offset, SPRING as any);
-        animate(mvW, scaledSegments[idx].width, SPRING as any);
-
+        setIsDragging(false);
+        setIsPressed(false);
         setHoveredLabelIndex(null);
 
-        if (options[idx].value !== value) onChange(options[idx].value);
+        const rect = wrapperRef.current.getBoundingClientRect();
+        const idx = nearestIdx((e.clientX - rect.left) / scale);
+
+        const thumb = thumbRef.current;
+        thumb.style.transition = `all ${SPRING_DURATION} ${SPRING_EASING}`;
+        thumb.style.transform = `translateX(${scaledSegments[idx].offset}px) scale(1)`;
+        thumb.style.width = `${scaledSegments[idx].width}px`;
+
+        if (options[idx].value !== value) {
+          onChange(options[idx].value);
+        }
       },
-      [nearestIdx, scaledSegments, mvX, mvW, options, value, onChange, scale],
+      [isDragging, nearestIdx, scaledSegments, options, value, onChange, scale],
     );
+
+    React.useEffect(() => {
+      if (isDragging) {
+        document.addEventListener("mousemove", handleMouseMove);
+        document.addEventListener("mouseup", handleMouseUp);
+        return () => {
+          document.removeEventListener("mousemove", handleMouseMove);
+          document.removeEventListener("mouseup", handleMouseUp);
+        };
+      }
+    }, [isDragging, handleMouseMove, handleMouseUp]);
 
     const handleTap = React.useCallback(
       (e: React.MouseEvent<HTMLDivElement>) => {
-        if (!wrapperRef.current) return;
-        const left = wrapperRef.current.getBoundingClientRect().left;
-        const idx = nearestIdx((e.clientX - left) / scale);
+        if (!wrapperRef.current || isDragging) return;
 
-        animate(mvX, scaledSegments[idx].offset, SPRING as any);
-        animate(mvW, scaledSegments[idx].width, SPRING as any);
+        const rect = wrapperRef.current.getBoundingClientRect();
+        const idx = nearestIdx((e.clientX - rect.left) / scale);
 
-        if (options[idx].value !== value) onChange(options[idx].value);
+        if (options[idx].value !== value) {
+          onChange(options[idx].value);
+        }
       },
-      [nearestIdx, scaledSegments, mvX, mvW, options, value, onChange, scale],
+      [nearestIdx, options, value, onChange, scale, isDragging],
     );
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -203,26 +274,33 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
             zIndex: 2,
           }}
         >
-          <motion.div
+          <div
+            ref={thumbRef}
             aria-hidden
             className={cn(
               "absolute top-0 h-full rounded-md bg-primary",
               thumbShadow,
               "z-1",
             )}
-            style={{ x: mvX, width: mvW }}
-            drag="x"
-            dragConstraints={constraints}
-            dragElastic={0.2}
-            dragMomentum={false}
-            whileTap={{ scale: PRESS_SCALE }}
-            whileDrag={{ scale: PRESS_SCALE }}
-            onDrag={handleDrag}
-            onDragEnd={handleDragEnd}
+            style={{
+              transition: isDragging
+                ? "none"
+                : `all ${SPRING_DURATION} ${SPRING_EASING}`,
+              transform:
+                scaledSegments.length > 0
+                  ? `translateX(${scaledSegments[activeIdx]?.offset || 0}px) scale(${isPressed ? PRESS_SCALE : 1})`
+                  : "translateX(0px) scale(1)",
+              width:
+                scaledSegments.length > 0
+                  ? `${scaledSegments[activeIdx]?.width || 0}px`
+                  : "0px",
+              cursor: isDragging ? "grabbing" : "grab",
+            }}
+            onMouseDown={handleMouseDown}
           />
 
           {options.map((o, i) => (
-            <motion.div
+            <div
               key={o.value}
               ref={(el) => {
                 labelRefs.current[i] = el;
@@ -233,23 +311,17 @@ export const ToggleSwitch = React.forwardRef<HTMLDivElement, ToggleSwitchProps>(
                 "text-primary-foreground": i === activeIdx,
                 "text-muted-foreground": i !== activeIdx,
               })}
-              initial={false}
-              animate={{
-                scale: i === hoveredLabelIndex ? 1.15 : 1,
+              style={{
+                transition: `all 300ms cubic-bezier(0.34, 1.56, 0.64, 1)`,
+                transform: `scale(${i === hoveredLabelIndex ? 1.15 : 1})`,
                 opacity:
                   i === activeIdx || i === hoveredLabelIndex
                     ? 1
                     : MUTED_OPACITY,
               }}
-              transition={{
-                type: "spring",
-                stiffness: 400,
-                damping: 30,
-                mass: 0.8,
-              }}
             >
               {o.label}
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

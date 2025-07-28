@@ -56,7 +56,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const displayCanvasRef = useRef<HTMLCanvasElement>(null);
-  const renderer = useRenderer();
+  const { renderer } = useRenderer();
   const panRafRef = useRef<number>(0);
   const defaultZoomRef = useRef<number>(1);
 
@@ -326,6 +326,7 @@ const CanvasViewer: React.FC<CanvasViewerProps> = ({ onClose }) => {
       if (!displayEl || resizedWidth <= 0 || resizedHeight <= 0) {
         return;
       }
+      if (!renderer) return;
       try {
         setCanvasSize({ width: resizedWidth, height: resizedHeight });
         displayEl.width = resizedWidth;

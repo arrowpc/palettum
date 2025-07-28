@@ -28,7 +28,7 @@ export class ImageHandler {
   async export(
     onProgress?: (progress: number, message: string) => void,
   ): Promise<Blob> {
-    const { palettify } = await wasm;
+    const { palettify } = await wasm();
     onProgress?.(0, "palettifying...");
     const palettizedBytes = await palettify(
       new Uint8Array(await this.file.arrayBuffer()),

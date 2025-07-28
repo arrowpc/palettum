@@ -3,7 +3,7 @@ import { useRenderer } from "@/providers/renderer-provider";
 import { useConfigStore } from "@/stores";
 
 export function useSyncConfigToWorker() {
-  const renderer = useRenderer();
+  const { renderer } = useRenderer();
 
   useEffect(() => {
     if (!renderer) return;

@@ -49,6 +49,7 @@ const ActionButton = React.memo<{
           ? "text-muted-foreground cursor-not-allowed"
           : "text-foreground hover:bg-muted",
       )}
+      aria-label={label}
     >
       <Icon className="w-4 h-4" />
     </button>
@@ -64,6 +65,7 @@ const NavButton = React.memo<{
     <button
       onClick={onClick}
       className="p-1.5 rounded-md hover:bg-muted text-foreground transition-colors"
+      aria-label={label}
     >
       <Icon className="w-4 h-4" />
     </button>
@@ -150,7 +152,7 @@ const PalettePreview: React.FC<Props> = ({
       {/* Header */}
       <div className="flex items-center justify-between p-4 pb-3">
         <div className="flex items-center gap-3 min-w-0">
-          <h3 className="font-medium text-foreground truncate">{palette.id}</h3>
+          <h2 className="font-medium text-foreground truncate">{palette.id}</h2>
           {palette.kind === "Default" && (
             <span className="px-2 py-0.5 text-xs bg-muted text-muted-foreground rounded flex items-center gap-1">
               <Sparkle className="w-3 h-3" />
@@ -231,6 +233,7 @@ const PalettePreview: React.FC<Props> = ({
             <button
               onClick={handleToggle}
               className="p-2 rounded-md hover:bg-muted text-foreground transition-colors"
+              aria-label="Browse palettes"
             >
               <ChevronDown
                 className={cn(
